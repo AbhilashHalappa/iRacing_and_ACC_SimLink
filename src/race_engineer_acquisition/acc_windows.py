@@ -14,6 +14,10 @@ from .models import RawPhysicsRead
 
 PHYSICS_MAP = r"Local\acpmf_physics"
 
+# Layout provenance: AbhilashHalappa/Race-Engineer-ACC,
+# branch diagnostic/high-res-capture-2026-11-07,
+# src/acc_shared_memory_extended.py, blob e9a54bda008cb6ff1797dfdc14b07b297a461ab9.
+
 class _Physics(ctypes.LittleEndianStructure):
     _pack_ = 4
     _fields_ = [
