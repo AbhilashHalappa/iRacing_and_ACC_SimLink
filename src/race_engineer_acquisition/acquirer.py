@@ -23,11 +23,16 @@ class AcquisitionMetrics:
     inconsistent_snapshot_count: int = 0
     consistency_retry_count: int = 0
     source_packet_gap_count: int = 0
+    duplicate_packet_observation_count: int = 0
+    packet_id_regression_count: int = 0
     last_packet_id: int | None = None
     last_capture_sequence: int = 0
     last_acquisition_duration_ns: int = 0
     max_acquisition_duration_ns: int = 0
+    last_poll_interval_ns: int = 0
+    max_poll_interval_ns: int = 0
     buffer_rejection_count: int = 0
+    _previous_read_start_ns: int | None = None
 
 
 class PhysicsAcquirer:
@@ -57,6 +62,13 @@ class PhysicsAcquirer:
     def capture_once(self) -> PhysicsSnapshot | None:
         for attempt in range(self._max_attempts):
             read_start_ns = self._clock_ns()
+            if self.metrics._previous_read_start_ns is not None:
+                interval = read_start_ns - self.metrics._previous_read_start_ns
+                self.metrics.last_poll_interval_ns = interval
+                self.metrics.max_poll_interval_ns = max(
+                    self.metrics.max_poll_interval_ns, interval
+                )
+            self.metrics._previous_read_start_ns = read_start_ns
             raw: RawPhysicsRead = self._source.read_physics()
             read_complete_ns = self._clock_ns()
             if raw.is_consistent:
@@ -71,8 +83,15 @@ class PhysicsAcquirer:
         self._next_sequence += 1
         packet_id = raw.packet_id_after
         previous = self.metrics.last_packet_id
+        if previous is not None and packet_id == previous:
+            self.metrics.duplicate_packet_observation_count += 1
+            return None
         if previous is not None and packet_id > previous + 1:
             self.metrics.source_packet_gap_count += packet_id - previous - 1
+        elif previous is not None and packet_id < previous:
+            # Counter wrap/reset semantics must be verified against ACC before
+            # deriving a gap count. Preserve the observation and flag regression.
+            self.metrics.packet_id_regression_count += 1
 
         snapshot = PhysicsSnapshot(
             capture_sequence=sequence,
