@@ -20,6 +20,9 @@ class PhysicsSource(Protocol):
 @dataclass(slots=True)
 class AcquisitionMetrics:
     capture_count: int = 0
+    read_attempt_count: int = 0
+    total_read_attempt_duration_ns: int = 0
+    max_read_attempt_duration_ns: int = 0
     inconsistent_snapshot_count: int = 0
     consistency_retry_count: int = 0
     source_packet_gap_count: int = 0
@@ -71,6 +74,12 @@ class PhysicsAcquirer:
             self.metrics._previous_read_start_ns = read_start_ns
             raw: RawPhysicsRead = self._source.read_physics()
             read_complete_ns = self._clock_ns()
+            read_duration = read_complete_ns - read_start_ns
+            self.metrics.read_attempt_count += 1
+            self.metrics.total_read_attempt_duration_ns += read_duration
+            self.metrics.max_read_attempt_duration_ns = max(
+                self.metrics.max_read_attempt_duration_ns, read_duration
+            )
             if raw.is_consistent:
                 break
             self.metrics.inconsistent_snapshot_count += 1
