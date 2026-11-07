@@ -51,6 +51,9 @@ class AcquirerTests(unittest.TestCase):
         self.assertEqual(snapshot.payload, b"good")
         self.assertEqual(acquirer.metrics.inconsistent_snapshot_count, 1)
         self.assertEqual(acquirer.metrics.consistency_retry_count, 1)
+        self.assertEqual(acquirer.metrics.read_attempt_count, 2)
+        self.assertEqual(acquirer.metrics.total_read_attempt_duration_ns, 20)
+        self.assertEqual(acquirer.metrics.max_read_attempt_duration_ns, 10)
 
     def test_packet_id_gaps_are_counted_separately(self) -> None:
         buffer = AcquisitionRingBuffer(4)
