@@ -11,9 +11,9 @@
 
 The existing application has accumulated multiple layers of functionality, fixes and changes. Continuing to modify it risks carrying forward architectural limitations that were not designed for high-resolution telemetry acquisition.
 
-The new application is not another iteration of the old application. We will build a clean application with a different priority:
+The new application is not another iteration of the old application. We will build a clean application with explicit subsystem priorities:
 
-**Telemetry acquisition and data integrity come first. Everything else comes afterwards.**
+**Within the telemetry pipeline, acquisition and data integrity come first.** The desktop shell, design system, UI-only Overview migration and independent Hardware workspace can be developed in parallel because they do not depend on ACC acquisition. Telemetry-connected pages and coaching consumers remain downstream of validated acquisition and recording.
 
 We can reuse verified knowledge, algorithms and decisions from the existing project, but we should not blindly copy its architecture or accumulated implementation.
 
