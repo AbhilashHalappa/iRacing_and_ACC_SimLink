@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Initial acquisition core implemented; ACC Shared Memory adapter and runtime validation pending  
+**Status:** Source-independent acquisition core and Windows Physics adapter implemented; live ACC validation pending  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -95,8 +95,8 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 - [x] Bracketing packet-ID consistency contract and retry counters.
 - [x] Packet-ID gap accounting.
 - [x] Deterministic unit tests using a fake source and clock.
-- [ ] Implement and validate the Windows ACC Shared Memory Physics adapter against the actual ACC memory layout.
-- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour.
+- [x] Implement the Windows ACC Shared Memory Physics adapter using the audited ACC Physics page layout.
+- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour on Windows with ACC running.
 
 ### Stage 2 — Acquisition measurement
 
@@ -120,7 +120,7 @@ Start with the narrow Python acquisition boundary and measure it. A native C++ o
 
 ## 9. Current implementation boundary
 
-The initial package under src/race_engineer_acquisition/ implements the source-independent acquisition core and test doubles. It does **not yet connect to ACC Shared Memory**, and no live ACC sampling or persistence guarantee is claimed. The ACC adapter is the next implementation gate; it must be based on the verified ACC page layout and existing source evidence, not guessed structure offsets.
+The package under src/race_engineer_acquisition/ now includes the source-independent acquisition core and a Windows adapter for the audited ACC Physics mapping and page layout. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. It has not yet been validated against a live ACC process on Windows. No live sampling-rate, consistency or persistence guarantee is claimed.
 
 ## 10. Relationship to the Greenfield Architecture
 
