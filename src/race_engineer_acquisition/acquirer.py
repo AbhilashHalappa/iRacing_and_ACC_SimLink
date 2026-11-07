@@ -88,13 +88,16 @@ class PhysicsAcquirer:
         else:
             return None
 
-        sequence = self._next_sequence
-        self._next_sequence += 1
         packet_id = raw.packet_id_after
         previous = self.metrics.last_packet_id
         if previous is not None and packet_id == previous:
             self.metrics.duplicate_packet_observation_count += 1
             return None
+
+        # Assign sequence numbers only to distinct, consistent source snapshots.
+        # Duplicate observations must not create holes in the capture sequence.
+        sequence = self._next_sequence
+        self._next_sequence += 1
         if previous is not None and packet_id > previous + 1:
             self.metrics.source_packet_gap_count += packet_id - previous - 1
         elif previous is not None and packet_id < previous:
