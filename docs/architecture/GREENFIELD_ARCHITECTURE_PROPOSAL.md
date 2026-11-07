@@ -50,54 +50,83 @@ If the source interface itself is insufficient, we will investigate whether a di
 
 ## 3. Proposed Architecture
 
-The application will use separate subsystems with clearly defined responsibilities.
+The application will be a **hybrid standalone Windows desktop application**. The main application window will be a native PySide6 host containing QtWebEngine, which renders a locally bundled React + TypeScript frontend. Native Qt remains responsible for floating overlays and the Hardware Companion initially.
+
+The architecture has distinct presentation, service and data layers:
 
 ```text
-                 ASSETTO CORSA COMPETIZIONE
-                           |
-                  ACC Shared Memory
-                           |
-                           v
-              +------------------------+
-              |  ACC Acquisition Layer |
-              | Physics reader         |
-              | Graphics reader        |
-              | Static data reader     |
-              | Packet ID tracking     |
-              | Timestamping           |
-              +------------------------+
-                           |
-                           v
-              +------------------------+
-              |   Acquisition Buffer   |
-              | Preallocated ring      |
-              | Capture sequence       |
-              | Packet ID              |
-              | Monotonic timestamps   |
-              | Overflow monitoring    |
-              +------------------------+
-                           |
-                 Independent consumers
-                           |
-             +-------------+-------------+
-             |             |             |
-             v             v             v
-       Raw Recorder   Lap Processor   Live State
-             |             |             |
-             v             v             v
-       Binary Files    Lap/sector     Dashboard
-                       reconstruction   UI
-             |             |
-             v             v
-       File Validator  Quality Evaluator
-                           |
-                           v
-                    Analysis / Coaching
+Race Engineer ACC
+│
+├── Desktop Runtime — Python + PySide6
+│   ├── Main window and lifecycle
+│   ├── QtWebEngine host
+│   ├── Native floating overlays
+│   └── Hardware Companion (initially)
+│
+├── Main Frontend — React + TypeScript + Vite
+│   ├── Shared Material Design 3 system
+│   ├── Overview
+│   ├── Hardware workspace
+│   └── Future telemetry-connected pages
+│
+├── Python Backend
+│   ├── HTTP API and SSE event stream
+│   ├── Hardware services
+│   ├── ACC acquisition
+│   ├── Raw recording
+│   ├── Lap and sector processing
+│   └── Published application state
+│
+└── User Data
+    ├── Configuration
+    ├── Raw recordings
+    ├── Processed session/lap database
+    └── Logs
 ```
 
-The acquisition subsystem must not depend on the dashboard, lap processor, coaching engine or storage implementation.
+### 3.1 Presentation boundaries
 
-A failure in one downstream subsystem must not stop telemetry acquisition.
+**Main desktop application:** PySide6 owns the Windows application window and lifecycle. QtWebEngine hosts the local frontend. The main application must not open its primary UI in an external browser.
+
+**Browser frontend:** React + TypeScript + Vite owns the main application navigation, pages, shared components, themes and browser-side interaction. It communicates with Python through documented local HTTP APIs and SSE.
+
+**Native Qt surfaces:** Floating overlays remain native Qt/QPainter surfaces to preserve always-on-top, transparency, click-through and compact rendering behaviour. The Hardware Companion also remains native Qt initially. Browser-only layout or effects must not be forced onto these surfaces.
+
+The browser and native Qt surfaces should share the same semantic design-token vocabulary where practical. Native widgets and overlays retain geometry and rendering appropriate to their workflows.
+
+### 3.2 Frontend and design-system boundary
+
+Material Design 3 is the component, layout, typography, interaction and accessibility standard for the main frontend. The approved purple/teal palette in Section 11 of the source project's `docs/UI_REBUILD_ROADMAP.md` remains authoritative and must not be replaced by a generated Material You palette.
+
+The detailed design contract is maintained in [Material Design 3 UI Design System](../design/MATERIAL_DESIGN_3_UI_SPECIFICATION.md). The architecture document references that specification rather than duplicating its colour and component decisions.
+
+### 3.3 Independent backend subsystems
+
+The backend is modular and service-oriented, but remains a single-user desktop application's local runtime. Do not introduce distributed microservices, a network broker or infrastructure such as Kafka/Redis without measured need.
+
+- **Hardware service:** Owns physical device discovery, serial communication, gamepad polling, configuration, calibration and command/status readback. It has no ACC telemetry dependency and must work when ACC is closed.
+- **ACC acquisition:** Owns Physics, Graphics and Static Shared Memory reads, timestamps, packet tracking and sample buffering.
+- **Raw recorder:** Independently consumes acquired samples and persists raw recordings.
+- **Lap processor:** Independently processes completed laps, sectors, validity and quality.
+- **Application state:** Publishes typed, read-only state snapshots to frontend and native overlay subscribers. It must not become a second source of telemetry truth.
+
+Hardware operations must never run inside or block the ACC acquisition loop. UI failures must not stop acquisition or recording. A failure in one downstream subsystem must be isolated from unrelated subsystems.
+
+### 3.4 Communication contracts
+
+- React frontend to Python backend: local HTTP for commands, configuration and request/response operations.
+- Python backend to browser: SSE for live state and service-status updates.
+- Acquisition to recorder/processor: bounded internal queues or buffers with explicit overflow accounting.
+- Native Qt components to backend services: direct service interfaces and Qt signals/slots where appropriate; do not duplicate domain logic in widgets.
+- Frontend and backend exchange typed, versioned schemas. UI components must not import backend implementation details.
+
+Bind the local server to loopback by default. LAN exposure, if ever required, must be an explicit opt-in and is outside the initial shell requirement.
+
+### 3.5 Service failure and lifecycle behaviour
+
+The desktop host owns orderly startup and shutdown of the local server, backend services, QtWebEngine window and native surfaces. Renderer reload/crash must not terminate the Python runtime or interrupt recording. The frontend must be able to reconnect and retrieve a fresh state snapshot after reload.
+
+Acquisition and raw recording health must be observable independently of frontend health. Non-critical page or hardware-service failures must not take down the entire application.
 
 ## 4. Acquisition Layer — Highest Priority
 
@@ -333,22 +362,27 @@ Any mismatch must be reported as a recording-integrity failure.
 
 Packet-ID gaps should be reported separately. A packet-ID difference greater than one is not automatically proof of packet loss because the source counter may advance faster than the application's sampling cadence.
 
-## 10. Dashboard and Live Application
+## 10. Main Frontend and Live Application
 
-The UI will be a consumer of the latest published application state. It must never be in the acquisition path.
+The main application UI is a React + TypeScript frontend built with Vite and hosted inside the PySide6/QtWebEngine desktop window. It is not an external-browser application.
 
-The dashboard should:
-- Display live telemetry.
-- Show current lap and lap state.
-- Display RPM and shift information.
-- Show pedal and steering values.
-- Display relevant vehicle and session information.
+The frontend has two distinct operating stages:
+
+1. **UI migration stage:** Overview and Hardware pages can be developed and accepted independently using mock data/local state or their independent hardware service. They do not need ACC acquisition to be implemented first.
+2. **Telemetry integration stage:** After acquisition and recording pass reliability validation, telemetry-connected pages can subscribe to published application state through the API/SSE boundary.
+
+The Overview UI migration is visual and interaction-focused: tile layout/editor, themes, selection, ordering, pinning, resizing and visual states. During this stage it must use mock values/local UI state and must not connect to ACC Shared Memory, session history, lap processing or a legacy dashboard API.
+
+The Hardware workspace is complete and independent. It includes pedal setup and physical readings, pedal curves, calibration, sensor configuration, C3 handbrake setup, gamepad input testing, serial receiver discovery/connection/reconnection, device management, command dispatch and status readback. It communicates with physical hardware through the Hardware service and never consumes ACC game telemetry.
+
+When live telemetry integration is introduced, the frontend should:
+- Display current vehicle/session/lap state and relevant telemetry.
 - Show acquisition and recording health.
-- Indicate when telemetry is stale or recording has failed.
+- Distinguish live, stale, disconnected, unavailable and error states.
+- Reconnect without restarting acquisition or recording.
+- Render at a suitable UI cadence (for example 20–30 FPS) without requiring every acquired sample to be drawn.
 
-The UI may update at a lower frequency than telemetry acquisition. For example, the acquisition system may observe data at a higher rate while the dashboard renders at 20–30 FPS.
-
-This is intentional. The dashboard does not need to display every acquired sample.
+The UI remains a downstream consumer. It must never enter the acquisition critical path.
 
 ## 11. Technology Strategy
 
@@ -371,165 +405,201 @@ Do not rewrite the entire application in C++ or Rust without measured justificat
 
 ## 12. Proposed Project Structure
 
+The following is the proposed physical layout. Keep subsystem ownership explicit while allowing implementation details to evolve.
+
 ```text
-race-engineer-acc/
-|
-+-- app/
-|   +-- main.py
-|   +-- application.py
-|   +-- lifecycle.py
-|
-+-- acquisition/
-|   +-- acc_connection.py
-|   +-- physics_reader.py
-|   +-- graphics_reader.py
-|   +-- static_reader.py
-|   +-- snapshot.py
-|   +-- acquisition_buffer.py
-|   +-- packet_tracker.py
-|   +-- diagnostics.py
-|
-+-- recording/
-|   +-- binary_writer.py
-|   +-- binary_reader.py
-|   +-- block_format.py
-|   +-- integrity.py
-|   +-- recovery.py
-|   +-- metadata.py
-|
-+-- processing/
-|   +-- lap_detector.py
-|   +-- lap_reconstruction.py
-|   +-- sector_timing.py
-|   +-- lap_validity.py
-|   +-- out_lap_detection.py
-|
-+-- telemetry/
-|   +-- models.py
-|   +-- conversion.py
-|   +-- live_state.py
-|
-+-- dashboard/
-|   +-- frontend/
-|   +-- backend/
-|
-+-- analysis/
-|   +-- lap_quality.py
-|   +-- telemetry_comparison.py
-|
-+-- tests/
-|   +-- acquisition/
-|   +-- recording/
-|   +-- processing/
-|   +-- integration/
-|
-+-- docs/
-    +-- architecture/
-    +-- decisions/
-    +-- validation/
+Race-Engineer-ACC-New/
+├── src/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── desktop_host.py
+│   │   └── lifecycle.py
+│   ├── api/
+│   │   ├── routes/
+│   │   ├── schemas/
+│   │   └── events.py
+│   ├── hardware/
+│   │   ├── services/
+│   │   ├── protocols/
+│   │   ├── models/
+│   │   ├── configuration/
+│   │   └── tests/
+│   ├── acc/
+│   │   ├── shared_memory/
+│   │   ├── acquisition/
+│   │   ├── models/
+│   │   └── tests/
+│   ├── recording/
+│   ├── processing/
+│   ├── storage/
+│   ├── application_state/
+│   ├── overlays/
+│   └── common/
+│
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   ├── design-system/
+│   │   │   ├── tokens/
+│   │   │   ├── components/
+│   │   │   └── theme/
+│   │   ├── pages/
+│   │   │   ├── overview/
+│   │   │   ├── hardware/
+│   │   │   └── future/
+│   │   ├── services/
+│   │   ├── hooks/
+│   │   ├── components/
+│   │   └── types/
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── user_data/
+│   ├── config/
+│   ├── recordings/
+│   ├── database/
+│   └── logs/
+├── tests/
+├── docs/
+└── requirements*.txt
 ```
 
-This is a proposed logical structure. We can adjust the physical layout as implementation details become clearer.
+### 12.1 Storage ownership
+
+- Hardware and application preferences: versioned JSON configuration.
+- Raw ACC telemetry: append-oriented binary recordings with metadata, integrity checks and recovery.
+- Processed sessions, laps and sectors: SQLite.
+- Logs: rotating files.
+- Frontend build output: bundled static assets loaded by the desktop host.
+
+Keep user-generated recordings, databases and logs outside version control. Do not store high-frequency raw samples as individual JSON objects.
 
 ## 13. Development Roadmap
 
-Development should proceed in controlled stages. Each stage must be tested before the next one begins.
+The desktop shell and UI migration are a separate delivery track from the telemetry foundation. They may progress independently, provided the defined service boundaries are respected.
 
-### Phase 1 — ACC Acquisition Prototype
+### Phase 1 — Desktop Host and Frontend Proof of Concept
 
-Build only:
+Build:
+- PySide6 main window.
+- QtWebEngine embedded view loading a local bundled shell route.
+- Local static asset strategy and frontend routing.
+- Python host lifecycle and orderly shutdown.
+- Renderer reload/crash isolation.
+- Windows QtWebEngine runtime and packaging proof.
+
+**Acceptance criteria:**
+- Main application opens inside its own Windows window.
+- No external browser is required for the main UI.
+- Frontend reload does not terminate the Python host.
+- QtWebEngine dependencies work in a Windows release-style build.
+
+### Phase 2 — Material Design 3 Foundation
+
+Build:
+- React + TypeScript + Vite foundation.
+- Narrow persistent navigation rail and compact top app bar.
+- Light/dark themes using the exact approved Section 11 palette.
+- Semantic token model and component token mapping.
+- Component showcase for cards, buttons, fields, selectors, tabs, dialogs, tables, chips and tooltips.
+- Keyboard, focus, reduced-motion, contrast and DPI review.
+
+**Acceptance criteria:**
+- No replacement blue/teal seed palette in the new shell.
+- Approved palette values remain exact.
+- Component states are demonstrated and reviewed.
+- Browser/native semantic token vocabulary is documented.
+- Representative window sizes and Windows scaling are reviewed.
+
+### Phase 3 — Overview UI Migration
+
+Migrate the complete Overview UI and its visual interactions:
+- Tile layout and editor.
+- Tile selection, ordering, pinning and resizing.
+- Themes and visual states.
+- Mock telemetry values and local UI state only.
+
+**Acceptance criteria:**
+- Overview is visually and behaviourally reviewed.
+- No ACC telemetry, legacy dashboard API, session history or recording dependency is introduced.
+
+### Phase 4 — Complete Hardware Workspace Migration
+
+Migrate the complete Hardware workspace and independent Hardware service:
+- Pedal setup and physical readings.
+- Pedal curves and calibration.
+- Sensor configuration.
+- C3 handbrake setup and calibration.
+- Gamepad input testing.
+- Serial receiver discovery, connection/reconnection and device management.
+- Command dispatch and authoritative status readback.
+- Native Hardware Companion integration where required.
+
+**Acceptance criteria:**
+- Hardware functions when ACC is closed.
+- Hardware UI and Companion share service/protocol logic.
+- Hardware operations never run inside the ACC acquisition loop.
+- Serial and gamepad workflows pass isolated tests and target-Windows device tests.
+
+### Phase 5 — ACC Acquisition Prototype
+
+Build:
 - ACC connection.
-- Physics reader.
-- Graphics reader.
-- Static reader.
+- Independent Physics, Graphics and Static readers.
 - Packet-ID tracking.
 - Timestamping.
 - Acquisition diagnostics.
 
-No dashboard, coaching or lap analysis.
-
 **Acceptance criteria:**
-- Stable ACC connection and reconnection.
+- Stable connection and reconnection.
 - Measured reader frequency and execution time.
 - Packet-ID progression recorded.
 - No unexplained acquisition-thread exceptions.
-- Repeatable diagnostic results across multiple sessions.
 
-### Phase 2 — Buffer and Raw Recording
+### Phase 6 — Buffer and Raw Recording
 
-Implement:
-- Preallocated acquisition buffer.
-- Independent raw recorder.
-- Binary recording format.
-- Block checksums.
-- Recording metadata.
-- Recovery and finalization.
+Implement bounded buffers, independent raw recording, binary format, checksums, metadata, recovery and finalization.
 
 **Acceptance criteria:**
-- Buffer never silently overwrites unread samples.
-- Recorder can operate under simulated slow disk conditions.
+- No silent overwrite of unread samples.
 - Every acquired sample is persisted or explicitly accounted for.
-- Interrupted recordings can be recovered to the last complete valid block.
-- Recorder performance does not block acquisition.
+- Recorder delays do not block acquisition.
+- Interrupted recordings recover to the last complete valid block.
 
-### Phase 3 — Recording Validation
+### Phase 7 — Recording Validation
 
-Build offline tools to inspect recordings.
-
-Validate:
-- Sample counts.
-- Packet-ID progression.
-- Timestamp intervals.
-- Missing source updates.
-- Buffer overflow.
-- Persistence integrity.
-- Physics and Graphics stream behaviour.
-
-Test with long sessions and deliberately introduced downstream delays.
+Validate sample counts, packet IDs, timestamp intervals, source gaps, buffer overflow, persistence integrity and stream behaviour under long sessions and injected delays.
 
 **Acceptance criteria:**
-- Reliable loss accounting.
 - Reproducible reports.
-- No unexplained mismatch between acquired and persisted samples.
+- No unexplained acquired/persisted mismatch.
+- Source-level gaps and application-level drops remain distinct.
 
-### Phase 4 — Lap and Sector Processing
+### Phase 8 — Lap and Sector Processing
 
-Implement:
-- Lap boundary detection.
-- Completed lap association.
-- Sector timing.
-- Lap validity.
-- Out-lap classification.
-- Partial-record handling.
+Implement lap boundaries, completed-lap association, sector timing, ACC validity handling, out-lap classification and partial-record handling.
 
 **Acceptance criteria:**
-- Lap times match ACC.
-- Sector times match ACC.
+- Lap times and sector times match ACC.
 - ACC validity is preserved.
 - Boundary fragments are not counted as extra laps.
-- Out laps do not become timed laps.
+- Out laps remain in raw recordings but are excluded from timed lap history.
 
-### Phase 5 — Live Dashboard
+### Phase 9 — Live Telemetry Integration
 
-Only after acquisition and recording are proven stable, implement the live UI.
+Connect telemetry-connected frontend pages and native overlays to published application state through documented interfaces.
 
 **Acceptance criteria:**
-- UI stalls do not affect acquisition.
-- Dashboard can reconnect without restarting the recorder.
-- Telemetry freshness is visible.
-- Acquisition and recording errors are visible.
+- UI stalls do not affect acquisition or recording.
+- Frontend reconnects without restarting the recorder.
+- Telemetry freshness and acquisition/recording errors are visible.
+- Unavailable telemetry is not presented as zero.
 
-### Phase 6 — Analysis and Coaching
+### Phase 10 — Analysis and Coaching
 
-Add:
-- Lap comparisons.
-- Corner analysis.
-- Performance Coach.
-- Reference laps.
-- Driving recommendations.
-- Historical analysis.
+Add lap comparisons, corner analysis, Performance Coach, reference laps and historical analysis. These consumers operate on persisted or published data, never on the acquisition critical path.
 
-All analysis must operate on persisted or independently published telemetry, not on the acquisition thread.
+This sequence does not require waiting for telemetry completion before building the UI-only Overview or independent Hardware workspace.
 
 ## 14. Testing Strategy
 
@@ -553,21 +623,22 @@ Required scenarios:
 
 Use synthetic telemetry and controlled fault injection wherever possible. Do not rely exclusively on driving sessions to test reliability.
 
-## 15. Explicit Non-Goals
+## 15. Scope Boundaries and Non-Goals
 
-The first development stage will not include:
-- Performance Coach.
-- Corner Coach.
-- Advanced dashboard.
-- Historical analytics.
-- Session comparisons.
-- Complex maps.
-- Hardware configuration.
-- RPM LED integration.
-- Voice coaching.
-- Large UI feature sets.
+The initial **ACC telemetry foundation** does not implement Performance Coach, Corner Coach, advanced telemetry analysis, historical analytics, session comparisons, complex maps, RPM LED integration or voice coaching.
 
-These features can be developed later without compromising the acquisition foundation.
+The phrase "hardware configuration is a non-goal" applies only to the initial ACC acquisition/recording foundation. It does **not** exclude the independently scoped Hardware workspace from the new application.
+
+The application delivery scope includes:
+- The hybrid desktop shell and embedded main frontend.
+- The Material Design 3 design system.
+- The Overview UI migration using mock values/local state.
+- The complete independent Hardware workspace and its required physical-device services.
+- Native Qt overlays and Hardware Companion boundaries.
+
+The telemetry foundation is developed separately and later connected to telemetry-aware pages through published application state.
+
+Do not interpret the telemetry roadmap's staged dashboard integration as a prohibition on UI-only frontend development.
 
 ## 16. Architectural Rules
 
@@ -585,6 +656,10 @@ These rules apply throughout development:
 10. Do not carry forward old application architecture merely for convenience.
 11. Do not change a proven subsystem to solve a problem in an unrelated subsystem.
 12. Every architectural decision must be documented.
+13. The main application UI runs inside the QtWebEngine desktop host; it must not depend on an external browser.
+14. Hardware services are independent of ACC telemetry and share one implementation across browser UI and native Hardware Companion.
+15. UI-only Overview development may use mock data and must not wait for telemetry acquisition.
+16. The Material Design 3 specification is authoritative for visual and interaction decisions; the approved Section 11 palette must remain unchanged.
 
 ## 17. Final Engineering Objective
 
@@ -603,4 +678,4 @@ When a lap is recorded, we should be able to answer:
 
 If we cannot answer these questions, the application is not yet ready for advanced coaching or performance analysis.
 
-**Final decision:** Build a new application from a clean foundation. Establish acquisition, buffering, recording and integrity validation first. Add lap processing next. Build the dashboard and coaching systems only after the telemetry foundation has passed its reliability tests.
+**Final decision:** Build a hybrid standalone Windows desktop application using a PySide6/QtWebEngine host and a React + TypeScript + Vite frontend. Keep native Qt for floating overlays and the Hardware Companion initially. Develop the M3 frontend foundation, UI-only Overview and independent Hardware workspace without waiting for ACC telemetry. In parallel, establish ACC acquisition, buffering, raw recording and integrity validation; add lap processing next. Connect telemetry-aware pages only after the telemetry foundation has passed its reliability tests. The detailed visual contract is maintained in [MATERIAL_DESIGN_3_UI_SPECIFICATION.md](../design/MATERIAL_DESIGN_3_UI_SPECIFICATION.md).
