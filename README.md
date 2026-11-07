@@ -12,7 +12,7 @@ The initial source-independent core is in src/race_engineer_acquisition/:
 - An injectable Physics acquisition loop with monotonic read timestamps.
 - Packet-ID gap accounting and snapshot consistency retry accounting.
 
-**Important:** the Windows ACC Physics Shared Memory adapter now exists and targets the audited Local\\acpmf_physics mapping/layout. It has not yet been validated against a live ACC process or tested on the target Windows machine. The package is not yet a complete raw recorder.
+**Important:** the Windows ACC Physics Shared Memory adapter now exists and targets the audited Local\acpmf_physics mapping/layout. It has not yet been validated against a live ACC process or tested on the target Windows machine. The package is not yet a complete raw recorder.
 
 ## Run the current tests
 
