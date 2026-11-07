@@ -25,6 +25,6 @@ python -m unittest discover -s tests/acquisition -v
 
 ## Next gate
 
-Implement the ACC Physics Shared Memory adapter only after confirming the actual page structure, packet-ID field semantics and copy consistency behaviour. Then measure it in live ACC before adding the independent binary recorder.
+Validate the adapter on the target Windows machine with ACC running. Confirm the page size, packet-ID behaviour, consistency retry rate and measured acquisition cadence before adding the independent binary recorder.
 
 See [the acquisition and data-integrity decision](docs/decisions/ACC_HIGH_PRIORITY_ACQUISITION_AND_DATA_INTEGRITY.md).
