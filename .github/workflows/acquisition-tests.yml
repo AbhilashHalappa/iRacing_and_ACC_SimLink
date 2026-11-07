@@ -1,0 +1,26 @@
+name: Acquisition core tests
+
+on:
+  push:
+    paths:
+      - "src/race_engineer_acquisition/**"
+      - "tests/acquisition/**"
+      - ".github/workflows/acquisition-tests.yml"
+  pull_request:
+    paths:
+      - "src/race_engineer_acquisition/**"
+      - "tests/acquisition/**"
+      - ".github/workflows/acquisition-tests.yml"
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run acquisition core tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests/acquisition -v
