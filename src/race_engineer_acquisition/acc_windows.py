@@ -12,7 +12,7 @@ from typing import Protocol
 
 from .models import RawPhysicsRead
 
-PHYSICS_MAP = r"Local\\acpmf_physics"
+PHYSICS_MAP = r"Local\acpmf_physics"
 
 class _Physics(ctypes.LittleEndianStructure):
     _pack_ = 4
