@@ -280,6 +280,8 @@ Recording filenames should include a timestamp and unique identifier.
 
 ## 8. Lap and Sector Reconstruction
 
+**Authoritative technical decision:** The validated ACC lap timing, sector reconstruction, lap-boundary correlation, validity rules, five-lap regression fixture and storage-migration safeguard are specified in [ACC Lap Time, Sector Time and Lap Validity — Technical Decision](../decisions/ACC_LAP_TIMING_SECTOR_RECONSTRUCTION_AND_VALIDITY.md). That decision governs detailed lap-processing behaviour and must be preserved by future implementations and migrations. The summary below is not a substitute for its exact requirements.
+
 Lap processing must operate downstream from acquisition and raw recording. It must never control or interrupt the acquisition loop.
 
 ### 8.1 Authoritative ACC Information
