@@ -76,6 +76,38 @@ class AcquirerTests(unittest.TestCase):
         self.assertEqual(acquirer.metrics.capture_count, 0)
         self.assertEqual(acquirer.metrics.inconsistent_snapshot_count, 2)
 
+    def test_duplicate_packet_id_is_not_published_twice(self):
+        buffer = AcquisitionRingBuffer(4)
+        source = FakeSource([
+            RawPhysicsRead(7, 7, b"first"),
+            RawPhysicsRead(7, 7, b"duplicate"),
+            RawPhysicsRead(8, 8, b"next"),
+        ])
+        acquirer = PhysicsAcquirer(source, buffer, clock_ns=FakeClock())
+        first = acquirer.capture_once()
+        duplicate = acquirer.capture_once()
+        next_packet = acquirer.capture_once()
+        self.assertIsNotNone(first)
+        self.assertIsNone(duplicate)
+        self.assertEqual(next_packet.capture_sequence, 2)
+        self.assertEqual(acquirer.metrics.capture_count, 2)
+        self.assertEqual(acquirer.metrics.duplicate_packet_observation_count, 1)
+        self.assertEqual(buffer.try_get().payload, b"first")
+        self.assertEqual(buffer.try_get().payload, b"next")
+
+    def test_packet_id_regression_is_flagged_not_guessed_as_wrap(self):
+        buffer = AcquisitionRingBuffer(4)
+        source = FakeSource([
+            RawPhysicsRead(100, 100, b"before"),
+            RawPhysicsRead(2, 2, b"after"),
+        ])
+        acquirer = PhysicsAcquirer(source, buffer, clock_ns=FakeClock())
+        acquirer.capture_once()
+        snapshot = acquirer.capture_once()
+        self.assertEqual(snapshot.acc_physics_packet_id, 2)
+        self.assertEqual(acquirer.metrics.packet_id_regression_count, 1)
+        self.assertEqual(acquirer.metrics.source_packet_gap_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
