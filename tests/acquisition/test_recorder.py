@@ -58,6 +58,14 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(report.truncated_bytes, len(original) - 28)
             self.assertEqual(path.stat().st_size, 28)
 
+    def test_writer_rejects_non_increasing_capture_sequence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "session.accraw"
+            with RawPhysicsRecordingWriter(path, payload_size=8) as writer:
+                writer.write_batch([snapshot(2)])
+                with self.assertRaises(ValueError):
+                    writer.write_batch([snapshot(2)])
+
     def test_writer_rejects_wrong_payload_size(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "session.accraw"
