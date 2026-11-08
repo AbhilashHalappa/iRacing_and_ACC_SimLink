@@ -47,13 +47,13 @@ Review requested versus observed polling rate, source packet gaps, consistency r
 
 ## Next gate
 
-The expanded acquisition tests, cadence sweep and 10-minute 480 Hz acquisition validation are complete. The independent raw recorder also passed a 120-second live run: 46,924 acquired/persisted, zero queue rejects, zero write failures, zero pending records and reconciliation delta 0. The next gate is a real abrupt-stop recording test on Windows, followed by recovery and reconciliation of the resulting file.
+The expanded acquisition tests, cadence sweep and 10-minute 480 Hz acquisition validation are complete. The independent raw recorder also passed a 120-second live run: 46,924 acquired/persisted, zero queue rejects, zero write failures, zero pending records and reconciliation delta 0. The abrupt-stop recovery test has passed on Windows: 11,938 snapshots across 11,517 valid blocks recovered, with zero invalid/trailing bytes and no truncation. The next gate is target-PC slow-storage and physical disk-full/write-failure testing, plus quantitative accounting of queued/in-flight samples lost during abnormal termination.
 
 See:
 - [Project Completion Status](docs/PROJECT_COMPLETION_STATUS.md)
 - [Acquisition and Data Integrity Decision](docs/decisions/ACC_HIGH_PRIORITY_ACQUISITION_AND_DATA_INTEGRITY.md)
 
-## Stage 3 — Raw Physics recording (target-PC fault validation pending)
+## Stage 3 — Raw Physics recording (abrupt-stop recovery passed; physical storage-failure validation pending)
 
 The raw recorder is implemented in `src/race_engineer_acquisition/recorder.py`. It consumes a dedicated bounded queue on a separate thread; the acquisition loop remains free of file I/O. Recordings use a versioned binary header and append-only blocks containing capture sequence, ACC packet ID, monotonic timestamps and raw Physics bytes. Each block has a CRC32 checksum. The writer flushes and fsyncs completed blocks. Recovery scans sequential complete blocks and can truncate a corrupt or incomplete trailing block.
 
@@ -91,4 +91,4 @@ if (-not $recording) { throw "No recording file was created for the interrupted 
 python scripts/recover_acc_recording.py $recording.FullName
 ```
 
-The recovery utility preserves complete sequential CRC-valid blocks and truncates only an incomplete/corrupt tail. Use `--no-truncate` first if you want a read-only inspection. Share the recovery output; do not delete the test recording until it has been reviewed. A real physical disk-full/slow-storage test remains outstanding. Do not treat Stage 3 as complete until actual process-interruption recovery has been reviewed.
+The recovery utility preserves complete sequential CRC-valid blocks and truncates only an incomplete/corrupt tail. Use `--no-truncate` first if you want a read-only inspection. Share the recovery output; do not delete the test recording until it has been reviewed. The real forced-termination recovery test passed: 11,938 snapshots were recovered from 11,517 complete blocks; the scanner reported 0 invalid/trailing bytes and did not truncate the file. Because the process was killed before finalization, this test does not quantify queued/in-flight samples lost at termination. A physical disk-full/slow-storage test remains outstanding; do not treat Stage 3 as complete until storage-failure behavior and abnormal-shutdown accounting are validated.
