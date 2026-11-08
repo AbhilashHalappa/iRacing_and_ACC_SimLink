@@ -109,7 +109,7 @@ Implemented in this stage:
 
 ### Stage 3 — Independent raw persistence
 
-**Status: Implemented — normal live ACC recording, 31/31 automated tests on Windows and Ubuntu, and real forced-process-termination recovery passed; physical storage-failure validation pending**
+**Status: Implemented — normal live ACC recording and real forced-process-termination recovery passed; expanded acquisition/recorder suite and operational-script compilation passed on Windows and Ubuntu; physical storage-failure validation pending**
 
 Implemented:
 - [x] Add a separate recorder worker; the acquisition loop does not perform disk I/O.
@@ -132,7 +132,7 @@ Implemented:
 - [x] Add a separate periodic checkpoint worker (1-second default) with checksummed JSON, fsync and atomic replacement.
 - [x] Include acquired/persisted sequence positions, queue depths and losses, dispatcher handoff state, recorder in-flight batch range and a sampled accounting delta in each checkpoint.
 - [x] Extend recovery reporting to validate the sidecar and estimate the minimum number of checkpoint-known snapshots not recovered.
-- [x] Add checkpoint checksum/atomic-replacement, checkpoint write-failure retention and recorder in-flight tests; checkpoint/recorder tests passed on Windows and Ubuntu (runs 42496420115 and 42496665454).
+- [x] Add checkpoint checksum/atomic-replacement, checkpoint write-failure retention and recorder in-flight tests; checkpoint/recorder tests passed on Windows and Ubuntu; the latest full workflow (run 42496690530) also compiled the operational scripts and passed the complete suite.
 - [ ] Validate checkpoint sidecar and loss estimate in a new forced-termination run on the target Windows PC.
 - [ ] Exercise real slow storage and physical disk-full/write failures on the target Windows PC.
 - [ ] Quantify queued/in-flight samples lost during abnormal termination; the forced-kill run cannot produce a final reconciliation report.
@@ -209,10 +209,10 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 3 implementation update:** normal live ACC recording passed for 120 seconds at 480 Hz: 46,924 acquired and persisted, zero acquisition/recorder queue rejects, zero write failures, zero pending records, zero reconciliation delta and 12.04% CPU of one core. A real forced-process-termination test recovered 11,938 snapshots across 11,517 valid blocks; invalid/trailing bytes were 0 and no truncation was required. New atomic periodic checkpoints now expose acquired/persisted sequence positions, both queue depths and rejection ranges, dispatcher state, recorder in-flight batch state and sampled accounting delta. CI passed on Windows and Ubuntu for checkpoint integrity and in-flight metrics. The checkpoint implementation has not yet been exercised in a target-PC forced-stop run. The acquisition implementation remains on `feature/acquisition-foundation`.  
+**Latest Stage 3 implementation update:** normal live ACC recording passed for 120 seconds at 480 Hz: 46,924 acquired and persisted, zero acquisition/recorder queue rejects, zero write failures, zero pending records, zero reconciliation delta and 12.04% CPU of one core. A real forced-process-termination test recovered 11,938 snapshots across 11,517 valid blocks; invalid/trailing bytes were 0 and no truncation was required. New atomic periodic checkpoints now expose acquired/persisted sequence positions, both queue depths and rejection ranges, dispatcher state, recorder in-flight batch state and sampled accounting delta. The latest CI run 42496690530 passed operational-script compilation and the complete acquisition/recorder suite on both Windows and Ubuntu. The checkpoint implementation has not yet been exercised in a target-PC forced-stop run. The acquisition implementation remains on `feature/acquisition-foundation`.  
 **Branch:** `feature/acquisition-foundation`
 
-**Latest automated test:** GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu on 8 November 2026. This includes delayed-storage, simulated disk-full partial-write and interrupted-block recovery tests. Earlier baseline was 28 tests.
+**Latest automated test:** GitHub Actions run 42496690530 passed the operational-script compilation step and complete acquisition/recorder unit-test suite on both Windows and Ubuntu on 8 November 2026. The suite includes delayed-storage, simulated disk-full partial-write, interrupted-block recovery, checkpoint checksum/atomic-replacement, checkpoint write-failure retention and recorder in-flight visibility tests. The earlier 31-test baseline was run 42492834805.
 
 **Latest user-reported live ACC smoke test (Stage 1):**
 - Expected Physics page: 784 bytes
