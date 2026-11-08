@@ -34,6 +34,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--timer-resolution-ms", type=int, default=1)
     parser.add_argument("--checkpoint-interval-seconds", type=float, default=1.0)
+    parser.add_argument(
+        "--simulated-write-delay-ms", type=float, default=0.0,
+        help="Optional delay before each recorder batch write; recorder thread only.",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("user_data/raw_recordings"))
     args = parser.parse_args()
     if args.duration_seconds <= 0 or args.poll_hz <= 0:
@@ -44,6 +48,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("timer resolution cannot be negative")
     if args.checkpoint_interval_seconds <= 0:
         parser.error("checkpoint interval must be positive")
+    if args.simulated_write_delay_ms < 0:
+        parser.error("simulated write delay cannot be negative")
     return args
 
 
@@ -63,6 +69,7 @@ def main() -> int:
     recorder = PhysicsRecorderWorker(
         recorder_buffer, recording_path, payload_size=PHYSICS_SIZE,
         batch_size=args.batch_size,
+        simulated_write_delay_seconds=args.simulated_write_delay_ms / 1000.0,
     )
     acquisition_stop = threading.Event()
     recorder_stop = threading.Event()
@@ -282,6 +289,7 @@ def main() -> int:
             "batch_size": args.batch_size,
             "timer_resolution_ms_requested": args.timer_resolution_ms,
             "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
+            "simulated_write_delay_ms": args.simulated_write_delay_ms,
             "physics_payload_size": PHYSICS_SIZE,
         },
         "environment": {"platform": platform.platform(), "python": sys.version, "cpu_count": os.cpu_count()},
