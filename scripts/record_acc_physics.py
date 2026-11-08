@@ -18,6 +18,7 @@ from dataclasses import asdict
 
 from race_engineer_acquisition.acc_windows import PHYSICS_SIZE, WindowsACCPhysicsSource
 from race_engineer_acquisition.acquirer import PhysicsAcquirer
+from race_engineer_acquisition.checkpoint import PeriodicCheckpointWorker
 from race_engineer_acquisition.recorder import PhysicsRecorderWorker, recover_recording
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 from race_engineer_acquisition.timing_windows import WindowsTimerResolution
@@ -31,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--recorder-buffer-capacity", type=int, default=100_000)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--timer-resolution-ms", type=int, default=1)
+    parser.add_argument("--checkpoint-interval-seconds", type=float, default=1.0)
     parser.add_argument("--output-dir", type=Path, default=Path("user_data/raw_recordings"))
     args = parser.parse_args()
     if args.duration_seconds <= 0 or args.poll_hz <= 0:
@@ -39,6 +41,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("buffer capacities and batch size must be positive")
     if args.timer_resolution_ms < 0:
         parser.error("timer resolution cannot be negative")
+    if args.checkpoint_interval_seconds <= 0:
+        parser.error("checkpoint interval must be positive")
     return args
 
 
@@ -49,6 +53,7 @@ def main() -> int:
     stem = started_utc.strftime("acc_physics_%Y%m%dT%H%M%S_%fZ")
     recording_path = args.output_dir / f"{stem}.accraw"
     report_path = args.output_dir / f"{stem}.json"
+    checkpoint_path = args.output_dir / f"{stem}.checkpoint.json"
 
     source = WindowsACCPhysicsSource()
     acquisition_buffer = AcquisitionRingBuffer(args.acquisition_buffer_capacity)
@@ -61,7 +66,9 @@ def main() -> int:
     acquisition_stop = threading.Event()
     recorder_stop = threading.Event()
     producer_done = threading.Event()
-    dispatcher_stats = {"transferred_count": 0}
+    dispatcher_stats = {"transferred_count": 0, "in_flight_sequence": None}
+    checkpoint_stop = threading.Event()
+    checkpoint_sequence = {"value": 0}
     producer_errors: list[str] = []
 
     def producer() -> None:
@@ -84,8 +91,10 @@ def main() -> int:
             if item is None:
                 time.sleep(0.0005)
                 continue
+            dispatcher_stats["in_flight_sequence"] = item.capture_sequence
             if recorder_buffer.try_put(item):
                 dispatcher_stats["transferred_count"] += 1
+            dispatcher_stats["in_flight_sequence"] = None
 
     recorder_thread = threading.Thread(
         target=recorder.run, args=(recorder_stop,), name="ACC-Raw-Recorder", daemon=True
@@ -97,6 +106,95 @@ def main() -> int:
         target=producer, name="ACC-Physics-Acquisition", daemon=True
     )
 
+    def checkpoint_snapshot() -> dict:
+        checkpoint_sequence["value"] += 1
+        acquired_now = acquirer.metrics.capture_count
+        persisted_now = recorder.metrics.persisted_snapshot_count
+        acquisition_rejected_now = acquisition_buffer.total_rejection_count
+        recorder_rejected_now = recorder_buffer.total_rejection_count
+        failed_now = recorder.metrics.failed_snapshot_count
+        acquisition_pending_now = acquisition_buffer.size
+        recorder_pending_now = recorder_buffer.size
+        dispatcher_in_flight = int(dispatcher_stats["in_flight_sequence"] is not None)
+        recorder_in_flight = recorder.metrics.in_flight_snapshot_count
+        accounted_now = (
+            persisted_now + acquisition_rejected_now + recorder_rejected_now
+            + failed_now + acquisition_pending_now + recorder_pending_now
+            + dispatcher_in_flight + recorder_in_flight
+        )
+        return {
+            "schema_version": 1,
+            "recording_file": recording_path.name,
+        "checkpoint_file": checkpoint_path.name,
+        "checkpoint_write_count": checkpoint_worker.write_count,
+        "checkpoint_error": checkpoint_worker.error,
+            "checkpoint_sequence": checkpoint_sequence["value"],
+            "checkpointed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "elapsed_ns": time.perf_counter_ns() - wall_start_ns,
+            "acquisition": {
+                "capture_count": acquired_now,
+                "last_capture_sequence": acquirer.metrics.last_capture_sequence,
+                "last_packet_id": acquirer.metrics.last_packet_id,
+                "source_packet_gap_count": acquirer.metrics.source_packet_gap_count,
+                "inconsistent_snapshot_count": acquirer.metrics.inconsistent_snapshot_count,
+                "duplicate_packet_observation_count": acquirer.metrics.duplicate_packet_observation_count,
+            },
+            "acquisition_buffer": {
+                "capacity": acquisition_buffer.capacity,
+                "pending": acquisition_pending_now,
+                "high_water_mark": acquisition_buffer.high_water_mark,
+                "rejections": acquisition_rejected_now,
+                "first_lost_sequence": acquisition_buffer.first_lost_sequence,
+                "last_lost_sequence": acquisition_buffer.last_lost_sequence,
+            },
+            "dispatcher": {
+                "transferred_count": dispatcher_stats["transferred_count"],
+                "in_flight_sequence": dispatcher_stats["in_flight_sequence"],
+            },
+            "recorder_buffer": {
+                "capacity": recorder_buffer.capacity,
+                "pending": recorder_pending_now,
+                "high_water_mark": recorder_buffer.high_water_mark,
+                "rejections": recorder_rejected_now,
+                "first_lost_sequence": recorder_buffer.first_lost_sequence,
+                "last_lost_sequence": recorder_buffer.last_lost_sequence,
+            },
+            "recorder": {
+                "persisted_snapshot_count": persisted_now,
+                "persisted_block_count": recorder.metrics.persisted_block_count,
+                "last_persisted_capture_sequence": recorder.metrics.last_persisted_capture_sequence,
+                "write_failure_count": recorder.metrics.write_failure_count,
+                "failed_snapshot_count": failed_now,
+                "first_failed_sequence": recorder.metrics.first_failed_sequence,
+                "last_failed_sequence": recorder.metrics.last_failed_sequence,
+                "in_flight_snapshot_count": recorder_in_flight,
+                "in_flight_first_sequence": recorder.metrics.in_flight_first_sequence,
+                "in_flight_last_sequence": recorder.metrics.in_flight_last_sequence,
+            },
+            "accounting": {
+                "acquired": acquired_now,
+                "persisted": persisted_now,
+                "acquisition_rejections": acquisition_rejected_now,
+                "recorder_queue_rejections": recorder_rejected_now,
+                "write_failed": failed_now,
+                "acquisition_queue_pending": acquisition_pending_now,
+                "recorder_queue_pending": recorder_pending_now,
+                "dispatcher_in_flight": dispatcher_in_flight,
+                "recorder_in_flight": recorder_in_flight,
+                "observed_unclassified_delta": acquired_now - accounted_now,
+            },
+            "note": "Counters are sampled independently without locking the acquisition path; a brief non-zero accounting delta can occur while a sample moves between stages.",
+        }
+
+    checkpoint_worker = PeriodicCheckpointWorker(
+        checkpoint_path, checkpoint_snapshot,
+        interval_seconds=args.checkpoint_interval_seconds,
+    )
+    checkpoint_thread = threading.Thread(
+        target=checkpoint_worker.run, args=(checkpoint_stop,),
+        name="ACC-Recording-Checkpoint", daemon=True,
+    )
+
     timer = WindowsTimerResolution(args.timer_resolution_ms)
     wall_start_ns = time.perf_counter_ns()
     cpu_start_ns = time.process_time_ns()
@@ -106,6 +204,7 @@ def main() -> int:
         recorder_thread.start()
         dispatcher_thread.start()
         producer_thread.start()
+        checkpoint_thread.start()
         producer_thread.join(timeout=args.duration_seconds)
         if producer_thread.is_alive():
             acquisition_stop.set()
@@ -121,10 +220,15 @@ def main() -> int:
         recorder_thread.join(timeout=30)
         if recorder_thread.is_alive():
             producer_error = producer_error or "Recorder did not finish draining recorder buffer."
+        checkpoint_stop.set()
+        checkpoint_thread.join(timeout=5)
     except Exception as exc:
         producer_error = f"{type(exc).__name__}: {exc}"
         acquisition_stop.set()
         recorder_stop.set()
+        checkpoint_stop.set()
+        if checkpoint_thread.is_alive():
+            checkpoint_thread.join(timeout=5)
     finally:
         timer.__exit__(None, None, None)
 
@@ -169,6 +273,7 @@ def main() -> int:
             "recorder_buffer_capacity": args.recorder_buffer_capacity,
             "batch_size": args.batch_size,
             "timer_resolution_ms_requested": args.timer_resolution_ms,
+            "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
             "physics_payload_size": PHYSICS_SIZE,
         },
         "environment": {"platform": platform.platform(), "python": sys.version, "cpu_count": os.cpu_count()},
