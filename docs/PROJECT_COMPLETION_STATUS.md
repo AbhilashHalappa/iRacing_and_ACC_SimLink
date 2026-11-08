@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 implementation started — controlled polling and a live benchmark harness are committed; target-PC cadence sweep is pending.
+**Status:** Stage 2 in progress — live 120/240/480 Hz sweep completed; observed cadence is approximately 64.5 Hz at every requested rate. A 1 ms Windows timer-resolution request is being added for a controlled retest.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -25,8 +25,8 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Windows ACC Physics adapter | Implemented; live connection verified | Read-only `Local\\acpmf_physics` mapping |
 | Automated acquisition tests | Previous baseline passed; post-Stage-2 run pending | User reported 13/13 before Stage 2 changes; cadence and new rejection-metric tests have not yet been run on the current branch tip |
 | Live ACC page copy | Passed for a short smoke test | 100 reads; expected and actual page size both 784 bytes; 100 unique packet IDs; one bracketed read was inconsistent |
-| Sustained driving acquisition | Not yet validated | Stage 2 live benchmark harness is ready; no target-PC run has yet been reported |
-| Polling cadence / CPU baseline | Instrumentation implemented; baseline pending | Configurable monotonic cadence and benchmark reporting are implemented; live measurements are still required |
+| Sustained driving acquisition | Initial live benchmark completed; pacing retest pending | Three 120-second trials completed with acquired=consumed and zero reconciliation delta; observed cadence was 64.47–64.53 Hz |
+| Polling cadence / CPU baseline | Baseline measured; Windows timer-resolution retest pending | 120/240/480 Hz requests each produced about 64.5 Hz; CPU was 2.02–2.71% of one core |
 | Graphics and Static acquisition | Not implemented | Current adapter reads Physics only |
 | Raw binary recorder | Not implemented | No durable raw recording or recovery guarantee |
 | End-of-session reconciliation | Not implemented | Requires recorder and final-drain logic |
@@ -85,7 +85,7 @@ Status meanings:
 
 ### Stage 2 — Sustained acquisition measurement and cadence baseline
 
-**Status: In progress — benchmark implementation committed; live cadence sweep pending**
+**Status: In progress — initial live cadence sweep complete; high-resolution timer retest pending**
 
 Implemented in this stage:
 - [x] Add configurable monotonic polling intervals to `PhysicsAcquirer.run()`; zero retains explicit maximum-throughput mode, positive intervals use deadline-based waiting.
@@ -97,9 +97,10 @@ Implemented in this stage:
 - [x] Write benchmark JSON only after acquisition stops, outside the acquisition thread.
 - [x] Include acquired/consumed/rejected/pending reconciliation in the report.
 - [ ] Run the expanded automated acquisition test suite (17 tests expected) after these changes.
-- [ ] Run target-PC live trials at 120, 240 and 480 requested Hz with comparable durations.
-- [ ] Review observed cadence, source packet gaps, retries, buffer rejects/high-water, CPU impact and final reconciliation.
-- [ ] Select the operating polling cadence and buffer capacity from the measurements; do not treat the trial rates as production targets.
+- [x] Run target-PC live trials at 120, 240 and 480 requested Hz for 120 seconds each under comparable ACC driving conditions.
+- [x] Review initial cadence, source packet gaps, retries, buffer rejects/high-water, CPU impact and final reconciliation.
+- [ ] Add a balanced 1 ms Windows timer-resolution request around benchmark trials and repeat the cadence sweep.
+- [ ] Select the operating polling cadence and buffer capacity from the post-fix measurements; do not treat the trial rates as production targets.
 
 **Stage exit gate:** A repeatable live benchmark with a documented operating cadence and quantified source-observation gaps and application-level losses. A zero application reconciliation delta does not mean every ACC publication was observed.
 
@@ -197,7 +198,17 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 - First/last packet IDs: 4066 / 6320
 - Packet ID advanced: yes
 
-**Next action:** Pull the latest branch, run the acquisition tests, then run the live benchmark at 120, 240 and 480 requested Hz for 120 seconds per trial with ACC running. Compare the timestamped JSON reports. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
+**Latest live Stage 2 sweep (user-reported, 8 November 2026; 120 seconds per trial):**
+
+| Requested cadence | Observed cadence | Acquired | Consumed | CPU (one core) | Inconsistent reads | Duplicates | Buffer rejects | High-water | Reconciliation delta |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 120 Hz | 64.47 Hz | 7,738 | 7,738 | 2.33% | 65 | 0 | 0 | 1 | 0 |
+| 240 Hz | 64.52 Hz | 7,742 | 7,742 | 2.02% | 56 | 2 | 0 | 1 | 0 |
+| 480 Hz | 64.53 Hz | 7,738 | 7,738 | 2.71% | 70 | 7 | 0 | 2 | 0 |
+
+All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
+
+**Next action:** Add a balanced WinMM 1 ms timer-resolution request for benchmark duration, run expanded tests, then repeat the three live trials. The timer request improves available wait granularity but does not guarantee a particular polling rate. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
 
 ## 7. Stage 2 implementation details
 
