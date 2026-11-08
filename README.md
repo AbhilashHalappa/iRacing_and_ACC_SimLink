@@ -48,7 +48,7 @@ Review requested versus observed polling rate, source packet gaps, consistency r
 
 ## Next gate
 
-The expanded acquisition tests, cadence sweep and 10-minute 480 Hz acquisition validation are complete. The independent raw recorder also passed a 120-second live run: 46,924 acquired/persisted, zero queue rejects, zero write failures, zero pending records and reconciliation delta 0. The abrupt-stop recovery test has passed on Windows: 11,938 snapshots across 11,517 valid blocks recovered, with zero invalid/trailing bytes and no truncation. The next gate is the documented target-PC slow-storage simulation, followed by physical disk-full/write-failure testing. The two checkpointed forced-stop tests found zero checkpoint-known samples missing; total loss after the final checkpoint remains unquantified.
+The expanded acquisition tests, cadence sweep and 10-minute 480 Hz acquisition validation are complete. The independent raw recorder also passed a 120-second live run: 46,924 acquired/persisted, zero queue rejects, zero write failures, zero pending records and reconciliation delta 0. The abrupt-stop recovery test has passed on Windows: 11,938 snapshots across 11,517 valid blocks recovered, with zero invalid/trailing bytes and no truncation. The target-PC slow-storage simulation has passed with 11,800/11,800 snapshots persisted and zero rejects. The next gate is the target-PC simulated-ENOSPC run, followed by physical storage-failure validation. The two checkpointed forced-stop tests found zero checkpoint-known samples missing; total loss after the final checkpoint remains unquantified.
 
 See:
 - [Project Completion Status](docs/PROJECT_COMPLETION_STATUS.md)
@@ -72,7 +72,14 @@ $env:PYTHONPATH = "src"
 python scripts/record_acc_physics.py --duration-seconds 30 --poll-hz 480 --checkpoint-interval-seconds 1 --simulated-write-delay-ms 500
 ```
 
-With the observed input rate near 390 unique snapshots/s and 128 records per batch, this delay intentionally limits the simulated recorder to roughly 256 snapshots/s before real disk-write time. The recorder queue should build during capture and then drain during graceful shutdown. Review recorder-queue high-water, maximum persist duration, total injected delay, final pending count, rejects, persisted count and reconciliation. This is not a physical disk-full test and does not modify the acquisition loop. The acquisition/recorder suite passed on Ubuntu and Windows (GitHub Actions run 42497405943), including delayed writes, simulated partial disk-write failure, interrupted-block recovery, checkpoint checksum/atomic replacement and in-flight accounting.
+With the observed input rate near 390 unique snapshots/s and 128 records per batch, this delay intentionally limits the simulated recorder to roughly 256 snapshots/s before real disk-write time. The recorder queue should build during capture and then drain during graceful shutdown. Review recorder-queue high-water, maximum persist duration, total injected delay, final pending count, rejects, persisted count and reconciliation. This is not a physical disk-full test and does not modify the acquisition loop. A bounded ENOSPC fault can also be injected after a chosen number of complete blocks using `--simulate-disk-full-after-batches N`. It writes only a short incomplete block prefix to the test recording and raises the standard no-space-left errno on the recorder thread; it never fills a drive. For example, after pulling the latest changes, run:
+
+```powershell
+$env:PYTHONPATH = "src"
+python scripts/record_acc_physics.py --duration-seconds 30 --poll-hz 480 --checkpoint-interval-seconds 1 --simulate-disk-full-after-batches 3
+```
+
+This test is expected to finish with **Status: failed** and a non-zero process exit because the injected disk-full condition is intentional. It should report the simulated failure, preserve the three complete blocks, account for the failed batch and remaining recorder queue, and recover/truncate only the incomplete trailing block. Then inspect the checkpoint sidecar with `python scripts/recover_acc_recording.py <recording-path>`. It validates application handling of ENOSPC but is not a substitute for a real storage device failure. The acquisition/recorder suite passed on Ubuntu and Windows (GitHub Actions run 42497405943), including delayed writes, simulated partial disk-write failure, interrupted-block recovery, checkpoint checksum/atomic replacement and in-flight accounting.
 
 For a controlled abrupt-stop test on Windows, use a separate PowerShell window and intentionally terminate a 10-minute recording after about 30 seconds. This test discards queued/in-flight data by design; it checks that already completed blocks survive and that the incomplete tail can be recovered:
 
