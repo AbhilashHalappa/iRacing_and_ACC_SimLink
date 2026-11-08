@@ -18,7 +18,7 @@ This is an audit only. It does not add a decoder or change the acquisition pipel
 ## Coverage definitions
 
 - **Raw preserved = Yes:** the adapter copies the entire page and the recorder stores that payload; there is no per-field filtering.
-- **Reference decoder exposes = Yes:** the cited reference decoder returns a corresponding field/value. This is not a decoder implemented in this greenfield repository.
+- **Reference decoder exposes = Yes:** the cited reference decoder includes a corresponding output key. For `wheel_load` and `tyre_dirty`, it deliberately returns `None` because the reference comments identify those ACC values as unused. This is not a decoder implemented in this greenfield repository.
 - **Unused/deprecated:** based on explicit field naming in the reference structure. A field not so marked is not thereby proven to be populated by ACC.
 - **Live validation:** no individual field has been validated yet. The prior live smoke test verified page size and packet-ID progression only.
 
@@ -39,11 +39,11 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 | `velocity` | `c_float[3]` | 32 | 12 | Yes | Yes | Not marked unused | Not individually validated |
 | `acc_g` | `c_float[3]` | 44 | 12 | Yes | Yes | Not marked unused | Not individually validated |
 | `wheel_slip` | `c_float[4]` | 56 | 16 | Yes | Yes | Not marked unused | Not individually validated |
-| `wheel_load` | `c_float[4]` | 72 | 16 | Yes | Yes | Not marked unused | Not individually validated |
+| `wheel_load` | `c_float[4]` | 72 | 16 | Yes | Yes — key returned as None | Not marked unused | Not individually validated |
 | `tyre_pressure_psi` | `c_float[4]` | 88 | 16 | Yes | Yes | Not marked unused | Not individually validated |
 | `wheel_angular_speed` | `c_float[4]` | 104 | 16 | Yes | Yes | Not marked unused | Not individually validated |
 | `tyre_wear_unused` | `c_float[4]` | 120 | 16 | Yes | No | Marked unused/deprecated in reference naming | Not individually validated |
-| `tyre_dirty` | `c_float[4]` | 136 | 16 | Yes | Yes | Not marked unused | Not individually validated |
+| `tyre_dirty` | `c_float[4]` | 136 | 16 | Yes | Yes — key returned as None | Not marked unused | Not individually validated |
 | `tyre_core_temp_c` | `c_float[4]` | 152 | 16 | Yes | Yes | Not marked unused | Not individually validated |
 | `camber_unused` | `c_float[4]` | 168 | 16 | Yes | No | Marked unused/deprecated in reference naming | Not individually validated |
 | `suspension_travel` | `c_float[4]` | 184 | 16 | Yes | Yes | Not marked unused | Not individually validated |
@@ -112,6 +112,10 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 | `slip_vibration` | `c_float` | 772 | 4 | Yes | Yes | Not marked unused | Not individually validated |
 | `g_vibration` | `c_float` | 776 | 4 | Yes | Yes | Not marked unused | Not individually validated |
 | `abs_vibration` | `c_float` | 780 | 4 | Yes | Yes | Not marked unused | Not individually validated |
+
+## Layout regression tests
+
+A new automated test module, `tests/acquisition/test_physics_layout.py`, locks all 84 field names, ctypes scalar types, array lengths, byte offsets and sizes, plus the 784-byte total and contiguous layout. This is a regression guard against accidental edits to the current transcription; it does not independently prove the transcription matches Kunos' authoritative specification. CI execution is pending for the commit containing the test.
 
 ## Current evidence
 
