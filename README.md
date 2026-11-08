@@ -4,7 +4,7 @@ This branch is dedicated to building and validating the ACC telemetry acquisitio
 
 ## Current project status
 
-**As of 8 November 2026:** the source-independent Physics acquisition core and Windows ACC Physics shared-memory adapter are implemented. Automated acquisition tests passed locally (13/13), and a short live ACC smoke test successfully copied 100 Physics pages of the expected 784-byte size while observing 100 unique, advancing packet IDs.
+**As of 8 November 2026:** the source-independent Physics acquisition core and Windows ACC Physics shared-memory adapter are implemented. The pre-Stage-2 acquisition test suite passed locally (13/13), and a short live ACC smoke test successfully copied 100 Physics pages of the expected 784-byte size while observing 100 unique, advancing packet IDs. Stage 2 has since added cadence metrics, rejection accounting and a live benchmark harness; the expanded test suite still needs to be run against the current branch tip.
 
 This is not yet a complete acquisition pipeline. Sustained acquisition through the acquirer and buffer, cadence/CPU measurement, Graphics and Static page acquisition, raw recording, recovery and end-of-session reconciliation remain outstanding.
 
