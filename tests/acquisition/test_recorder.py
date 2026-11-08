@@ -40,7 +40,7 @@ class RecorderTests(unittest.TestCase):
                 stream.write(b"PHBK\\x01\\x02")
             report = recover_recording(path)
             self.assertEqual(report.recovered_snapshot_count, 2)
-            self.assertEqual(report.truncated_bytes, 7)
+            self.assertEqual(report.truncated_bytes, 6)
             self.assertEqual(path.stat().st_size, valid_size)
 
     def test_recovery_discards_block_with_corrupt_checksum(self):
