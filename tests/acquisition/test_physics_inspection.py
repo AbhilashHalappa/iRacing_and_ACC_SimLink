@@ -41,6 +41,13 @@ class PhysicsInspectionTests(unittest.TestCase):
             self.assertEqual(by_name["throttle"]["observed_behavior"], "varies")
             self.assertEqual(by_name["brake"]["maximum"], 0.5)
             self.assertEqual(by_name["rpm"]["minimum"], 800.0)
+            self.assertEqual(by_name["rpm"]["maximum"], 3000.0)
+            self.assertEqual(by_name["rpm"]["field_type"], "int32")
+            self.assertEqual(by_name["rpm"]["field_offset_bytes"], 20)
+            self.assertEqual(by_name["rpm"]["field_size_bytes"], 4)
+            self.assertEqual(by_name["rpm"]["array_length"], 1)
+            self.assertEqual(by_name["rpm"]["component_offset_bytes"], 20)
+            self.assertTrue(by_name["rpm"]["unique_values_count_exact"])
             self.assertEqual(by_name["speed_kph"]["observed_behavior"], "constant")
             expected_components = sum(
                 field_type._length_ if hasattr(field_type, "_length_") else 1
@@ -48,6 +55,27 @@ class PhysicsInspectionTests(unittest.TestCase):
             )
             self.assertEqual(report["field_component_count"], expected_components)
             self.assertIn("wheel_slip[3]", by_name)
+
+    def test_marks_unique_value_count_as_lower_bound_when_limit_is_reached(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "many-unique-values.accraw"
+            snapshots = []
+            for index in range(4096):
+                page = _Physics()
+                page.speed_kph = float(index)
+                snapshots.append(
+                    PhysicsSnapshot(index + 1, index + 1, index, index + 1,
+                                    index + 1, bytes(page))
+                )
+
+            with RawPhysicsRecordingWriter(path, payload_size=PHYSICS_SIZE) as writer:
+                writer.write_batch(snapshots)
+
+            report = inspect_recording(path)
+            speed = next(row for row in report["fields"] if row["name"] == "speed_kph")
+            self.assertEqual(speed["unique_values_observed"], 4096)
+            self.assertEqual(speed["unique_values_limit"], 4096)
+            self.assertFalse(speed["unique_values_count_exact"])
 
     def test_rejects_corrupt_block_checksum_without_modifying_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
