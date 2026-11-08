@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Source-independent acquisition core and Windows Physics adapter implemented; 120/240/480 Hz sweep and 10-minute 480 Hz live acquisition validation completed; normal 120-second live raw recording passed; expanded recorder fault-injection suite passed on Windows and Ubuntu; 480 Hz polling selected  
+**Status:** Source-independent acquisition core and Windows Physics adapter implemented; 120/240/480 Hz sweep and 10-minute 480 Hz live acquisition validation completed; normal 120-second live raw recording passed; expanded recorder fault-injection suite passed on Windows and Ubuntu; forced-process-termination recovery passed on target Windows PC; physical storage-failure validation pending; 480 Hz polling selected  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -120,7 +120,7 @@ Implementation and normal live validation passed; 31/31 automated tests passed o
 - `scripts/record_acc_physics.py` runs acquisition, dispatch and persistence on separate threads and reports final reconciliation.
 - `scripts/recover_acc_recording.py` inspects a `.accraw` file and, by default, truncates only an incomplete/corrupt trailing region while preserving complete blocks.
 
-Live normal-recording validation: 120 seconds at 480 Hz; 46,924 snapshots acquired and persisted; zero acquisition/recorder queue rejects, zero write failures, zero pending records, reconciliation delta 0, and 12.04% CPU of one core. GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu, including delayed storage, simulated disk-full partial-block failure, and interrupted-second-block recovery. Real abrupt process termination and physical disk-full/slow-storage tests on the target PC remain outstanding. The README now documents a controlled force-stop procedure and recovery command for the next Windows validation. Recorder work must never execute in the acquisition loop.
+Live normal-recording validation: 120 seconds at 480 Hz; 46,924 snapshots acquired and persisted; zero acquisition/recorder queue rejects, zero write failures, zero pending records, reconciliation delta 0, and 12.04% CPU of one core. GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu, including delayed storage, simulated disk-full partial-block failure, and interrupted-second-block recovery. A real forced-process-termination test has now passed on the target Windows PC. After approximately 30 seconds of live recording, the process was force-killed; recovery validated 11,517 sequential CRC-valid blocks containing 11,938 snapshots, with 10,161,100 valid bytes, zero invalid/trailing bytes and no truncation. Since the process could not write its final report, queued/in-flight samples lost at termination cannot be reconciled from this run. Physical disk-full/slow-storage tests remain outstanding. Recorder work must never execute in the acquisition loop.
 
 ### Stage 4 — Reliability diagnostics
 
@@ -148,4 +148,4 @@ The raw recording format is version 1. It begins with a fixed-size file header c
 
 The recorder worker batches records from its own bounded queue and flushes/fsyncs each completed block. The acquisition-to-recorder dispatcher is a separate thread. Queue rejections at both handoff boundaries are accounted independently. On finalization, the runner reconciles acquired snapshots against persisted snapshots, both queue rejection counts, recorder write-failure counts and pending queue contents. Recovery accepts only sequential, structurally valid, checksum-valid blocks and truncates the invalid trailing region when requested.
 
-The format and worker are implemented; the 31-test suite has passed on Windows and Ubuntu, and a normal live Windows ACC recording completed with zero unexplained reconciliation delta. Stage 3 is not yet signed off: actual process interruption and physical storage-failure validation remain required.
+The format and worker are implemented; the 31-test suite has passed on Windows and Ubuntu, and a normal live Windows ACC recording completed with zero unexplained reconciliation delta. A real forced-process-termination test recovered 11,938 snapshots across 11,517 CRC-valid blocks with no invalid/trailing bytes and no truncation. This proves completed-block recovery, not zero-loss shutdown or quantitative abnormal-run reconciliation. Stage 3 is not yet signed off: physical storage-failure validation and abnormal-shutdown loss accounting remain required.
