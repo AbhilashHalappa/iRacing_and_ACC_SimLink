@@ -13,7 +13,7 @@ The project is being built from a clean foundation, with reliable telemetry acqu
 
 The current implementation can connect to ACC's Windows Physics shared-memory mapping, copy the raw Physics page and pass the source-independent acquisition tests. A live ACC test confirmed the expected page size and advancing packet IDs.
 
-**The project is not complete.** It currently acquires only the Physics page. Raw Physics recording and recovery of completed CRC-valid blocks are implemented and tested. Checkpoint-assisted abnormal-shutdown estimation has now been exercised twice on the target Windows PC, with zero checkpoint-known samples missing in both runs. The recorder now supports an opt-in simulated write delay isolated to the recorder thread; target-PC slow-storage simulation and physical storage-failure testing remain outstanding. Graphics and Static page acquisition and downstream application features are not yet implemented.
+**The project is not complete.** It currently acquires only the Physics page. Raw Physics recording and recovery of completed CRC-valid blocks are implemented and tested. Checkpoint-assisted abnormal-shutdown estimation has now been exercised twice on the target Windows PC, with zero checkpoint-known samples missing in both runs. The recorder now supports an opt-in simulated write delay and bounded ENOSPC fault injection, both isolated to the recorder thread. The live target-PC slow-storage simulation passed with 11,800/11,800 snapshots persisted and zero rejects; target-PC ENOSPC execution and physical storage-failure testing remain outstanding. Graphics and Static page acquisition and downstream application features are not yet implemented.
 
 ### Current evidence
 
@@ -155,7 +155,9 @@ Planned work:
 - [x] Validate checkpoint-assisted forced termination twice on the target Windows PC; both runs recovered every checkpoint-persisted sample and reported zero checkpoint-known samples missing.
 - [x] Add an opt-in simulated write delay on the recorder thread, plus timing metrics and automated queue-drain tests; default behavior remains unchanged.
 - [x] Validate checkpoint-based loss estimates against two forced-termination runs; both reported zero checkpoint-known samples missing. Captures after the last checkpoint remain outside the estimate.
-- [ ] Run the controlled `--simulated-write-delay-ms 500` live ACC test on the target PC and inspect queue growth/drain/reconciliation.
+- [x] Run the controlled `--simulated-write-delay-ms 500` live ACC test on the target PC: 11,800 acquired/persisted, recorder queue high-water 4,247, zero rejects/failures, pending 0 and reconciliation delta 0.
+- [x] Implement bounded `--simulate-disk-full-after-batches N` ENOSPC fault injection and automated tests for complete-block preservation, failed-batch accounting, queued-sample visibility and tail recovery.
+- [ ] Run the target-PC simulated-ENOSPC test and inspect the recording/checkpoint recovery report.
 - [ ] Test physical slow-storage and disk-full behavior on the target PC.
 
 **Stage exit gate:** Failure modes are observable, reproducible and correctly accounted for; sustained sessions complete without unexplained data loss.
@@ -244,7 +246,7 @@ The 10-minute run had no producer errors, no buffer rejections, no pending recor
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Run the controlled 30-second slow-storage simulation documented in README with `--simulated-write-delay-ms 500`; review recorder queue high-water, injected delay, max persist duration, final drain and reconciliation. Then test physical disk-full/write failure on the target Windows PC. The previous forced-stop recovery test recovered 11,938 snapshots in 11,517 valid blocks, with zero invalid/trailing bytes and no truncation. The selected polling cadence remains 480 Hz; the acquisition critical path remains unchanged.
+**Next action:** Run the safe 30-second target-PC ENOSPC simulation documented in README with `--simulate-disk-full-after-batches 3`; verify complete blocks, failed batch, queued samples and recovery using the checkpoint sidecar. Only after that consider physical storage-failure testing on a dedicated non-system test volume. The previous forced-stop recovery test recovered 11,938 snapshots in 11,517 valid blocks, with zero invalid/trailing bytes and no truncation. The selected polling cadence remains 480 Hz; the acquisition critical path remains unchanged.
 
 ## 7. Stage 2 implementation details
 
