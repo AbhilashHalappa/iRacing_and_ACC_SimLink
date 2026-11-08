@@ -37,7 +37,7 @@ class RecorderTests(unittest.TestCase):
                 writer.write_batch([snapshot(1), snapshot(2)])
             valid_size = path.stat().st_size
             with path.open("ab") as stream:
-                stream.write(b"PHBK\\x01\\x02")
+                stream.write(b"PHBK" + bytes((1, 2)))
             report = recover_recording(path)
             self.assertEqual(report.recovered_snapshot_count, 2)
             self.assertEqual(report.truncated_bytes, 6)
