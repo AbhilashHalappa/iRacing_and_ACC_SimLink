@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 complete — expanded tests, 120/240/480 Hz controlled sweep and a 10-minute 480 Hz live validation passed. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial. Stage 3 raw persistence is ready to begin.
+**Status:** Stage 2 complete; Stage 3 raw recorder implementation added and validation pending. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -174,6 +174,9 @@ Current package: `src/race_engineer_acquisition/`
 - `ring_buffer.py` — bounded SPSC buffer.
 - `acquirer.py` — source-independent Physics acquisition orchestration and metrics.
 - `acc_windows.py` — Windows ACC Physics shared-memory adapter.
+- `recorder.py` — separate raw recorder worker, checksummed blocks and recovery.
+- `scripts/record_acc_physics.py` — live acquisition/dispatch/recording runner.
+- `tests/acquisition/test_recorder.py` — recorder format, recovery and worker tests.
 - `tests/acquisition/` — unit tests for buffer, acquirer and Windows source adapter.
 
 The adapter copies the Physics page as raw bytes. It does not decode all Physics fields, read Graphics or Static, record to disk, or feed UI/coaching/lap-analysis consumers.
@@ -186,7 +189,7 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 4. The direct 100-read live test did not exercise `PhysicsAcquirer` or the ring buffer.
 5. The run loop supports configurable monotonic polling. The initial sweep observed approximately 64.5 Hz for all three requested rates. With the benchmark's balanced 1 ms WinMM timer-resolution request, the second sweep achieved 119.999/239.999/479.206 polling cycles/s. A 600-second 480 Hz trial then achieved 479.672 polling cycles/s and accepted 233,102 unique snapshots (388.50/s), with 54,702 duplicate observations rejected and 6,899 source packet gaps. The 480 Hz polling cadence is selected for the next acquisition/recorder stage based on these measurements; ACC's exact publication rate is not guaranteed.
 6. The initial queue is SPSC. Multiple consumers require explicit fan-out and independent loss accounting.
-7. No raw recorder or persistence/recovery guarantee exists yet.
+7. A raw recorder and recovery implementation now exist, but persistence/recovery guarantees are not claimed until automated and live validation pass.
 8. No downstream lap/sector logic, coaching, UI or other application feature should be allowed to compromise the acquisition critical path.
 
 ## 6. Latest verified baseline and next action
