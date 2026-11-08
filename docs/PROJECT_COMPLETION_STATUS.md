@@ -126,6 +126,7 @@ Implemented:
 - [x] Run the expanded automated tests in GitHub Actions on Ubuntu and Windows: 31/31 passed on both platforms (run 42492834805).
 - [x] Run a live ACC recording at the selected 480 Hz polling cadence for 120 seconds: 46,924 acquired and persisted, zero rejects/failures/pending, reconciliation delta 0, 12.04% CPU of one core.
 - [x] Add automated fault-injection coverage for delayed storage, a simulated disk-full partial block write, and recovery after an interrupted second block.
+- [x] Add `scripts/recover_acc_recording.py` to inspect and recover `.accraw` files after interrupted runs.
 - [x] Confirm the expanded fault-injection tests pass on Ubuntu and Windows in GitHub Actions (run 42492834805).
 - [ ] Exercise real slow storage, disk-full/write failures and abrupt process termination on the target Windows PC.
 
@@ -179,6 +180,7 @@ Current package: `src/race_engineer_acquisition/`
 - `acc_windows.py` — Windows ACC Physics shared-memory adapter.
 - `recorder.py` — separate raw recorder worker, checksummed blocks and recovery.
 - `scripts/record_acc_physics.py` — live acquisition/dispatch/recording runner.
+- `scripts/recover_acc_recording.py` — inspect and recover complete blocks after an interrupted recording.
 - `tests/acquisition/test_recorder.py` — recorder format, recovery and worker tests.
 - `tests/acquisition/` — unit tests for buffer, acquirer and Windows source adapter.
 
@@ -229,7 +231,7 @@ The 10-minute run had no producer errors, no buffer rejections, no pending recor
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Perform a controlled abrupt-stop test on the Windows PC while recording, then run recovery against the resulting `.accraw` file and reconcile recovered snapshots with the runner's report. Also exercise slow and failing storage on the target PC. The selected polling cadence remains 480 Hz; the acquisition core remains unchanged.
+**Next action:** Pull the recovery utility and follow the controlled abrupt-stop procedure in README.md. Inspect the recovered block count, last capture sequence and truncated byte count. A forced process stop intentionally loses queued/in-flight samples; the recovery test is about preserving completed CRC-valid blocks, not zero-loss shutdown. Then exercise slow and failing storage on the target PC. The selected polling cadence remains 480 Hz; the acquisition core remains unchanged.
 
 ## 7. Stage 2 implementation details
 
