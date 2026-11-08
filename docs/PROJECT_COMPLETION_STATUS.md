@@ -121,7 +121,7 @@ Implemented:
 - [x] Flush and fsync the file header and each completed block.
 - [x] Recover valid sequential blocks and truncate an incomplete or corrupt trailing block.
 - [x] Generate UTC-timestamped recording filenames and retain UTC creation time in the file header.
-- [x] Add a three-thread live runner: acquisition, queue dispatcher, and recorder.
+- [x] Add a four-thread live runner: acquisition, queue dispatcher, recorder, and independent periodic checkpoint worker.
 - [x] Add final-drain accounting for acquired, persisted, both queue rejection stages, recorder write failures and pending records.
 - [x] Run the expanded automated tests in GitHub Actions on Ubuntu and Windows: 31/31 passed on both platforms (run 42492834805).
 - [x] Run a live ACC recording at the selected 480 Hz polling cadence for 120 seconds: 46,924 acquired and persisted, zero rejects/failures/pending, reconciliation delta 0, 12.04% CPU of one core.
