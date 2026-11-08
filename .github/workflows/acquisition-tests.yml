@@ -5,6 +5,8 @@ on:
     paths:
       - "src/race_engineer_acquisition/**"
       - "tests/acquisition/**"
+      - "scripts/record_acc_physics.py"
+      - "scripts/recover_acc_recording.py"
       - ".github/workflows/acquisition-tests.yml"
   pull_request:
     paths:
@@ -23,6 +25,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Compile acquisition package and operational scripts
+        run: python -m compileall -q src/race_engineer_acquisition scripts/record_acc_physics.py scripts/recover_acc_recording.py
       - name: Run acquisition core tests
         env:
           PYTHONPATH: src
