@@ -341,7 +341,11 @@ def main() -> int:
     print(f"Recorder write failures : {failed}")
     print(f"Acquisition rejects     : {acquisition_rejected}")
     print(f"Recorder queue rejects  : {recorder_rejected}")
+    print(f"Recorder queue high-water: {recorder_buffer.high_water_mark}")
     print(f"Pending                 : {pending_acquisition + pending_recorder}")
+    print(f"Simulated write delay   : {recorder.metrics.simulated_write_delay_ns / 1_000_000:.1f} ms")
+    print(f"Max persist duration    : {recorder.metrics.max_persist_duration_ns / 1_000_000:.1f} ms")
+    print(f"Max block write duration: {recorder.metrics.max_block_write_duration_ns / 1_000_000:.1f} ms")
     print(f"Reconciliation delta    : {reconciliation_delta}")
     print(f"CPU (one core)          : {report['timing']['process_cpu_one_core_percent']:.2f}%")
     return 0 if report["status"] == "completed" else 1
