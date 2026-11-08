@@ -171,6 +171,52 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(path.stat().st_size, recovery.valid_bytes)
 
 
+
+    def test_simulated_enospc_preserves_complete_blocks_and_accounts_failed_and_queued_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "simulated_enospc.accraw"
+            queue = AcquisitionRingBuffer[PhysicsSnapshot](8)
+            for sequence in range(1, 6):
+                self.assertTrue(queue.try_put(snapshot(sequence)))
+            worker = PhysicsRecorderWorker(
+                queue, path, payload_size=8, batch_size=2,
+                simulated_disk_full_after_batches=1,
+            )
+            stop = Event()
+            stop.set()
+            worker.run(stop)
+
+            self.assertTrue(worker.metrics.simulated_disk_full_triggered)
+            self.assertIn("No space left on device (simulated)", worker.error)
+            self.assertEqual(worker.metrics.write_failure_count, 1)
+            self.assertEqual(worker.metrics.persisted_snapshot_count, 2)
+            self.assertEqual(worker.metrics.failed_snapshot_count, 2)
+            self.assertEqual(worker.metrics.first_failed_sequence, 3)
+            self.assertEqual(worker.metrics.last_failed_sequence, 4)
+            self.assertEqual(queue.size, 1)
+
+            recovery = recover_recording(path, truncate_invalid_tail=False)
+            self.assertEqual(recovery.valid_block_count, 1)
+            self.assertEqual(recovery.recovered_snapshot_count, 2)
+            self.assertEqual(recovery.last_capture_sequence, 2)
+            self.assertGreater(recovery.truncated_bytes, 0)
+
+            repaired = recover_recording(path, truncate_invalid_tail=True)
+            self.assertEqual(repaired.recovered_snapshot_count, 2)
+            self.assertGreater(repaired.truncated_bytes, 0)
+            clean = recover_recording(path, truncate_invalid_tail=False)
+            self.assertEqual(clean.truncated_bytes, 0)
+            self.assertEqual(clean.recovered_snapshot_count, 2)
+
+    def test_simulated_enospc_batch_threshold_must_be_positive(self):
+        queue = AcquisitionRingBuffer[PhysicsSnapshot](1)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(ValueError):
+                PhysicsRecorderWorker(
+                    queue, Path(directory) / "invalid.accraw",
+                    simulated_disk_full_after_batches=0,
+                )
+
     def test_worker_publishes_in_flight_batch_until_fsync_completes(self):
         with tempfile.TemporaryDirectory() as directory:
             queue = AcquisitionRingBuffer[PhysicsSnapshot](4)
