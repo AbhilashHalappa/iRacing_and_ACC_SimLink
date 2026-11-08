@@ -23,7 +23,7 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Bounded SPSC buffer | Implemented | FIFO, wraparound and reject-without-overwrite unit tests |
 | Physics acquisition loop | Implemented | Injectable source/clock, monotonic timestamps, sequence assignment and retry/accounting metrics |
 | Windows ACC Physics adapter | Implemented; live connection verified | Read-only `Local\\acpmf_physics` mapping |
-| Automated acquisition tests | Passed | User-reported result: 13/13 tests passed using the documented unittest command |
+| Automated acquisition tests | Previous baseline passed; post-Stage-2 run pending | User reported 13/13 before Stage 2 changes; cadence and new rejection-metric tests have not yet been run on the current branch tip |
 | Live ACC page copy | Passed for a short smoke test | 100 reads; expected and actual page size both 784 bytes; 100 unique packet IDs; one bracketed read was inconsistent |
 | Sustained driving acquisition | Not yet validated | Stage 2 live benchmark harness is ready; no target-PC run has yet been reported |
 | Polling cadence / CPU baseline | Instrumentation implemented; baseline pending | Configurable monotonic cadence and benchmark reporting are implemented; live measurements are still required |
@@ -183,10 +183,10 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest confirmed acquisition code commit before Stage 2:** `41cc633bb864868aa4f540898a631fcf21290254`  
+**Latest Stage 2 implementation commit:** `9019d8adf1bdefd338caa4b593bec2462f3fd9c1`  
 **Branch:** `feature/acquisition-foundation`
 
-**Latest user-reported automated test:** 13/13 acquisition tests passed.
+**Latest user-reported automated test:** 13/13 acquisition tests passed before Stage 2 changes. The expanded test suite must be run again against the current branch tip.
 
 **Latest user-reported live ACC smoke test (Stage 1):**
 - Expected Physics page: 784 bytes
