@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from race_engineer_acquisition.checkpoint import read_checkpoint
 from race_engineer_acquisition.recorder import recover_recording
 
 
@@ -44,6 +45,46 @@ def main() -> int:
     print(f"File size before        : {before_size}")
     print(f"File size after         : {after_size}")
     print(f"Tail truncated          : {'no (inspection only)' if args.no_truncate else ('yes' if before_size != after_size else 'no')}")
+
+    checkpoint_path = args.recording.with_suffix(".checkpoint.json")
+    if checkpoint_path.is_file():
+        print(f"Checkpoint              : {checkpoint_path}")
+        try:
+            checkpoint = read_checkpoint(checkpoint_path)
+            acquisition = checkpoint.get("acquisition", {})
+            recorder = checkpoint.get("recorder", {})
+            accounting = checkpoint.get("accounting", {})
+            acquired = int(acquisition.get("capture_count", 0))
+            persisted_at_checkpoint = int(recorder.get("persisted_snapshot_count", 0))
+            explicit_losses = (
+                int(accounting.get("acquisition_rejections", 0))
+                + int(accounting.get("recorder_queue_rejections", 0))
+                + int(accounting.get("write_failed", 0))
+            )
+            outstanding_at_checkpoint = max(
+                0, acquired - persisted_at_checkpoint - explicit_losses
+            )
+            recovered_after_checkpoint = max(
+                0, recovery.recovered_snapshot_count - persisted_at_checkpoint
+            )
+            print(f"Checkpoint sequence     : {checkpoint.get('checkpoint_sequence')}")
+            print(f"Checkpoint time (UTC)   : {checkpoint.get('checkpointed_at_utc')}")
+            print(f"Captured at checkpoint  : {acquired}")
+            print(f"Last captured sequence  : {acquisition.get('last_capture_sequence')}")
+            print(f"Persisted at checkpoint : {persisted_at_checkpoint}")
+            print(f"Last persisted sequence : {recorder.get('last_persisted_capture_sequence')}")
+            print(f"Acquisition queue       : {checkpoint.get('acquisition_buffer', {}).get('pending', 0)}")
+            print(f"Recorder queue          : {checkpoint.get('recorder_buffer', {}).get('pending', 0)}")
+            print(f"Dispatcher in flight    : {checkpoint.get('dispatcher', {}).get('in_flight_sequence')}")
+            print(f"Recorder in flight      : {recorder.get('in_flight_snapshot_count', 0)}")
+            print(f"Outstanding at checkpoint: {outstanding_at_checkpoint}")
+            print(f"Recovered beyond checkpoint persisted count: {recovered_after_checkpoint}")
+            print(f"Checkpoint accounting delta: {accounting.get('observed_unclassified_delta')}")
+            print("Note: outstanding is a point-in-time checkpoint count, not an exact crash-loss count; samples may have persisted after this checkpoint.")
+        except ValueError as exc:
+            print(f"Checkpoint validation   : FAILED ({exc})")
+    else:
+        print("Checkpoint              : not found (legacy recording or checkpoints disabled)")
     return 0
 
 
