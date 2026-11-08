@@ -248,6 +248,11 @@ class PhysicsRecorderWorker:
                             stop_event.wait(0.0005)
                         continue
                     batch.append(item)
+                    # The batch has left the queue but is not yet on disk. Keep
+                    # its sequence range visible to the checkpoint observer.
+                    self.metrics.in_flight_snapshot_count = len(batch)
+                    self.metrics.in_flight_first_sequence = batch[0].capture_sequence
+                    self.metrics.in_flight_last_sequence = batch[-1].capture_sequence
                     if len(batch) >= self.batch_size:
                         self._persist(writer, batch)
                         batch = []
