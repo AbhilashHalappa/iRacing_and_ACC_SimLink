@@ -168,7 +168,7 @@ class RecorderTests(unittest.TestCase):
             recovery = recover_recording(path)
             self.assertEqual(recovery.recovered_snapshot_count, 0)
             self.assertGreater(recovery.truncated_bytes, 0)
-            self.assertEqual(path.stat().stat().st_size if False else path.stat().st_size, recovery.valid_bytes)
+            self.assertEqual(path.stat().st_size, recovery.valid_bytes)
 
 
 if __name__ == "__main__":
