@@ -149,9 +149,16 @@ def main() -> int:
         except Exception as exc:
             recovery = {"error": f"{type(exc).__name__}: {exc}"}
 
+    recovery_ok = (
+        recovery is not None
+        and "error" not in recovery
+        and recovery.get("recovered_snapshot_count") == persisted
+        and recovery.get("truncated_bytes") == 0
+    )
     report = {
         "schema_version": 1,
-        "status": "completed" if not producer_error and not recorder.error and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0 else "failed",
+        "status": "completed" if not producer_error and not recorder.error and recovery_ok and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0 else "failed",
+        "recovery_validation_passed": recovery_ok,
         "started_at_utc": started_utc.isoformat(),
         "finished_at_utc": datetime.now(timezone.utc).isoformat(),
         "recording_file": recording_path.name,
