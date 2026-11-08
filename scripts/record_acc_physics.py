@@ -268,6 +268,7 @@ def main() -> int:
         "checkpoint_validation_passed": checkpoint_ok,
         "checkpoint_file": checkpoint_path.name,
         "checkpoint_write_count": checkpoint_worker.write_count,
+        "checkpoint_write_failure_count": checkpoint_worker.write_failure_count,
         "checkpoint_error": checkpoint_worker.error,
         "started_at_utc": started_utc.isoformat(),
         "finished_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -324,6 +325,7 @@ def main() -> int:
     print(f"Report                  : {report_path}")
     print(f"Checkpoint              : {checkpoint_path}")
     print(f"Checkpoint writes       : {checkpoint_worker.write_count}")
+    print(f"Checkpoint write failures: {checkpoint_worker.write_failure_count}")
     print(f"Checkpoint error        : {checkpoint_worker.error}")
     print(f"Acquired                : {acquired}")
     print(f"Persisted               : {persisted}")
