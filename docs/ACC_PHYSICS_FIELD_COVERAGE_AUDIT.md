@@ -1,6 +1,6 @@
 # ACC Physics Page — Field Coverage Audit
 
-**Status:** Structural inventory completed; offline raw inspection utility added; authoritative-specification cross-check and live field validation pending  
+**Status:** Structural inventory and offline inspection improvements implemented; controlled live field validation partially completed; authoritative version-specific ABI cross-check still pending  
 **Page size:** 784 bytes  
 **Layout:** Little-endian, `_pack_ = 4`  
 **Reference:** `AbhilashHalappa/Race-Engineer-ACC`, branch `diagnostic/high-res-capture-2026-11-07`, `src/acc_shared_memory_extended.py`, blob `e9a54bda008cb6ff1797dfdc14b07b297a461ab9`.
@@ -20,13 +20,14 @@ This is an audit only. It does not add a decoder or change the acquisition pipel
 - **Raw preserved = Yes:** the adapter copies the entire page and the recorder stores that payload; there is no per-field filtering.
 - **Reference decoder exposes = Yes:** the cited reference decoder includes a corresponding output key. For `wheel_load` and `tyre_dirty`, it deliberately returns `None` because the reference comments identify those ACC values as unused. This is not a decoder implemented in this greenfield repository.
 - **Unused/deprecated:** based on explicit field naming in the reference structure. A field not so marked is not thereby proven to be populated by ACC.
-- **Live validation:** no individual field has been validated yet. The prior live smoke test verified page size and packet-ID progression only.
+- **Live validation:** controlled recordings have now verified variation for a subset of candidate fields and observed zero/stable values for others. See the dated evidence section below. Variation alone does not prove semantic correctness or establish the full structure ABI.
+- **Inventory table status:** the per-row “Not individually validated” entries record the original inventory baseline; they are not a statement that no later live captures have been performed.
 
 ## Complete field inventory
 
 Offsets are zero-based byte offsets. Array sizes are total bytes.
 
-| Field | C type | Offset | Size (bytes) | Raw preserved | Reference decoder exposes | Reference unused/deprecated marker | Live field validated |
+| Field | C type | Offset | Size (bytes) | Raw preserved | Reference decoder exposes | Reference unused/deprecated marker | Live field validated at inventory baseline |
 |---|---:|---:|---:|---|---|---|---|
 | `packet_id` | `c_int32` | 0 | 4 | Yes | Yes | Not marked unused | Not individually validated |
 | `throttle` | `c_float` | 4 | 4 | Yes | Yes | Not marked unused | Not individually validated |
@@ -115,7 +116,7 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 
 ## Layout regression tests
 
-A new automated test module, `tests/acquisition/test_physics_layout.py`, locks all 84 field names, ctypes scalar types, array lengths, byte offsets and sizes, plus the 784-byte total and contiguous layout. This is a regression guard against accidental edits to the current transcription; it does not independently prove the transcription matches Kunos' authoritative specification. CI execution is pending for the commit containing the test.
+The automated test module, `tests/acquisition/test_physics_layout.py`, locks all 84 field names, ctypes scalar types, array lengths, byte offsets and sizes, plus the 784-byte total and contiguous layout. This is a regression guard against accidental edits to the current transcription; it does not independently prove the transcription matches Kunos' authoritative specification. The inspection tests also verify that RPM is reported as `int32` at offset 20 and that capped unique-value counts are explicitly identified.
 
 ## Offline raw inspection utility
 
@@ -126,17 +127,65 @@ $env:PYTHONPATH = "src"
 python scripts/inspect_acc_physics.py "user_data\\raw_recordings\\<recording>.accraw" --csv-out "user_data\\raw_recordings\\<recording>.physics.csv"
 ```
 
-The utility validates the recording header, block sequence, payload lengths and CRCs, then reports per-field/per-array-component sample count, finite/non-finite count, zero/non-zero count, min/max, first/last value and whether the observed value was constant or varied. It writes a JSON report beside the recording by default and an optional CSV. It never truncates or modifies the source recording.
+The utility validates the recording header, block sequence, payload lengths and CRCs, then reports per-field/per-array-component sample count, finite/non-finite count, zero/non-zero count, min/max, first/last value and whether the observed value was constant or varied. Each component now includes its scalar type (`int32` or `float32`), field byte offset, field byte size, array length and component byte offset. The JSON and optional CSV carry the same metadata.
+
+Unique-value tracking is capped at 4,096 distinct values per component to bound offline memory use. `unique_values_count_exact` is true only when fewer than 4,096 values were observed. If the limit is reached, `unique_values_observed` is a lower bound, not an exact cardinality. The report also records the tracking limit. The utility writes a JSON report beside the recording by default and an optional CSV. It never truncates or modifies the source recording.
 
 Observed variation is only descriptive evidence. It does not establish semantic correctness; controlled actions must be correlated with the relevant fields. This utility is an offline diagnostic reader, not a production decoder and is not used by the acquisition hot path.
 
-## Current evidence
+## Live validation evidence
+
+ACC game build observed during these captures: **1.10.4**. Shared-memory identifiers observed during the session: `smVersion = 1.9`, `acVersion = 1.7`. These identifiers are not the game build number.
+
+| Capture | Controlled activity | Evidence |
+|---|---|---|
+| Stationary baseline — `acc_physics_20261108T163710_467685Z.accraw` | Stationary baseline | 10,662 snapshots; complete 784-byte payloads; 109 of 196 inspected components varied |
+| Input test — `acc_physics_20261108T164030_324828Z.accraw` | Throttle, brake, steering and gear inputs | 22,519 snapshots; throttle, brake, RPM, steering and other expected driving signals varied |
+| Engine OFF — `acc_physics_20261108T170533_325744Z.accraw` | Engine switched off | 6,019 snapshots; RPM remained zero while stationary |
+| Engine ON — `acc_physics_20261108T170557_631094Z.accraw` | Engine switched on | 5,780 snapshots; RPM rose to approximately 1,712 during the controlled test |
+| Candidate-prefix stationary — `acc_physics_20261108T173458_003331Z.accraw` | Stationary input sequence | 22,171 snapshots; candidate offsets for throttle, brake, RPM, steering and speed behaved plausibly |
+| Candidate-prefix drive — `acc_physics_20261108T173813_569096Z.accraw` | 120-second drive | 46,878 snapshots; throttle, brake, RPM, steering, speed and clutch varied; clutch at offset 364 varied from 0 to 1 |
+| D-BOX-enabled drive — `acc_physics_20261108T174852_787372Z.accraw` | 120-second drive with D-BOX motion enabled | 46,897 snapshots; all 45,223 blocks and all records passed CRC/structure checks |
+
+### Fields observed varying in driving captures
+
+The following candidate-prefix fields showed plausible variation in at least one controlled driving capture:
+
+- Driver/control and vehicle state: `throttle`, `brake`, `rpm` (int32 at offset 20), `steering`, `speed_kph`, `clutch`.
+- Motion/dynamics: `acc_g`, `suspension_travel`.
+- Tyre/wheel: `tyre_pressure_psi`, `wheel_angular_speed`, `tyre_core_temp_c`.
+- Brakes: `brake_temp_c`.
+
+In the D-BOX-enabled drive, observed ranges included acceleration components from -3.4587 to 2.2346, suspension travel from 0 to 0.0846 m, core temperature from 0 to 86.4095, brake temperature from 0 to 681.0502, tyre pressure from 0 to 26.2209, and wheel angular speed from 0 to 218.824. These are raw observed ranges, not calibrated engineering limits.
+
+### Stable-zero observations and interpretation
+
+- `wheel_load` (offset 72) was zero in the tested captures; the independent older C++ reference also labels this value unused in ACC.
+- `tyre_temp_i/m/o` (offsets 368/384/400) were zero in the tested captures; the independent older C++ reference labels these arrays unused in ACC.
+- `is_ai_controlled` (offset 416) was zero during the human-driven captures. This only validates the observed human-driven value; it does not prove the field is unused.
+- Do not infer that every field not listed above is unused. Unlisted fields remain unverified or conditional.
+
+The D-BOX-enabled recording confirms that the same candidate Physics signals remain available while using motion hardware. It does **not** establish that D-BOX actuator positions are published in ACC Physics shared memory, nor does this single capture establish a controlled before/after effect of enabling D-BOX.
+
+### RPM inspection correction
+
+The repository inspector reads RPM through the declared `ctypes.c_int32` field. It converts numeric values to Python floats only for common statistical calculations; the underlying interpretation remains integer. A temporary PowerShell diagnostic incorrectly unpacked offset 20 as a float, producing an all-zero summary. A direct `<i` check of the D-BOX recording confirmed 5,195 unique RPM values from 0 to 9,346. No production RPM or acquisition code change was needed.
+
+### Raw capture integrity
+
+The D-BOX-enabled capture recorded 46,897 acquired and persisted snapshots, zero rejects, zero recorder write failures, zero pending records and reconciliation delta zero. Its offline prefix parser validated 45,223 blocks and 46,897 records with no invalid blocks or records.
+
+### Layout caveat — 420-byte candidate prefix versus 784-byte transcription
+
+The candidate prefix through `is_ai_controlled` ends at byte 420 and is useful for isolated offset experiments. It is not a second production layout and must not be substituted for the current 784-byte adapter. The 784-byte transcription is still derived from a third-party decoder, while a separate version-annotated C# reference places later fields behind version gates and differs from some older transcriptions. The current live captures support the plausibility of selected prefix offsets; they do not prove all 784 bytes match the exact ACC 1.10.4 ABI.
+
+## Structural and capture checks
 
 | Check | Result | Interpretation |
 |---|---|---|
-| Structure-derived layout size | 784 bytes | Matches the adapter's 784-byte expected page |
+| Structure-derived layout size | 784 bytes | Current adapter declaration size; authoritative ABI match remains unconfirmed |
 | Live page-copy smoke test | 100 reads; 784 expected/actual bytes; 100 unique advancing packet IDs | Confirms mapping access, page length and packet progression |
-| Field-by-field live validation | Not performed | No claim that each field is populated or correctly interpreted |
+| Controlled field validation | Subset listed above | Evidence applies only to those fields and tested states |
 | Raw recording preservation | Complete raw page payload per sample | No field is removed by acquisition/recording filtering |
 
 ## Important limitations
@@ -148,11 +197,13 @@ The offset inventory is calculated from the cited ctypes declaration using its l
 ## Remaining work before Graphics/Static acquisition
 
 - [ ] Cross-check every field, offset, type and array length against the authoritative ACC shared-memory specification.
-- [ ] Add automated layout regression tests for all field offsets, sizes, alignment and total page size.
-- [ ] Add an offline raw-record inspection/validation tool; keep it outside acquisition.
-- [ ] Capture controlled live states: stationary, engine on, throttle, brake, steering, gear changes, pit, tyre changes and any safely reproducible damage state.
-- [ ] Classify each field as changing, stable, conditional, unused/reserved or not observed.
-- [ ] Record ACC game build and Shared Memory version for every live validation session.
+- [x] Add automated layout regression tests for field offsets, sizes, alignment and total page size.
+- [x] Add an offline raw-record inspection/validation tool; keep it outside acquisition.
+- [x] Capture controlled stationary, engine on/off, driver-input and driving states.
+- [ ] Validate remaining fields, including conditional states such as pit, tyre changes and safely reproducible damage.
+- [x] Record ACC game build and Shared Memory identifiers for the current validation set.
+- [ ] Cross-check the 420-byte candidate prefix and full 784-byte transcription against authoritative, version-specific ACC ABI evidence.
+- [ ] Classify every field as changing, stable, conditional, unused/reserved or not observed, with evidence and confidence.
 - [ ] Sign off Physics coverage before beginning Graphics and Static layout/adapters.
 
 ## Explicit non-goals
