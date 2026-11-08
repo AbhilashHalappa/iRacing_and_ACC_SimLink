@@ -109,21 +109,25 @@ Implemented in this stage:
 
 ### Stage 3 — Independent raw persistence
 
-**Status: Not started**
+**Status: Implemented — automated tests and live ACC recording validation pending**
 
-Planned work:
-- [ ] Add an independent recorder consumer; do not write files from the acquisition loop.
-- [ ] Add a bounded recorder handoff with explicit overflow/loss policy.
-- [ ] Persist append-only binary blocks in batches.
-- [ ] Preserve capture sequence, ACC packet ID, monotonic timestamps and block sequence.
-- [ ] Add checksums/integrity validation.
-- [ ] Define flush and durability policy.
-- [ ] Recover complete blocks after interrupted writes.
-- [ ] Add UTC timestamps to recording metadata and filenames.
-- [ ] Add final drain and acquired-versus-persisted reconciliation.
-- [ ] Test slow storage, disk-full/write failures and abrupt shutdown.
+Implemented:
+- [x] Add a separate recorder worker; the acquisition loop does not perform disk I/O.
+- [x] Add a second bounded SPSC recorder handoff queue, independent of the acquisition queue.
+- [x] Add explicit full-buffer and lock-contention rejection accounting through the existing queue metrics.
+- [x] Persist append-only binary blocks in configurable batches.
+- [x] Preserve capture sequence, ACC packet ID, read-start/read-complete/capture monotonic timestamps, and block sequence.
+- [x] Add per-block CRC32 integrity checks and a versioned file header with header checksum.
+- [x] Flush and fsync the file header and each completed block.
+- [x] Recover valid sequential blocks and truncate an incomplete or corrupt trailing block.
+- [x] Generate UTC-timestamped recording filenames and retain UTC creation time in the file header.
+- [x] Add a three-thread live runner: acquisition, queue dispatcher, and recorder.
+- [x] Add final-drain accounting for acquired, persisted, both queue rejection stages, recorder write failures and pending records.
+- [ ] Run the expanded automated tests locally/CI and fix any failures.
+- [ ] Run live ACC recordings at the selected 480 Hz polling cadence.
+- [ ] Exercise slow storage, disk-full/write failures and abrupt shutdown on the target Windows PC.
 
-**Stage exit gate:** Raw recordings can be validated and recovered, and every acquired sample is either persisted or represented in explicit loss accounting after final drain.
+**Stage exit gate:** Automated format/recovery tests pass, and live recordings can be recovered and reconciled after normal and interrupted sessions. The code exists, but Stage 3 is not complete until those tests are observed.
 
 ### Stage 4 — Reliability diagnostics and fault testing
 
@@ -187,7 +191,7 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 2 documentation update:** this status record includes the user-reported 600-second live validation. The acquisition implementation remains on `feature/acquisition-foundation`.  
+**Latest Stage 3 implementation update:** the recorder, bounded handoff, checksummed binary format, recovery scanner and live recording runner have been added; test and live validation remain pending. The acquisition implementation remains on `feature/acquisition-foundation`.  
 **Branch:** `feature/acquisition-foundation`
 
 **Latest user-reported automated test:** 22/22 acquisition tests passed locally on 8 November 2026, including Windows timer-resolution lifecycle tests.
@@ -219,7 +223,7 @@ The 10-minute run had no producer errors, no buffer rejections, no pending recor
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Pull the updated branch, run the expanded acquisition tests, then repeat the three live trials with the balanced WinMM 1 ms timer-resolution request active. The timer request improves available wait granularity but does not guarantee a particular polling rate. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
+**Next action:** Validate Stage 3 recorder tests and run a live ACC raw recording. The selected starting cadence remains 480 Hz; the acquisition core is intentionally unchanged by the recorder implementation.
 
 ## 7. Stage 2 implementation details
 
