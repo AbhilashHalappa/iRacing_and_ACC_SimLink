@@ -132,7 +132,7 @@ Implemented:
 - [x] Add a separate periodic checkpoint worker (1-second default) with checksummed JSON, fsync and atomic replacement.
 - [x] Include acquired/persisted sequence positions, queue depths and losses, dispatcher handoff state, recorder in-flight batch range and a sampled accounting delta in each checkpoint.
 - [x] Extend recovery reporting to validate the sidecar and estimate the minimum number of checkpoint-known snapshots not recovered.
-- [x] Add checkpoint checksum/atomic-replacement and recorder in-flight tests; CI passed on Windows and Ubuntu (run 42496420115).
+- [x] Add checkpoint checksum/atomic-replacement, checkpoint write-failure retention and recorder in-flight tests; checkpoint/recorder tests passed on Windows and Ubuntu (runs 42496420115 and 42496665454).
 - [ ] Validate checkpoint sidecar and loss estimate in a new forced-termination run on the target Windows PC.
 - [ ] Exercise real slow storage and physical disk-full/write failures on the target Windows PC.
 - [ ] Quantify queued/in-flight samples lost during abnormal termination; the forced-kill run cannot produce a final reconciliation report.
