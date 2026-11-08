@@ -64,4 +64,31 @@ $env:PYTHONPATH = "src"
 python scripts/record_acc_physics.py --duration-seconds 120 --poll-hz 480
 ```
 
-It creates a UTC-named `.accraw` recording and JSON report under `user_data/raw_recordings/`. The report reconciles acquired snapshots against persisted snapshots, acquisition-queue rejects, recorder-queue rejects, failed writes and pending records. A zero delta is required for a clean run, but does not imply that every ACC publication was observed. The expanded 31-test suite passed on Ubuntu and Windows (GitHub Actions run 42492834805), including delayed writes, simulated partial disk-write failure and interrupted-second-block recovery. A real abrupt-stop and physical storage-failure test on the target Windows PC remain outstanding. Do not treat Stage 3 as complete until recovery after an actual process interruption has been reviewed.
+It creates a UTC-named `.accraw` recording and JSON report under `user_data/raw_recordings/`. The report reconciles acquired snapshots against persisted snapshots, acquisition-queue rejects, recorder-queue rejects, failed writes and pending records. A zero delta is required for a clean run, but does not imply that every ACC publication was observed. The expanded 31-test suite passed on Ubuntu and Windows (GitHub Actions run 42492834805), including delayed writes, simulated partial disk-write failure and interrupted-second-block recovery.
+
+For a controlled abrupt-stop test on Windows, use a separate PowerShell window and intentionally terminate a 10-minute recording after about 30 seconds. This test discards queued/in-flight data by design; it checks that already completed blocks survive and that the incomplete tail can be recovered:
+
+```powershell
+$env:PYTHONPATH = "src"
+$startedAt = Get-Date
+$recordingProcess = Start-Process -FilePath python -ArgumentList @(
+    "scripts/record_acc_physics.py",
+    "--duration-seconds", "600",
+    "--poll-hz", "480"
+) -PassThru -NoNewWindow
+
+Start-Sleep -Seconds 30
+Stop-Process -Id $recordingProcess.Id -Force
+Start-Sleep -Seconds 1
+
+$recording = Get-ChildItem "user_data/raw_recordings/*.accraw" |
+    Where-Object { $_.LastWriteTime -ge $startedAt } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+
+if (-not $recording) { throw "No recording file was created for the interrupted test." }
+
+python scripts/recover_acc_recording.py $recording.FullName
+```
+
+The recovery utility preserves complete sequential CRC-valid blocks and truncates only an incomplete/corrupt tail. Use `--no-truncate` first if you want a read-only inspection. Share the recovery output; do not delete the test recording until it has been reviewed. A real physical disk-full/slow-storage test remains outstanding. Do not treat Stage 3 as complete until actual process-interruption recovery has been reviewed.
