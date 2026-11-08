@@ -11,7 +11,6 @@ import json
 import math
 import struct
 import zlib
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -94,10 +93,11 @@ def inspect_recording(path: str | Path) -> dict[str, Any]:
     accumulators: dict[str, dict[str, Any]] = {}
     field_specs = _Physics._fields_
 
-    for field_name, field_type, *array_length in field_specs:
-        length = array_length[0] if array_length else 1
+    for field_name, field_type in field_specs:
+        is_array = hasattr(field_type, "_length_")
+        length = field_type._length_ if is_array else 1
         for component in range(length):
-            key = field_name if length == 1 else f"{field_name}[{component}]"
+            key = field_name if not is_array else f"{field_name}[{component}]"
             accumulators[key] = {
                 "field": field_name,
                 "component": component if length > 1 else None,
@@ -115,11 +115,12 @@ def inspect_recording(path: str | Path) -> dict[str, Any]:
 
     for _sequence, payload in samples:
         page = _Physics.from_buffer_copy(payload)
-        for field_name, field_type, *array_length in field_specs:
+        for field_name, field_type in field_specs:
+            is_array = hasattr(field_type, "_length_")
             value = getattr(page, field_name)
-            values = list(value) if array_length else [value]
+            values = list(value) if is_array else [value]
             for component, raw_value in enumerate(values):
-                key = field_name if not array_length else f"{field_name}[{component}]"
+                key = field_name if not is_array else f"{field_name}[{component}]"
                 row = accumulators[key]
                 number = float(raw_value)
                 row["sample_count"] += 1
