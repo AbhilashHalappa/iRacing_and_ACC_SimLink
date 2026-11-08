@@ -109,7 +109,7 @@ Implemented in this stage:
 
 ### Stage 3 — Independent raw persistence
 
-**Status: Implemented — automated tests and live ACC recording validation pending**
+**Status: Implemented — 28/28 automated tests passed on Ubuntu and Windows; live ACC recording validation pending**
 
 Implemented:
 - [x] Add a separate recorder worker; the acquisition loop does not perform disk I/O.
@@ -123,11 +123,11 @@ Implemented:
 - [x] Generate UTC-timestamped recording filenames and retain UTC creation time in the file header.
 - [x] Add a three-thread live runner: acquisition, queue dispatcher, and recorder.
 - [x] Add final-drain accounting for acquired, persisted, both queue rejection stages, recorder write failures and pending records.
-- [ ] Run the expanded automated tests locally/CI and fix any failures.
+- [x] Run the expanded automated tests in GitHub Actions on Ubuntu and Windows: 28/28 passed on both platforms.
 - [ ] Run live ACC recordings at the selected 480 Hz polling cadence.
 - [ ] Exercise slow storage, disk-full/write failures and abrupt shutdown on the target Windows PC.
 
-**Stage exit gate:** Automated format/recovery tests pass, and live recordings can be recovered and reconciled after normal and interrupted sessions. The code exists, but Stage 3 is not complete until those tests are observed.
+**Stage exit gate:** Automated format/recovery tests have passed on Ubuntu and Windows. Live recordings must still be validated and reconciled after normal and interrupted sessions before Stage 3 is complete.
 
 ### Stage 4 — Reliability diagnostics and fault testing
 
@@ -194,10 +194,10 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 3 implementation update:** the recorder, bounded handoff, checksummed binary format, recovery scanner and live recording runner have been added; test and live validation remain pending. The acquisition implementation remains on `feature/acquisition-foundation`.  
+**Latest Stage 3 implementation update:** the recorder, bounded handoff, checksummed binary format, recovery scanner and live recording runner have been added. GitHub Actions passed all 28 acquisition/recorder tests on Ubuntu and Windows (run 42471304364); live ACC validation remains pending. The acquisition implementation remains on `feature/acquisition-foundation`.  
 **Branch:** `feature/acquisition-foundation`
 
-**Latest user-reported automated test:** 22/22 acquisition tests passed locally on 8 November 2026, including Windows timer-resolution lifecycle tests.
+**Latest automated test:** GitHub Actions passed 28/28 tests on both Ubuntu and Windows on 8 November 2026, including recorder writer, recovery, corruption and worker tests. Earlier user-reported baseline was 22/22 locally.
 
 **Latest user-reported live ACC smoke test (Stage 1):**
 - Expected Physics page: 784 bytes
