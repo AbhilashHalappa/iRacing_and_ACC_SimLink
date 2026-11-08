@@ -32,16 +32,22 @@ class AcquisitionMetrics:
     last_capture_sequence: int = 0
     last_acquisition_duration_ns: int = 0
     max_acquisition_duration_ns: int = 0
+    poll_interval_count: int = 0
+    total_poll_interval_ns: int = 0
+    min_poll_interval_ns: int = 0
     last_poll_interval_ns: int = 0
     max_poll_interval_ns: int = 0
+    poll_schedule_overrun_count: int = 0
+    last_poll_lateness_ns: int = 0
+    max_poll_lateness_ns: int = 0
     buffer_rejection_count: int = 0
-    _previous_read_start_ns: int | None = None
+    _previous_poll_start_ns: int | None = None
 
 
 class PhysicsAcquirer:
-    """Continuously capture Physics snapshots and publish them to an SPSC ring.
+    """Capture Physics snapshots and publish them to an SPSC ring.
 
-    The source adapter must do only the bounded shared-memory copy and return
+    The source adapter performs only the bounded shared-memory copy and returns
     application-owned bytes. This loop does no decoding, serialization or I/O.
     """
 
@@ -63,15 +69,24 @@ class PhysicsAcquirer:
         self._next_sequence = 1
 
     def capture_once(self) -> PhysicsSnapshot | None:
+        poll_start_ns = self._clock_ns()
+        previous_start = self.metrics._previous_poll_start_ns
+        if previous_start is not None:
+            interval = poll_start_ns - previous_start
+            self.metrics.poll_interval_count += 1
+            self.metrics.total_poll_interval_ns += interval
+            self.metrics.last_poll_interval_ns = interval
+            self.metrics.min_poll_interval_ns = (
+                interval if self.metrics.min_poll_interval_ns == 0
+                else min(self.metrics.min_poll_interval_ns, interval)
+            )
+            self.metrics.max_poll_interval_ns = max(
+                self.metrics.max_poll_interval_ns, interval
+            )
+        self.metrics._previous_poll_start_ns = poll_start_ns
+
         for attempt in range(self._max_attempts):
             read_start_ns = self._clock_ns()
-            if self.metrics._previous_read_start_ns is not None:
-                interval = read_start_ns - self.metrics._previous_read_start_ns
-                self.metrics.last_poll_interval_ns = interval
-                self.metrics.max_poll_interval_ns = max(
-                    self.metrics.max_poll_interval_ns, interval
-                )
-            self.metrics._previous_read_start_ns = read_start_ns
             raw: RawPhysicsRead = self._source.read_physics()
             read_complete_ns = self._clock_ns()
             read_duration = read_complete_ns - read_start_ns
@@ -94,15 +109,13 @@ class PhysicsAcquirer:
             self.metrics.duplicate_packet_observation_count += 1
             return None
 
-        # Assign sequence numbers only to distinct, consistent source snapshots.
-        # Duplicate observations must not create holes in the capture sequence.
+        # Sequence numbers identify distinct, consistent source observations.
         sequence = self._next_sequence
         self._next_sequence += 1
         if previous is not None and packet_id > previous + 1:
             self.metrics.source_packet_gap_count += packet_id - previous - 1
         elif previous is not None and packet_id < previous:
-            # Counter wrap/reset semantics must be verified against ACC before
-            # deriving a gap count. Preserve the observation and flag regression.
+            # Counter wrap/reset semantics are not guessed.
             self.metrics.packet_id_regression_count += 1
 
         snapshot = PhysicsSnapshot(
@@ -125,7 +138,41 @@ class PhysicsAcquirer:
             self.metrics.buffer_rejection_count += 1
         return snapshot
 
-    def run(self, stop_event: Event) -> None:
-        """Run until stopped. Source errors intentionally propagate to the host."""
+    def run(self, stop_event: Event, *, poll_interval_ns: int = 0) -> None:
+        """Run until stopped.
+
+        A zero interval means maximum-throughput polling with no intentional
+        wait. A positive interval uses monotonic deadlines and Event.wait().
+        Missed deadlines are skipped rather than followed by catch-up bursts.
+        The actual start-to-start interval and schedule lateness are measured.
+        """
+        if poll_interval_ns < 0:
+            raise ValueError("poll_interval_ns cannot be negative")
+        if poll_interval_ns == 0:
+            while not stop_event.is_set():
+                self.capture_once()
+            return
+
+        next_deadline_ns = self._clock_ns()
         while not stop_event.is_set():
+            now_ns = self._clock_ns()
+            wait_ns = next_deadline_ns - now_ns
+            if wait_ns > 0 and stop_event.wait(wait_ns / 1_000_000_000):
+                break
+            if stop_event.is_set():
+                break
+
+            actual_start_ns = self._clock_ns()
+            lateness_ns = max(0, actual_start_ns - next_deadline_ns)
+            self.metrics.last_poll_lateness_ns = lateness_ns
+            self.metrics.max_poll_lateness_ns = max(
+                self.metrics.max_poll_lateness_ns, lateness_ns
+            )
             self.capture_once()
+
+            next_deadline_ns += poll_interval_ns
+            finished_ns = self._clock_ns()
+            if next_deadline_ns <= finished_ns:
+                missed = ((finished_ns - next_deadline_ns) // poll_interval_ns) + 1
+                self.metrics.poll_schedule_overrun_count += missed
+                next_deadline_ns += missed * poll_interval_ns
