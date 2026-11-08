@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,7 +42,11 @@ class PhysicsInspectionTests(unittest.TestCase):
             self.assertEqual(by_name["brake"]["maximum"], 0.5)
             self.assertEqual(by_name["rpm"]["minimum"], 800.0)
             self.assertEqual(by_name["speed_kph"]["observed_behavior"], "constant")
-            self.assertEqual(report["field_component_count"], 84 + 0)  # scalar/array components are enumerated below
+            expected_components = sum(
+                field_type._length_ if hasattr(field_type, "_length_") else 1
+                for _field_name, field_type in _Physics._fields_
+            )
+            self.assertEqual(report["field_component_count"], expected_components)
             self.assertIn("wheel_slip[3]", by_name)
 
     def test_rejects_corrupt_block_checksum_without_modifying_file(self) -> None:
