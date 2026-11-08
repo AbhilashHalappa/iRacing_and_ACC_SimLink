@@ -38,6 +38,10 @@ def parse_args() -> argparse.Namespace:
         "--simulated-write-delay-ms", type=float, default=0.0,
         help="Optional delay before each recorder batch write; recorder thread only.",
     )
+    parser.add_argument(
+        "--simulate-disk-full-after-batches", type=int, default=None,
+        help="Test only: inject ENOSPC during the next block after N successful blocks.",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("user_data/raw_recordings"))
     args = parser.parse_args()
     if args.duration_seconds <= 0 or args.poll_hz <= 0:
@@ -50,6 +54,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("checkpoint interval must be positive")
     if args.simulated_write_delay_ms < 0:
         parser.error("simulated write delay cannot be negative")
+    if args.simulate_disk_full_after_batches is not None and args.simulate_disk_full_after_batches <= 0:
+        parser.error("simulated disk-full batch count must be positive")
     return args
 
 
@@ -70,6 +76,7 @@ def main() -> int:
         recorder_buffer, recording_path, payload_size=PHYSICS_SIZE,
         batch_size=args.batch_size,
         simulated_write_delay_seconds=args.simulated_write_delay_ms / 1000.0,
+        simulated_disk_full_after_batches=args.simulate_disk_full_after_batches,
     )
     acquisition_stop = threading.Event()
     recorder_stop = threading.Event()
@@ -290,6 +297,7 @@ def main() -> int:
             "timer_resolution_ms_requested": args.timer_resolution_ms,
             "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
             "simulated_write_delay_ms": args.simulated_write_delay_ms,
+            "simulate_disk_full_after_batches": args.simulate_disk_full_after_batches,
             "physics_payload_size": PHYSICS_SIZE,
         },
         "environment": {"platform": platform.platform(), "python": sys.version, "cpu_count": os.cpu_count()},
@@ -344,6 +352,7 @@ def main() -> int:
     print(f"Recorder queue high-water: {recorder_buffer.high_water_mark}")
     print(f"Pending                 : {pending_acquisition + pending_recorder}")
     print(f"Simulated write delay   : {recorder.metrics.simulated_write_delay_ns / 1_000_000:.1f} ms")
+    print(f"Simulated disk full     : {recorder.metrics.simulated_disk_full_triggered}")
     print(f"Max persist duration    : {recorder.metrics.max_persist_duration_ns / 1_000_000:.1f} ms")
     print(f"Max block write duration: {recorder.metrics.max_block_write_duration_ns / 1_000_000:.1f} ms")
     print(f"Reconciliation delta    : {reconciliation_delta}")
