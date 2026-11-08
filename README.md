@@ -61,7 +61,7 @@ A live runner uses four independent threads: Physics acquisition, queue dispatch
 
 ```powershell
 $env:PYTHONPATH = "src"
-python scripts/record_acc_physics.py --duration-seconds 120 --poll-hz 480
+python scripts/record_acc_physics.py --duration-seconds 120 --poll-hz 480 --checkpoint-interval-seconds 1
 ```
 
 It creates a UTC-named `.accraw` recording, final `.json` report and `.checkpoint.json` sidecar under `user_data/raw_recordings/`. The checkpoint interval can be changed with `--checkpoint-interval-seconds` (default `1`). The final report reconciles acquired snapshots against persisted snapshots, acquisition-queue rejects, recorder-queue rejects, failed writes and pending records. The checkpoint runs independently and does not add disk I/O to the acquisition thread. A zero delta is required for a clean run, but does not imply that every ACC publication was observed. The expanded 31-test suite passed on Ubuntu and Windows (GitHub Actions run 42492834805), including delayed writes, simulated partial disk-write failure and interrupted-second-block recovery.
@@ -74,7 +74,8 @@ $startedAt = Get-Date
 $recordingProcess = Start-Process -FilePath python -ArgumentList @(
     "scripts/record_acc_physics.py",
     "--duration-seconds", "600",
-    "--poll-hz", "480"
+    "--poll-hz", "480",
+    "--checkpoint-interval-seconds", "1"
 ) -PassThru -NoNewWindow
 
 Start-Sleep -Seconds 30
