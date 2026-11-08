@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Source-independent acquisition core and Windows Physics adapter implemented; 120/240/480 Hz sweep and 10-minute 480 Hz live acquisition validation completed; normal 120-second live raw recording passed; expanded recorder fault-injection suite passed on Windows and Ubuntu; forced-process-termination recovery passed on target Windows PC; atomic periodic progress checkpoints implemented and CI-tested; target-PC checkpoint validation and physical storage-failure validation pending; 480 Hz polling selected  
+**Status:** Raw Physics acquisition and recorder implemented; target-PC normal recording, forced termination, checkpoint-assisted recovery, slow-storage simulation and simulated-ENOSPC accounting exercised; physical disk-full testing intentionally skipped; 84-field Physics structural audit documented; live field validation and authoritative layout cross-check pending; decoder deferred; 480 Hz polling selected  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
