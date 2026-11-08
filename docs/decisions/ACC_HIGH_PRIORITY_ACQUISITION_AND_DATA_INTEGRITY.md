@@ -68,6 +68,7 @@ Maintain separate metrics for:
 - Capture sequence count.
 - Buffer full rejections.
 - Buffer lock-contention rejections.
+- Buffer occupancy high-water mark.
 - Buffer occupancy and high-water mark.
 - Acquisition duration and start-to-start interval.
 - Recorder queue depth, write latency, failures and persisted count (recorder stage).
@@ -100,7 +101,11 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 
 ### Stage 2 — Acquisition measurement
 
-Measure read start-to-start intervals, read/copy duration, observed packet rate, packet-ID deltas, retry rate and CPU use under real ACC driving conditions. Establish a baseline before optimizing.
+The acquirer now supports a configurable monotonic polling interval. A zero interval is an explicit maximum-throughput mode; a positive interval uses deadline-based waiting and skips missed deadlines rather than issuing catch-up bursts. Poll start-to-start cadence is measured separately from individual read-attempt duration, and schedule lateness/overruns are counted.
+
+The live benchmark at scripts/benchmark_acc_physics.py exercises the Windows Physics adapter, PhysicsAcquirer, SPSC buffer and a separate draining consumer. It writes a timestamped JSON report only after acquisition stops. Run comparable live trials at several requested cadences (initial comparison points: 120, 240 and 480 Hz), then choose the operating cadence and buffer capacity from observed results rather than assuming the requested rate is achieved.
+
+Measure read start-to-start intervals, read/copy duration, observed packet rate, packet-ID deltas, retry rate, buffer high-water/rejections and CPU use under real ACC driving conditions. Establish a baseline before optimizing. Application reconciliation must be reported separately from source packet-ID gaps.
 
 ### Stage 3 — Independent persistence
 
