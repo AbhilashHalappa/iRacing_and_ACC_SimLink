@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 in progress — live 120/240/480 Hz sweep completed; observed cadence is approximately 64.5 Hz at every requested rate. A 1 ms Windows timer-resolution request is being added for a controlled retest.
+**Status:** Stage 2 in progress — live 120/240/480 Hz sweep completed; observed cadence is approximately 64.5 Hz at every requested rate. A balanced 1 ms Windows timer-resolution request has been added to the benchmark; the controlled retest is pending.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
