@@ -6,7 +6,7 @@ This branch is dedicated to building and validating the ACC telemetry acquisitio
 
 **As of 8 November 2026:** the source-independent Physics acquisition core and Windows ACC Physics shared-memory adapter are implemented. The expanded acquisition suite passed locally (22/22). A short live ACC smoke test copied 100 Physics pages of the expected 784-byte size and observed 100 unique, advancing packet IDs. The initial 120/240/480 Hz sweep was limited to approximately 64.5 Hz by ordinary Windows wait timing. The benchmark now requests a balanced 1 ms WinMM timer resolution by default. A second 120/240/480 Hz live sweep achieved 119.999/239.999/479.206 polling cycles per second, with zero application buffer rejections and zero reconciliation delta in every trial. At 480 Hz, 46,851 unique snapshots were accepted in 120 seconds (about 390.4/s), with 10,655 duplicate observations rejected and 1,703 source packet gaps. The observed unique-snapshot rate suggests the ACC Physics page was publishing at roughly 400 Hz under these conditions; this is an estimate, not a guaranteed ACC specification.
 
-This is not yet a complete acquisition pipeline. The controlled cadence sweep and its immediate integrity checks are complete, but the production cadence still needs to be selected and validated over longer sessions. Graphics and Static page acquisition, raw recording, recovery and recorder-level end-of-session reconciliation are also not implemented.
+Stage 2 acquisition measurement is complete. A 10-minute 480 Hz live run achieved 479.672 polling cycles/s and accepted 233,102 unique snapshots (388.50/s), with 4.69% CPU, zero buffer rejections and zero reconciliation delta. The project will use 480 Hz as its selected polling cadence for the next stage. This is not yet a complete acquisition pipeline: Graphics and Static page acquisition, raw recording, recovery and recorder-level end-of-session reconciliation are not implemented.
 
 The project-level stage tracker, evidence, limitations and next-stage acceptance gates are maintained in [docs/PROJECT_COMPLETION_STATUS.md](docs/PROJECT_COMPLETION_STATUS.md). Update that document whenever a stage reaches a new evidence-backed state.
 
@@ -47,7 +47,7 @@ Review requested versus observed polling rate, source packet gaps, consistency r
 
 ## Next gate
 
-The expanded acquisition tests (22/22) and the 120/240/480 Hz live sweep with the 1 ms Windows timer-resolution request have passed their current checks. The 480 Hz poll target produced about 390.4 unique snapshots/s, 1,703 source packet gaps and 10,655 duplicates rejected over 120 seconds; all three trials had zero application buffer rejections and zero reconciliation delta. Next, perform a longer-duration validation and select a production polling cadence. Do not begin the raw recorder until the operating cadence and loss-accounting limits are documented.
+The expanded acquisition tests (22/22), 120/240/480 Hz live sweep and 10-minute 480 Hz validation are complete. The 10-minute run accepted 233,102 unique snapshots (388.50/s), recorded 6,899 source packet gaps and rejected 54,702 duplicate observations, with no buffer rejects, no pending records and zero reconciliation delta. The selected acquisition polling cadence for Stage 3 is 480 Hz. Next: implement an independent raw recorder with its own bounded handoff, append-only binary blocks, integrity checks, recovery and final-drain reconciliation.
 
 See:
 - [Project Completion Status](docs/PROJECT_COMPLETION_STATUS.md)
