@@ -73,6 +73,8 @@ def main() -> int:
         finally:
             try:
                 source.close()
+            except Exception as exc:
+                producer_errors.append(f"Source close {type(exc).__name__}: {exc}")
             finally:
                 producer_done.set()
 
@@ -153,7 +155,11 @@ def main() -> int:
             tz=timezone.utc,
         ).isoformat(),
         "finished_at_utc": datetime.now(timezone.utc).isoformat(),
-        "status": "failed" if producer_errors else "completed",
+        "status": (
+            "failed"
+            if producer_errors or reconciliation_delta != 0 or pending != 0
+            else "completed"
+        ),
         "configuration": {
             "duration_seconds_requested": args.duration_seconds,
             "poll_hz_requested": args.poll_hz,
