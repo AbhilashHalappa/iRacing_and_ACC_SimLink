@@ -34,8 +34,8 @@ class AcquirerTests(unittest.TestCase):
         snapshot = acquirer.capture_once()
         self.assertEqual(snapshot.capture_sequence, 1)
         self.assertEqual(snapshot.acc_physics_packet_id, 42)
-        self.assertEqual(snapshot.read_start_ns, 100)
-        self.assertEqual(snapshot.read_complete_ns, 110)
+        self.assertEqual(snapshot.read_start_ns, 110)
+        self.assertEqual(snapshot.read_complete_ns, 120)
         self.assertEqual(snapshot.payload, b"physics")
         self.assertEqual(acquirer.metrics.capture_count, 1)
         self.assertEqual(buffer.try_get(), snapshot)
@@ -110,6 +110,27 @@ class AcquirerTests(unittest.TestCase):
         self.assertEqual(snapshot.acc_physics_packet_id, 2)
         self.assertEqual(acquirer.metrics.packet_id_regression_count, 1)
         self.assertEqual(acquirer.metrics.source_packet_gap_count, 0)
+
+    def test_poll_interval_is_measured_between_capture_cycles(self) -> None:
+        buffer = AcquisitionRingBuffer(4)
+        source = FakeSource([
+            RawPhysicsRead(20, 20, b"first"),
+            RawPhysicsRead(21, 21, b"second"),
+        ])
+        acquirer = PhysicsAcquirer(source, buffer, clock_ns=FakeClock())
+        acquirer.capture_once()
+        acquirer.capture_once()
+        self.assertEqual(acquirer.metrics.poll_interval_count, 1)
+        self.assertEqual(acquirer.metrics.last_poll_interval_ns, 30)
+        self.assertEqual(acquirer.metrics.total_poll_interval_ns, 30)
+        self.assertEqual(acquirer.metrics.min_poll_interval_ns, 30)
+        self.assertEqual(acquirer.metrics.max_poll_interval_ns, 30)
+
+    def test_run_rejects_negative_poll_interval(self) -> None:
+        from threading import Event
+        acquirer = PhysicsAcquirer(FakeSource([]), AcquisitionRingBuffer(1))
+        with self.assertRaises(ValueError):
+            acquirer.run(Event(), poll_interval_ns=-1)
 
 
 if __name__ == "__main__":
