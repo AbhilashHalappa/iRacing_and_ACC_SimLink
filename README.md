@@ -32,9 +32,22 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests/acquisition -v
 ```
 
+## Stage 2 — Live acquisition benchmark
+
+The repository now includes a controlled-cadence runner and a live benchmark harness. With ACC running, execute from the repository root:
+
+```powershell
+$env:PYTHONPATH = "src"
+python scripts/benchmark_acc_physics.py --duration-seconds 120 --poll-hz 120
+```
+
+Repeat as separate trials at `--poll-hz 240` and `--poll-hz 480`. These are measurement points, not declared production targets. Keep the same duration and buffer capacity for comparable runs. The harness exercises the actual Windows Physics adapter, `PhysicsAcquirer`, bounded SPSC buffer and a separate draining consumer. It writes a timestamped JSON report under `user_data/benchmarks/` after the run; the acquisition thread itself performs no file I/O.
+
+Review requested versus observed polling rate, source packet gaps, consistency retries, full-buffer and lock-contention rejects, buffer high-water mark, process CPU, and final reconciliation. A zero reconciliation delta means acquired snapshots were consumed or explicitly rejected by the application buffer; it does not mean every ACC publication was observed.
+
 ## Next gate
 
-Implement a controlled live benchmark that exercises the actual `PhysicsAcquirer` and SPSC buffer together. Define a deliberate polling/cadence policy, measure read intervals/duration, packet gaps, consistency retries, buffer rejects, occupancy/high-water and CPU impact during sustained ACC driving. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
+Run and review the live cadence sweep on the target Windows PC with ACC running. Use the measurements to select a suitable polling policy and buffer capacity. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
 
 See:
 - [Project Completion Status](docs/PROJECT_COMPLETION_STATUS.md)
