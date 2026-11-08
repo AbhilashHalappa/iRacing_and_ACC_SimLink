@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Source-independent acquisition core and Windows Physics adapter implemented; expanded tests, controlled 120/240/480 Hz sweep and 10-minute 480 Hz live validation completed; 480 Hz polling selected for Stage 3  
+**Status:** Source-independent acquisition core and Windows Physics adapter implemented; 120/240/480 Hz sweep and 10-minute 480 Hz live acquisition validation completed; normal 120-second live raw recording passed; expanded recorder fault-injection suite passed on Windows and Ubuntu; 480 Hz polling selected  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -109,7 +109,7 @@ Measure read start-to-start intervals, read/copy duration, observed polling rate
 
 ### Stage 3 — Independent persistence
 
-Implementation added; 28/28 automated tests passed on Ubuntu and Windows; live validation pending.
+Implementation and normal live validation passed; 31/31 automated tests passed on Windows and Ubuntu. Abnormal-shutdown and real storage-failure validation remain pending.
 
 - A second bounded SPSC queue separates acquisition from persistence.
 - A dedicated recorder worker writes batches; the acquisition loop remains unchanged and performs no disk I/O.
@@ -119,7 +119,7 @@ Implementation added; 28/28 automated tests passed on Ubuntu and Windows; live v
 - Recovery scans sequential complete blocks and truncates an incomplete/corrupt tail.
 - `scripts/record_acc_physics.py` runs acquisition, dispatch and persistence on separate threads and reports final reconciliation.
 
-Validation still required: live ACC recording at 480 Hz, slow-storage/disk-full fault injection and interrupted-session recovery. GitHub Actions run 42471304364 passed all 28 tests on both Windows and Ubuntu. Recorder work must never execute in the acquisition loop.
+Live normal-recording validation: 120 seconds at 480 Hz; 46,924 snapshots acquired and persisted; zero acquisition/recorder queue rejects, zero write failures, zero pending records, reconciliation delta 0, and 12.04% CPU of one core. GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu, including delayed storage, simulated disk-full partial-block failure, and interrupted-second-block recovery. Real abrupt process termination and physical disk-full/slow-storage tests on the target PC remain outstanding. Recorder work must never execute in the acquisition loop.
 
 ### Stage 4 — Reliability diagnostics
 
