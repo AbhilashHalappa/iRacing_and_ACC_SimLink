@@ -96,7 +96,7 @@ Implemented in this stage:
 - [x] Add a live Windows benchmark harness exercising the actual adapter, acquirer, SPSC buffer and a separate draining consumer.
 - [x] Write benchmark JSON only after acquisition stops, outside the acquisition thread.
 - [x] Include acquired/consumed/rejected/pending reconciliation in the report.
-- [ ] Run the automated acquisition test suite after these changes.
+- [ ] Run the expanded automated acquisition test suite (17 tests expected) after these changes.
 - [ ] Run target-PC live trials at 120, 240 and 480 requested Hz with comparable durations.
 - [ ] Review observed cadence, source packet gaps, retries, buffer rejects/high-water, CPU impact and final reconciliation.
 - [ ] Select the operating polling cadence and buffer capacity from the measurements; do not treat the trial rates as production targets.
@@ -183,7 +183,7 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 2 implementation commit:** `9019d8adf1bdefd338caa4b593bec2462f3fd9c1`  
+**Latest Stage 2 code/test commit:** `177b66964b6f119219970382c9cb0bfd90a81406`  
 **Branch:** `feature/acquisition-foundation`
 
 **Latest user-reported automated test:** 13/13 acquisition tests passed before Stage 2 changes. The expanded test suite must be run again against the current branch tip.
