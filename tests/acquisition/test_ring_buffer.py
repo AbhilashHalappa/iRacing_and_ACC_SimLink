@@ -34,6 +34,19 @@ class RingBufferTests(unittest.TestCase):
         self.assertEqual(buffer.last_lost_sequence, 11)
         self.assertEqual(buffer.high_water_mark, 1)
 
+    def test_lock_contention_is_accounted_separately_from_full_buffer(self) -> None:
+        buffer = AcquisitionRingBuffer[Item](2)
+        item = Item(7)
+        buffer._lock.acquire()
+        try:
+            self.assertFalse(buffer.try_put(item))
+        finally:
+            buffer._lock.release()
+        self.assertEqual(buffer.lock_contention_count, 1)
+        self.assertEqual(buffer.full_buffer_rejection_count, 0)
+        self.assertEqual(buffer.total_rejection_count, 1)
+        self.assertEqual(buffer.first_lost_sequence, 7)
+
     def test_capacity_must_be_positive(self) -> None:
         with self.assertRaises(ValueError):
             AcquisitionRingBuffer(0)
