@@ -85,14 +85,15 @@ class PeriodicCheckpointWorker:
         self.snapshot_factory = snapshot_factory
         self.interval_seconds = interval_seconds
         self.write_count = 0
+        self.write_failure_count = 0
         self.error: str | None = None
 
     def write_once(self) -> None:
         try:
             write_checkpoint(self.path, self.snapshot_factory())
             self.write_count += 1
-            self.error = None
         except Exception as exc:
+            self.write_failure_count += 1
             self.error = f"{type(exc).__name__}: {exc}"
 
     def run(self, stop_event: Event) -> None:
