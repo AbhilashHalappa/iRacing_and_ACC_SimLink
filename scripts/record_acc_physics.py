@@ -1,7 +1,8 @@
 """Live ACC Physics acquisition-to-disk recording validation tool.
 
-Run on Windows with ACC running. Acquisition, queue dispatch and disk writing
-run on three separate threads. The acquisition thread never writes to disk.
+Run on Windows with ACC running. Acquisition, queue dispatch, disk writing and
+periodic checkpointing run on four separate threads. The acquisition thread
+never writes to disk.
 """
 from __future__ import annotations
 
