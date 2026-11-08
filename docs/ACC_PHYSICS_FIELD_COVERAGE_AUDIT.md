@@ -1,6 +1,6 @@
 # ACC Physics Page — Field Coverage Audit
 
-**Status:** Structural inventory completed; authoritative-specification cross-check and live field validation pending  
+**Status:** Structural inventory completed; offline raw inspection utility added; authoritative-specification cross-check and live field validation pending  
 **Page size:** 784 bytes  
 **Layout:** Little-endian, `_pack_ = 4`  
 **Reference:** `AbhilashHalappa/Race-Engineer-ACC`, branch `diagnostic/high-res-capture-2026-11-07`, `src/acc_shared_memory_extended.py`, blob `e9a54bda008cb6ff1797dfdc14b07b297a461ab9`.
@@ -116,6 +116,19 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 ## Layout regression tests
 
 A new automated test module, `tests/acquisition/test_physics_layout.py`, locks all 84 field names, ctypes scalar types, array lengths, byte offsets and sizes, plus the 784-byte total and contiguous layout. This is a regression guard against accidental edits to the current transcription; it does not independently prove the transcription matches Kunos' authoritative specification. CI execution is pending for the commit containing the test.
+
+## Offline raw inspection utility
+
+Use `scripts/inspect_acc_physics.py` to inspect a completed `.accraw` file without changing it or touching the acquisition thread:
+
+```powershell
+$env:PYTHONPATH = "src"
+python scripts/inspect_acc_physics.py "user_data\\raw_recordings\\<recording>.accraw" --csv-out "user_data\\raw_recordings\\<recording>.physics.csv"
+```
+
+The utility validates the recording header, block sequence, payload lengths and CRCs, then reports per-field/per-array-component sample count, finite/non-finite count, zero/non-zero count, min/max, first/last value and whether the observed value was constant or varied. It writes a JSON report beside the recording by default and an optional CSV. It never truncates or modifies the source recording.
+
+Observed variation is only descriptive evidence. It does not establish semantic correctness; controlled actions must be correlated with the relevant fields. This utility is an offline diagnostic reader, not a production decoder and is not used by the acquisition hot path.
 
 ## Current evidence
 
