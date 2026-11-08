@@ -126,6 +126,24 @@ class AcquirerTests(unittest.TestCase):
         self.assertEqual(acquirer.metrics.min_poll_interval_ns, 30)
         self.assertEqual(acquirer.metrics.max_poll_interval_ns, 30)
 
+    def test_run_uses_configured_cadence_and_stops_cleanly(self) -> None:
+        from threading import Event
+
+        stop_event = Event()
+
+        class StopSource:
+            def read_physics(self):
+                stop_event.set()
+                return RawPhysicsRead(1, 1, b"physics")
+
+        acquirer = PhysicsAcquirer(
+            StopSource(), AcquisitionRingBuffer(2), clock_ns=FakeClock()
+        )
+        acquirer.run(stop_event, poll_interval_ns=1_000)
+        self.assertEqual(acquirer.metrics.capture_count, 1)
+        self.assertGreaterEqual(acquirer.metrics.last_poll_lateness_ns, 0)
+        self.assertEqual(acquirer.metrics.poll_schedule_overrun_count, 0)
+
     def test_run_rejects_negative_poll_interval(self) -> None:
         from threading import Event
         acquirer = PhysicsAcquirer(FakeSource([]), AcquisitionRingBuffer(1))
