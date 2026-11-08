@@ -21,6 +21,7 @@ from pathlib import Path
 from race_engineer_acquisition.acc_windows import WindowsACCPhysicsSource
 from race_engineer_acquisition.acquirer import PhysicsAcquirer
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
+from race_engineer_acquisition.timing_windows import WindowsTimerResolution
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,6 +35,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--buffer-capacity", type=int, default=100_000)
     parser.add_argument(
+        "--timer-resolution-ms",
+        type=int,
+        default=1,
+        help="Request this Windows timer resolution during the trial; use 0 to disable (default: 1 ms).",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("user_data/benchmarks"),
@@ -45,6 +52,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--poll-hz must be positive")
     if args.buffer_capacity <= 0:
         parser.error("--buffer-capacity must be positive")
+    if args.timer_resolution_ms < 0:
+        parser.error("--timer-resolution-ms cannot be negative")
     return args
 
 
@@ -102,26 +111,31 @@ def main() -> int:
         target=consumer, name="ACC-Physics-Benchmark-Drain", daemon=True
     )
 
-    wall_start_ns = time.perf_counter_ns()
-    cpu_start_ns = time.process_time_ns()
-    consumer_thread.start()
-    producer_thread.start()
+    timer_resolution = WindowsTimerResolution(args.timer_resolution_ms)
+    timer_resolution.__enter__()
+    try:
+        wall_start_ns = time.perf_counter_ns()
+        cpu_start_ns = time.process_time_ns()
+        consumer_thread.start()
+        producer_thread.start()
 
-    deadline = time.monotonic() + args.duration_seconds
-    while not producer_done.is_set():
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        producer_done.wait(min(remaining, 0.2))
+        deadline = time.monotonic() + args.duration_seconds
+        while not producer_done.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            producer_done.wait(min(remaining, 0.2))
 
-    stop_event.set()
-    producer_thread.join(timeout=10.0)
-    if producer_thread.is_alive():
-        producer_errors.append("Acquisition thread did not stop within 10 seconds.")
-    consumer_stop.set()
-    consumer_thread.join(timeout=10.0)
-    if consumer_thread.is_alive():
-        producer_errors.append("Buffer-drain thread did not stop within 10 seconds.")
+        stop_event.set()
+        producer_thread.join(timeout=10.0)
+        if producer_thread.is_alive():
+            producer_errors.append("Acquisition thread did not stop within 10 seconds.")
+        consumer_stop.set()
+        consumer_thread.join(timeout=10.0)
+        if consumer_thread.is_alive():
+            producer_errors.append("Buffer-drain thread did not stop within 10 seconds.")
+    finally:
+        timer_resolution.__exit__(None, None, None)
 
     wall_elapsed_ns = time.perf_counter_ns() - wall_start_ns
     process_cpu_ns = time.process_time_ns() - cpu_start_ns
@@ -165,6 +179,7 @@ def main() -> int:
             "poll_hz_requested": args.poll_hz,
             "poll_interval_ns_requested": poll_interval_ns,
             "buffer_capacity": args.buffer_capacity,
+            "windows_timer_resolution_ms_requested": args.timer_resolution_ms,
         },
         "environment": {
             "platform": platform.platform(),
@@ -218,6 +233,7 @@ def main() -> int:
     print("\n========== ACC PHYSICS ACQUISITION BENCHMARK ==========")
     print(f"Report                  : {output_path}")
     print(f"Requested poll rate     : {args.poll_hz:.2f} Hz")
+    print(f"Windows timer request   : {args.timer_resolution_ms} ms (0 = disabled)")
     print(f"Observed average rate   : {report['timing']['average_observed_poll_hz']}")
     print(f"Wall duration           : {wall_elapsed_ns / 1e9:.2f} s")
     print(f"Process CPU             : {report['timing']['process_cpu_one_core_percent']:.2f}% of one core")
