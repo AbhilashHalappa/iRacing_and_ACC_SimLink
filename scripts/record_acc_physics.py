@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import asdict
 
-from race_engineer_acquisition.acc_windows import WindowsACCPhysicsSource
+from race_engineer_acquisition.acc_windows import PHYSICS_SIZE, WindowsACCPhysicsSource
 from race_engineer_acquisition.acquirer import PhysicsAcquirer
 from race_engineer_acquisition.recorder import PhysicsRecorderWorker, recover_recording
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
@@ -55,7 +55,7 @@ def main() -> int:
     recorder_buffer = AcquisitionRingBuffer(args.recorder_buffer_capacity)
     acquirer = PhysicsAcquirer(source, acquisition_buffer)
     recorder = PhysicsRecorderWorker(
-        recorder_buffer, recording_path, payload_size=source.PHYSICS_SIZE,
+        recorder_buffer, recording_path, payload_size=PHYSICS_SIZE,
         batch_size=args.batch_size,
     )
     acquisition_stop = threading.Event()
@@ -169,7 +169,7 @@ def main() -> int:
             "recorder_buffer_capacity": args.recorder_buffer_capacity,
             "batch_size": args.batch_size,
             "timer_resolution_ms_requested": args.timer_resolution_ms,
-            "physics_payload_size": source.PHYSICS_SIZE,
+            "physics_payload_size": PHYSICS_SIZE,
         },
         "environment": {"platform": platform.platform(), "python": sys.version, "cpu_count": os.cpu_count()},
         "timing": {
