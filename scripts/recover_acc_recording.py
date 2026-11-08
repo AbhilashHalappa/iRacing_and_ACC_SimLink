@@ -67,6 +67,13 @@ def main() -> int:
             recovered_after_checkpoint = max(
                 0, recovery.recovered_snapshot_count - persisted_at_checkpoint
             )
+            checkpoint_persisted_missing = max(
+                0, persisted_at_checkpoint - recovery.recovered_snapshot_count
+            )
+            minimum_not_recovered = (
+                max(0, outstanding_at_checkpoint - recovered_after_checkpoint)
+                + checkpoint_persisted_missing
+            )
             print(f"Checkpoint sequence     : {checkpoint.get('checkpoint_sequence')}")
             print(f"Checkpoint time (UTC)   : {checkpoint.get('checkpointed_at_utc')}")
             print(f"Captured at checkpoint  : {acquired}")
@@ -79,8 +86,10 @@ def main() -> int:
             print(f"Recorder in flight      : {recorder.get('in_flight_snapshot_count', 0)}")
             print(f"Outstanding at checkpoint: {outstanding_at_checkpoint}")
             print(f"Recovered beyond checkpoint persisted count: {recovered_after_checkpoint}")
+            print(f"Checkpoint-persisted samples missing: {checkpoint_persisted_missing}")
+            print(f"Minimum checkpointed samples not recovered: {minimum_not_recovered}")
             print(f"Checkpoint accounting delta: {accounting.get('observed_unclassified_delta')}")
-            print("Note: outstanding is a point-in-time checkpoint count, not an exact crash-loss count; samples may have persisted after this checkpoint.")
+            print("Note: the minimum excludes captures made after the last checkpoint; total crash loss may be higher. A non-zero accounting delta reflects independently sampled counters or an unclassified transfer.")
         except ValueError as exc:
             print(f"Checkpoint validation   : FAILED ({exc})")
     else:
