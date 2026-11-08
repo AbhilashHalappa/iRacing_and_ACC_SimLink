@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 import os
 import platform
 import sys
@@ -124,7 +125,7 @@ def main() -> int:
     process_cpu_ns = time.process_time_ns() - cpu_start_ns
     metrics = {
         key: value
-        for key, value in vars(acquirer.metrics).items()
+        for key, value in asdict(acquirer.metrics).items()
         if not key.startswith("_")
     }
     rejected = buffer.total_rejection_count
