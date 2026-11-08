@@ -6,6 +6,7 @@ owns only the recorder queue consumer and disk writes.
 """
 from __future__ import annotations
 
+import errno
 import os
 import struct
 import time
@@ -54,6 +55,7 @@ class RecorderMetrics:
     simulated_write_delay_ns: int = 0
     last_persist_duration_ns: int = 0
     max_persist_duration_ns: int = 0
+    simulated_disk_full_triggered: bool = False
 
 
 def _encode_snapshot(snapshot: PhysicsSnapshot) -> bytes:
@@ -228,16 +230,20 @@ class PhysicsRecorderWorker:
         payload_size: int = 784,
         batch_size: int = 128,
         simulated_write_delay_seconds: float = 0.0,
+        simulated_disk_full_after_batches: int | None = None,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
         if simulated_write_delay_seconds < 0:
             raise ValueError("simulated_write_delay_seconds cannot be negative")
+        if simulated_disk_full_after_batches is not None and simulated_disk_full_after_batches <= 0:
+            raise ValueError("simulated_disk_full_after_batches must be positive")
         self.buffer = buffer
         self.path = Path(path)
         self.payload_size = payload_size
         self.batch_size = batch_size
         self.simulated_write_delay_seconds = simulated_write_delay_seconds
+        self.simulated_disk_full_after_batches = simulated_disk_full_after_batches
         self.metrics = RecorderMetrics()
         self.error: str | None = None
 
@@ -280,6 +286,16 @@ class PhysicsRecorderWorker:
                 delay_ns = round(self.simulated_write_delay_seconds * 1_000_000_000)
                 time.sleep(self.simulated_write_delay_seconds)
                 self.metrics.simulated_write_delay_ns += delay_ns
+            if (
+                self.simulated_disk_full_after_batches is not None
+                and self.metrics.persisted_block_count >= self.simulated_disk_full_after_batches
+            ):
+                # Test-only ENOSPC injection: leave an incomplete next-block
+                # prefix, then raise the filesystem-full errno.
+                writer._stream.write(b"PHBK" + struct.pack("<Q", self.metrics.persisted_block_count + 1))
+                writer._stream.flush()
+                self.metrics.simulated_disk_full_triggered = True
+                raise OSError(errno.ENOSPC, "No space left on device (simulated)")
             duration = writer.write_batch(batch)
         except Exception:
             self.metrics.failed_snapshot_count += len(batch)
