@@ -256,10 +256,16 @@ def main() -> int:
         and recovery.get("recovered_snapshot_count") == persisted
         and recovery.get("truncated_bytes") == 0
     )
+    checkpoint_ok = (
+        checkpoint_worker.error is None
+        and checkpoint_worker.write_count > 0
+        and not checkpoint_thread.is_alive()
+    )
     report = {
         "schema_version": 1,
-        "status": "completed" if not producer_error and not recorder.error and recovery_ok and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0 else "failed",
+        "status": "completed" if not producer_error and not recorder.error and recovery_ok and checkpoint_ok and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0 else "failed",
         "recovery_validation_passed": recovery_ok,
+        "checkpoint_validation_passed": checkpoint_ok,
         "checkpoint_file": checkpoint_path.name,
         "checkpoint_write_count": checkpoint_worker.write_count,
         "checkpoint_error": checkpoint_worker.error,
@@ -316,6 +322,9 @@ def main() -> int:
     print(f"Status                  : {report['status']}")
     print(f"Recording               : {recording_path}")
     print(f"Report                  : {report_path}")
+    print(f"Checkpoint              : {checkpoint_path}")
+    print(f"Checkpoint writes       : {checkpoint_worker.write_count}")
+    print(f"Checkpoint error        : {checkpoint_worker.error}")
     print(f"Acquired                : {acquired}")
     print(f"Persisted               : {persisted}")
     print(f"Recorder write failures : {failed}")
