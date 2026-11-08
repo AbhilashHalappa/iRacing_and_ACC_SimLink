@@ -109,7 +109,7 @@ Measure read start-to-start intervals, read/copy duration, observed polling rate
 
 ### Stage 3 — Independent persistence
 
-Implementation added; automated and live validation pending.
+Implementation added; 28/28 automated tests passed on Ubuntu and Windows; live validation pending.
 
 - A second bounded SPSC queue separates acquisition from persistence.
 - A dedicated recorder worker writes batches; the acquisition loop remains unchanged and performs no disk I/O.
@@ -119,7 +119,7 @@ Implementation added; automated and live validation pending.
 - Recovery scans sequential complete blocks and truncates an incomplete/corrupt tail.
 - `scripts/record_acc_physics.py` runs acquisition, dispatch and persistence on separate threads and reports final reconciliation.
 
-Validation still required: automated tests on Windows/Linux, live ACC recording at 480 Hz, slow-storage/disk-full fault injection and interrupted-session recovery. Recorder work must never execute in the acquisition loop.
+Validation still required: live ACC recording at 480 Hz, slow-storage/disk-full fault injection and interrupted-session recovery. GitHub Actions run 42471304364 passed all 28 tests on both Windows and Ubuntu. Recorder work must never execute in the acquisition loop.
 
 ### Stage 4 — Reliability diagnostics
 
@@ -147,4 +147,4 @@ The raw recording format is version 1. It begins with a fixed-size file header c
 
 The recorder worker batches records from its own bounded queue and flushes/fsyncs each completed block. The acquisition-to-recorder dispatcher is a separate thread. Queue rejections at both handoff boundaries are accounted independently. On finalization, the runner reconciles acquired snapshots against persisted snapshots, both queue rejection counts, recorder write-failure counts and pending queue contents. Recovery accepts only sequential, structurally valid, checksum-valid blocks and truncates the invalid trailing region when requested.
 
-The format and worker are implemented, not yet signed off. A successful unit-test run and live Windows ACC recording with zero unexplained reconciliation delta are required before Stage 3 completion.
+The format and worker are implemented, and the 28-test suite has passed on Windows and Ubuntu. They are not yet signed off. A live Windows ACC recording with zero unexplained reconciliation delta, plus interrupted-session recovery validation, is required before Stage 3 completion.
