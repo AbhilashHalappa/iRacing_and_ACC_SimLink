@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 complete; Stage 3 normal live recording and forced-process-termination recovery tests passed. Atomic periodic progress checkpoints and checkpoint-aware recovery reporting are implemented; checkpoint unit tests and recorder in-flight tests passed in CI on Windows and Ubuntu. Target-PC checkpointed crash validation, physical storage-failure validation and exact post-checkpoint loss accounting remain outstanding. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
+**Status:** Stage 2 complete; Stage 3 normal live recording and forced-process-termination recovery tests passed. Atomic periodic progress checkpoints and checkpoint-aware recovery reporting are implemented; checkpoint unit tests and recorder in-flight tests passed in CI on Windows and Ubuntu. Target-PC checkpointed crash validation has passed twice, each with zero checkpoint-known samples missing. An opt-in recorder-thread slow-storage simulator is implemented and has automated coverage; its live target-PC run, physical storage-failure validation and exact post-checkpoint loss accounting remain outstanding. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -13,7 +13,7 @@ The project is being built from a clean foundation, with reliable telemetry acqu
 
 The current implementation can connect to ACC's Windows Physics shared-memory mapping, copy the raw Physics page and pass the source-independent acquisition tests. A live ACC test confirmed the expected page size and advancing packet IDs.
 
-**The project is not complete.** It currently acquires only the Physics page. Raw Physics recording and recovery of completed CRC-valid blocks are implemented and tested. Checkpoint-assisted abnormal-shutdown loss estimation still needs target-PC validation, and physical storage-failure testing remains outstanding. Graphics and Static page acquisition and downstream application features are not yet implemented.
+**The project is not complete.** It currently acquires only the Physics page. Raw Physics recording and recovery of completed CRC-valid blocks are implemented and tested. Checkpoint-assisted abnormal-shutdown estimation has now been exercised twice on the target Windows PC, with zero checkpoint-known samples missing in both runs. The recorder now supports an opt-in simulated write delay isolated to the recorder thread; target-PC slow-storage simulation and physical storage-failure testing remain outstanding. Graphics and Static page acquisition and downstream application features are not yet implemented.
 
 ### Current evidence
 
@@ -29,7 +29,7 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Polling cadence / CPU baseline | Validated; 480 Hz selected for acquisition polling | 600-second trial: 479.672 polls/s, 233,102 unique snapshots (388.50/s), 4.69% CPU, 54,702 duplicate observations, 6,899 source packet gaps, zero buffer rejects and zero reconciliation delta |
 | Graphics and Static acquisition | Not implemented | Current adapter reads Physics only |
 | Raw binary recorder | Implemented; normal live run and abrupt-stop recovery passed | Normal 120-second ACC run: 46,924 acquired/persisted, zero rejects/failures/pending, reconciliation delta 0. Forced termination after about 30 seconds: 11,938 snapshots in 11,517 CRC-valid blocks recovered; zero invalid/trailing bytes; no truncation needed. Abnormal-run queue reconciliation is unavailable because the process was killed before writing its report |
-| End-of-session reconciliation | Normal shutdown passed; checkpoint-based abnormal-shutdown visibility implemented | A separate 1-second checkpoint records acquired/persisted counts, queue depths/rejections, dispatcher and recorder in-flight work. Recovery reports a minimum of checkpoint-known snapshots not recovered; it cannot include captures made after the final checkpoint |
+| End-of-session reconciliation | Normal shutdown passed; checkpoint-based abnormal-shutdown visibility implemented and exercised twice on target PC | A separate 1-second checkpoint records acquired/persisted counts, queue depths/rejections, dispatcher and recorder in-flight work. Recovery reports a minimum of checkpoint-known snapshots not recovered; it cannot include captures made after the final checkpoint |
 | Desktop UI, coaching and analysis | Deferred | Deliberately outside the current acquisition-first milestone |
 
 ## 2. Stage-by-stage completion
@@ -141,7 +141,7 @@ Implemented:
 
 ### Stage 4 — Reliability diagnostics and fault testing
 
-**Status: In progress — automated fault injection, abrupt-process recovery and checkpoint implementation validated; target-PC checkpoint validation and storage-failure testing remain**
+**Status: In progress — automated fault injection, two checkpoint-assisted abrupt-process recovery runs and slow-storage simulation implementation validated; live slow-storage and physical storage-failure tests remain**
 
 Planned work:
 - [x] Add automated delayed-storage, partial-write/disk-full and interrupted-block recovery tests.
@@ -152,7 +152,10 @@ Planned work:
 - [x] Test forced process termination during active acquisition and recording; verify recovery of completed blocks.
 - [x] Verify recovery scanner accepts complete blocks and reports invalid/trailing bytes after abrupt termination (this run had none).
 - [x] Implement periodic durable checkpoints exposing queued/in-flight counts and sequence ranges for abnormal-shutdown analysis.
-- [ ] Validate checkpoint-based loss estimates against a new forced-termination run; captures after the last checkpoint remain outside the estimate.
+- [x] Validate checkpoint-assisted forced termination twice on the target Windows PC; both runs recovered every checkpoint-persisted sample and reported zero checkpoint-known samples missing.
+- [x] Add an opt-in simulated write delay on the recorder thread, plus timing metrics and automated queue-drain tests; default behavior remains unchanged.
+- [x] Validate checkpoint-based loss estimates against two forced-termination runs; both reported zero checkpoint-known samples missing. Captures after the last checkpoint remain outside the estimate.
+- [ ] Run the controlled `--simulated-write-delay-ms 500` live ACC test on the target PC and inspect queue growth/drain/reconciliation.
 - [ ] Test physical slow-storage and disk-full behavior on the target PC.
 
 **Stage exit gate:** Failure modes are observable, reproducible and correctly accounted for; sustained sessions complete without unexplained data loss.
@@ -241,7 +244,7 @@ The 10-minute run had no producer errors, no buffer rejections, no pending recor
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Pull the checkpoint implementation and repeat the forced-termination test. Confirm the `.checkpoint.json` sidecar is present and review the additional checkpoint output from `scripts/recover_acc_recording.py`. Then test slow storage and physical disk-full/write failure on the target Windows PC. The previous forced-stop recovery test recovered 11,938 snapshots in 11,517 valid blocks, with zero invalid/trailing bytes and no truncation. The selected polling cadence remains 480 Hz; the acquisition critical path remains unchanged.
+**Next action:** Run the controlled 30-second slow-storage simulation documented in README with `--simulated-write-delay-ms 500`; review recorder queue high-water, injected delay, max persist duration, final drain and reconciliation. Then test physical disk-full/write failure on the target Windows PC. The previous forced-stop recovery test recovered 11,938 snapshots in 11,517 valid blocks, with zero invalid/trailing bytes and no truncation. The selected polling cadence remains 480 Hz; the acquisition critical path remains unchanged.
 
 ## 7. Stage 2 implementation details
 
