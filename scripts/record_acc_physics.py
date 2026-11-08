@@ -125,6 +125,8 @@ def main() -> int:
 
     wall_elapsed_ns = time.perf_counter_ns() - wall_start_ns
     process_cpu_ns = time.process_time_ns() - cpu_start_ns
+    if producer_errors:
+        producer_error = "; ".join(producer_errors)
     acquired = acquirer.metrics.capture_count
     persisted = recorder.metrics.persisted_snapshot_count
     acquisition_rejected = acquisition_buffer.total_rejection_count
