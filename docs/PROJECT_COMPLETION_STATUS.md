@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 complete; Stage 3 raw recorder implementation added and validation pending. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
+**Status:** Stage 2 complete; Stage 3 normal live recording smoke test passed. Recorder fault-injection tests have been added and await CI execution; interrupted-process and real storage-failure validation remain outstanding. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -28,8 +28,8 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Sustained driving acquisition | Controlled sweep and 10-minute soak passed | Three 120-second post-timer trials plus one 600-second 480 Hz trial; all had zero buffer rejects and zero reconciliation delta |
 | Polling cadence / CPU baseline | Validated; 480 Hz selected for acquisition polling | 600-second trial: 479.672 polls/s, 233,102 unique snapshots (388.50/s), 4.69% CPU, 54,702 duplicate observations, 6,899 source packet gaps, zero buffer rejects and zero reconciliation delta |
 | Graphics and Static acquisition | Not implemented | Current adapter reads Physics only |
-| Raw binary recorder | Not implemented | No durable raw recording or recovery guarantee |
-| End-of-session reconciliation | Not implemented | Requires recorder and final-drain logic |
+| Raw binary recorder | Implemented; normal live run passed | 120-second ACC run at 480 Hz: 46,924 acquired and persisted; zero queue rejects, write failures or pending records; reconciliation delta 0. Fault recovery still needs validation |
+| End-of-session reconciliation | Implemented and passed in normal live run | Acquired = persisted = 46,924; final queues empty; delta 0. Abnormal-shutdown reconciliation remains to be tested |
 | Desktop UI, coaching and analysis | Deferred | Deliberately outside the current acquisition-first milestone |
 
 ## 2. Stage-by-stage completion
@@ -109,7 +109,7 @@ Implemented in this stage:
 
 ### Stage 3 — Independent raw persistence
 
-**Status: Implemented — 28/28 automated tests passed on Ubuntu and Windows; live ACC recording validation pending**
+**Status: Implemented — normal live ACC recording smoke test passed; expanded fault-injection tests added, CI pending**
 
 Implemented:
 - [x] Add a separate recorder worker; the acquisition loop does not perform disk I/O.
@@ -124,16 +124,19 @@ Implemented:
 - [x] Add a three-thread live runner: acquisition, queue dispatcher, and recorder.
 - [x] Add final-drain accounting for acquired, persisted, both queue rejection stages, recorder write failures and pending records.
 - [x] Run the expanded automated tests in GitHub Actions on Ubuntu and Windows: 28/28 passed on both platforms.
-- [ ] Run live ACC recordings at the selected 480 Hz polling cadence.
-- [ ] Exercise slow storage, disk-full/write failures and abrupt shutdown on the target Windows PC.
+- [x] Run a live ACC recording at the selected 480 Hz polling cadence for 120 seconds: 46,924 acquired and persisted, zero rejects/failures/pending, reconciliation delta 0, 12.04% CPU of one core.
+- [x] Add automated fault-injection coverage for delayed storage, a simulated disk-full partial block write, and recovery after an interrupted second block.
+- [ ] Confirm the expanded fault-injection tests pass on Ubuntu and Windows in GitHub Actions.
+- [ ] Exercise real slow storage, disk-full/write failures and abrupt process termination on the target Windows PC.
 
-**Stage exit gate:** Automated format/recovery tests have passed on Ubuntu and Windows. Live recordings must still be validated and reconciled after normal and interrupted sessions before Stage 3 is complete.
+**Stage exit gate:** A normal live ACC recording has passed with zero unexplained reconciliation delta. The new automated fault-injection tests must pass on Ubuntu and Windows, and a real interrupted-session test must preserve complete blocks and account for the unpersisted tail before Stage 3 is complete.
 
 ### Stage 4 — Reliability diagnostics and fault testing
 
-**Status: Not started**
+**Status: In progress — recorder fault-injection tests added**
 
 Planned work:
+- [x] Add automated delayed-storage, partial-write/disk-full and interrupted-block recovery tests.
 - [ ] Consolidate source, acquisition, buffer and recorder metrics.
 - [ ] Expose sequence ranges, queue depth/high-water and explicit failure reasons.
 - [ ] Add long-duration soak tests.
@@ -194,7 +197,7 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 3 implementation update:** the recorder, bounded handoff, checksummed binary format, recovery scanner and live recording runner have been added. GitHub Actions passed all 28 acquisition/recorder tests on Ubuntu and Windows (run 42471304364); live ACC validation remains pending. The acquisition implementation remains on `feature/acquisition-foundation`.  
+**Latest Stage 3 implementation update:** normal live ACC recording passed for 120 seconds at 480 Hz: 46,924 acquired and persisted, zero acquisition/recorder queue rejects, zero write failures, zero pending records, zero reconciliation delta and 12.04% CPU of one core. Automated fault-injection tests for slow storage, simulated disk-full partial writes and interrupted-block recovery have been added; CI validation is pending. The acquisition implementation remains on `feature/acquisition-foundation`.  
 **Branch:** `feature/acquisition-foundation`
 
 **Latest automated test:** GitHub Actions passed 28/28 tests on both Ubuntu and Windows on 8 November 2026, including recorder writer, recovery, corruption and worker tests. Earlier user-reported baseline was 22/22 locally.
@@ -226,7 +229,7 @@ The 10-minute run had no producer errors, no buffer rejections, no pending recor
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Validate Stage 3 recorder tests and run a live ACC raw recording. The selected starting cadence remains 480 Hz; the acquisition core is intentionally unchanged by the recorder implementation.
+**Next action:** Run the expanded fault-injection suite in CI, then perform a controlled abrupt-stop test on the Windows PC and inspect its recovered `.accraw` file/report. The selected polling cadence remains 480 Hz; the acquisition core remains unchanged.
 
 ## 7. Stage 2 implementation details
 
