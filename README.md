@@ -57,7 +57,7 @@ See:
 
 The raw recorder is implemented in `src/race_engineer_acquisition/recorder.py`. It consumes a dedicated bounded queue on a separate thread; the acquisition loop remains free of file I/O. Recordings use a versioned binary header and append-only blocks containing capture sequence, ACC packet ID, monotonic timestamps and raw Physics bytes. Each block has a CRC32 checksum. The writer flushes and fsyncs completed blocks. Recovery scans sequential complete blocks and can truncate a corrupt or incomplete trailing block. A separate checkpoint worker writes a checksummed JSON sidecar every second by default using fsync plus atomic replacement; it records acquisition progress, persisted sequence, both queue depths/loss counters, dispatcher state and recorder in-flight batch state.
 
-A live three-thread runner is provided:
+A live runner uses four independent threads: Physics acquisition, queue dispatch, raw recording and periodic checkpointing:
 
 ```powershell
 $env:PYTHONPATH = "src"
