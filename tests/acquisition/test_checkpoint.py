@@ -3,7 +3,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from race_engineer_acquisition.checkpoint import read_checkpoint, write_checkpoint
+from race_engineer_acquisition.checkpoint import (
+    PeriodicCheckpointWorker,
+    read_checkpoint,
+    write_checkpoint,
+)
 
 
 class CheckpointTests(unittest.TestCase):
@@ -41,6 +45,26 @@ class CheckpointTests(unittest.TestCase):
             self.assertEqual(read_checkpoint(path), original)
             self.assertTrue(path.with_name(path.name + ".tmp").exists())
 
+
+    def test_checkpoint_worker_retains_transient_write_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "worker.checkpoint.json"
+            worker = PeriodicCheckpointWorker(
+                path, lambda: {"schema_version": 1, "checkpoint_sequence": 1}
+            )
+            with patch(
+                "race_engineer_acquisition.checkpoint.write_checkpoint",
+                side_effect=OSError("simulated checkpoint storage failure"),
+            ):
+                worker.write_once()
+            self.assertEqual(worker.write_failure_count, 1)
+            self.assertIn("simulated checkpoint storage failure", worker.error)
+
+            worker.write_once()
+            self.assertEqual(worker.write_count, 1)
+            self.assertEqual(worker.write_failure_count, 1)
+            self.assertIn("simulated checkpoint storage failure", worker.error)
+            self.assertEqual(read_checkpoint(path)["checkpoint_sequence"], 1)
 
 if __name__ == "__main__":
     unittest.main()
