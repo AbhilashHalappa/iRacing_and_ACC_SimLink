@@ -171,5 +171,42 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(path.stat().st_size, recovery.valid_bytes)
 
 
+    def test_worker_publishes_in_flight_batch_until_fsync_completes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = AcquisitionRingBuffer[PhysicsSnapshot](4)
+            self.assertTrue(queue.try_put(snapshot(1)))
+            worker = PhysicsRecorderWorker(
+                queue, Path(directory) / "in_flight.accraw",
+                payload_size=8, batch_size=1,
+            )
+            write_entered = Event()
+            release_write = Event()
+            original_write_batch = RawPhysicsRecordingWriter.write_batch
+
+            def blocked_write(writer, batch):
+                write_entered.set()
+                if not release_write.wait(timeout=3):
+                    raise TimeoutError("test did not release the simulated disk write")
+                return original_write_batch(writer, batch)
+
+            stop = Event()
+            thread = Thread(target=worker.run, args=(stop,))
+            with patch.object(RawPhysicsRecordingWriter, "write_batch", blocked_write):
+                thread.start()
+                self.assertTrue(write_entered.wait(timeout=2))
+                self.assertEqual(worker.metrics.in_flight_snapshot_count, 1)
+                self.assertEqual(worker.metrics.in_flight_first_sequence, 1)
+                self.assertEqual(worker.metrics.in_flight_last_sequence, 1)
+                self.assertEqual(worker.metrics.persisted_snapshot_count, 0)
+                release_write.set()
+                stop.set()
+                thread.join(timeout=3)
+
+            self.assertFalse(thread.is_alive())
+            self.assertIsNone(worker.error)
+            self.assertEqual(worker.metrics.in_flight_snapshot_count, 0)
+            self.assertEqual(worker.metrics.last_persisted_capture_sequence, 1)
+            self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
+
 if __name__ == "__main__":
     unittest.main()
