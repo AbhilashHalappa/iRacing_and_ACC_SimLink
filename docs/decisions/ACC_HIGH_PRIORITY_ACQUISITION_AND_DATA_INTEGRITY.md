@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Source-independent acquisition core and Windows Physics adapter implemented; live ACC validation pending  
+**Status:** Source-independent acquisition core and Windows Physics adapter implemented; short live ACC Physics page-copy smoke test passed; sustained end-to-end validation pending  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -96,7 +96,7 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 - [x] Packet-ID gap accounting.
 - [x] Deterministic unit tests using a fake source and clock.
 - [x] Implement the Windows ACC Shared Memory Physics adapter using the audited ACC Physics page layout.
-- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour on Windows with ACC running.
+- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the expected-size page (100 reads; 784 bytes expected and actual; 100 unique advancing packet IDs).\n- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
 
 ### Stage 2 — Acquisition measurement
 
@@ -120,7 +120,7 @@ Start with the narrow Python acquisition boundary and measure it. A native C++ o
 
 ## 9. Current implementation boundary
 
-The package under src/race_engineer_acquisition/ now includes the source-independent acquisition core and a Windows adapter for the audited ACC Physics mapping and page layout. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. It has not yet been validated against a live ACC process on Windows. No live sampling-rate, consistency or persistence guarantee is claimed.
+The package under src/race_engineer_acquisition/ includes the source-independent acquisition core and a Windows adapter for the audited ACC Physics mapping and page layout. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 784-byte page size and advancing packet IDs over 100 reads. One read had differing bracketing IDs. This does not validate the full PhysicsAcquirer-plus-buffer pipeline, sustained sampling cadence, source-level completeness or persistence. No live sampling-rate or persistence guarantee is claimed.
 
 ## 10. Relationship to the Greenfield Architecture
 
