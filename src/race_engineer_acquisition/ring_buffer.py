@@ -2,8 +2,7 @@
 
 The producer never waits for the consumer: lock contention or a full buffer
 rejects the new sample and increments explicit loss accounting. The buffer
-never overwrites unread records. Multi-consumer fan-out is intentionally a
-separate layer and is not implied by this SPSC primitive.
+never overwrites unread records. Multi-consumer fan-out is a separate layer.
 """
 
 from __future__ import annotations
@@ -25,7 +24,9 @@ class AcquisitionRingBuffer(Generic[T]):
         self._size = 0
         self._lock = Lock()
         self.overflow_count = 0
+        self.full_buffer_rejection_count = 0
         self.lock_contention_count = 0
+        self.total_rejection_count = 0
         self.first_lost_sequence: int | None = None
         self.last_lost_sequence: int | None = None
         self.high_water_mark = 0
@@ -37,6 +38,7 @@ class AcquisitionRingBuffer(Generic[T]):
     @property
     def size(self) -> int:
         if not self._lock.acquire(blocking=False):
+            # A transiently contended read must not block the acquisition path.
             return self._size
         try:
             return self._size
@@ -44,7 +46,7 @@ class AcquisitionRingBuffer(Generic[T]):
             self._lock.release()
 
     def _record_loss(self, item: T) -> None:
-        self.overflow_count += 1
+        self.total_rejection_count += 1
         sequence = getattr(item, "capture_sequence", None)
         if isinstance(sequence, int):
             if self.first_lost_sequence is None:
@@ -59,13 +61,14 @@ class AcquisitionRingBuffer(Generic[T]):
             return False
         try:
             if self._size == self._capacity:
+                self.overflow_count += 1
+                self.full_buffer_rejection_count += 1
                 self._record_loss(item)
                 return False
             self._slots[self._head] = item
             self._head = (self._head + 1) % self._capacity
             self._size += 1
-            if self._size > self.high_water_mark:
-                self.high_water_mark = self._size
+            self.high_water_mark = max(self.high_water_mark, self._size)
             return True
         finally:
             self._lock.release()
