@@ -45,6 +45,10 @@ class RecorderMetrics:
     failed_snapshot_count: int = 0
     first_failed_sequence: int | None = None
     last_failed_sequence: int | None = None
+    last_persisted_capture_sequence: int | None = None
+    in_flight_snapshot_count: int = 0
+    in_flight_first_sequence: int | None = None
+    in_flight_last_sequence: int | None = None
     last_block_write_duration_ns: int = 0
     max_block_write_duration_ns: int = 0
 
@@ -254,6 +258,10 @@ class PhysicsRecorderWorker:
             self.metrics.write_failure_count += 1
 
     def _persist(self, writer: RawPhysicsRecordingWriter, batch: list[PhysicsSnapshot]) -> None:
+        # Publish the current batch to the checkpoint observer before disk I/O.
+        self.metrics.in_flight_snapshot_count = len(batch)
+        self.metrics.in_flight_first_sequence = batch[0].capture_sequence
+        self.metrics.in_flight_last_sequence = batch[-1].capture_sequence
         try:
             duration = writer.write_batch(batch)
         except Exception:
@@ -262,10 +270,17 @@ class PhysicsRecorderWorker:
                 self.metrics.first_failed_sequence = batch[0].capture_sequence
             self.metrics.last_failed_sequence = batch[-1].capture_sequence
             raise
-        self.metrics.persisted_snapshot_count += len(batch)
-        self.metrics.persisted_block_count += 1
-        self.metrics.persisted_bytes += sum(len(item.payload) for item in batch)
-        self.metrics.last_block_write_duration_ns = duration
-        self.metrics.max_block_write_duration_ns = max(
-            self.metrics.max_block_write_duration_ns, duration
-        )
+        else:
+            # write_batch returns only after flush/fsync has completed.
+            self.metrics.persisted_snapshot_count += len(batch)
+            self.metrics.persisted_block_count += 1
+            self.metrics.persisted_bytes += sum(len(item.payload) for item in batch)
+            self.metrics.last_persisted_capture_sequence = batch[-1].capture_sequence
+            self.metrics.last_block_write_duration_ns = duration
+            self.metrics.max_block_write_duration_ns = max(
+                self.metrics.max_block_write_duration_ns, duration
+            )
+        finally:
+            self.metrics.in_flight_snapshot_count = 0
+            self.metrics.in_flight_first_sequence = None
+            self.metrics.in_flight_last_sequence = None
