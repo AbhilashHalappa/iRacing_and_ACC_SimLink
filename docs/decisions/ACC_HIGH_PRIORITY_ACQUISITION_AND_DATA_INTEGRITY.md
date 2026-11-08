@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Source-independent acquisition core and Windows Physics adapter implemented; short live ACC Physics page-copy smoke test passed; sustained end-to-end validation pending  
+**Status:** Source-independent acquisition core and Windows Physics adapter implemented; initial sustained benchmark sweep completed; Windows timer-resolution retest pending  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -103,7 +103,7 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 
 The acquirer now supports a configurable monotonic polling interval. A zero interval is an explicit maximum-throughput mode; a positive interval uses deadline-based waiting and skips missed deadlines rather than issuing catch-up bursts. Poll start-to-start cadence is measured separately from individual read-attempt duration, and schedule lateness/overruns are counted.
 
-The live benchmark at scripts/benchmark_acc_physics.py exercises the Windows Physics adapter, PhysicsAcquirer, SPSC buffer and a separate draining consumer. It writes a timestamped JSON report only after acquisition stops. Run comparable live trials at several requested cadences (initial comparison points: 120, 240 and 480 Hz), then choose the operating cadence and buffer capacity from observed results rather than assuming the requested rate is achieved.
+The live benchmark at scripts/benchmark_acc_physics.py exercises the Windows Physics adapter, PhysicsAcquirer, SPSC buffer and a separate draining consumer. It writes a timestamped JSON report only after acquisition stops. Initial 120-second live trials at requested 120/240/480 Hz observed 64.47/64.52/64.53 Hz respectively, with 0 buffer rejections and 0 reconciliation delta in all three. CPU use was 2.02–2.71% of one core. The nearly fixed cadence suggests ordinary Windows wait granularity is limiting the loop. The benchmark now requests a balanced 1 ms WinMM timer resolution by default; repeat the same sweep and compare against this baseline. This request improves available timer granularity but does not guarantee exact wake-up timing. The initial requested rates remain measurement points, not production targets.
 
 Measure read start-to-start intervals, read/copy duration, observed packet rate, packet-ID deltas, retry rate, buffer high-water/rejections and CPU use under real ACC driving conditions. Establish a baseline before optimizing. Application reconciliation must be reported separately from source packet-ID gaps.
 
