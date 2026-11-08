@@ -8,6 +8,7 @@ the previous valid one.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -61,7 +62,7 @@ def read_checkpoint(path: str | Path) -> dict:
     if not isinstance(payload, dict) or not isinstance(checksum, str):
         raise ValueError("Checkpoint envelope has invalid field types")
     actual = hashlib.sha256(_canonical_payload(payload)).hexdigest()
-    if not hashlib.compare_digest(actual, checksum):
+    if not hmac.compare_digest(actual, checksum):
         raise ValueError("Checkpoint checksum mismatch")
     if payload.get("schema_version") != 1:
         raise ValueError("Unsupported checkpoint schema version")
