@@ -135,7 +135,7 @@ Start with the narrow Python acquisition boundary and measure it. A native C++ o
 
 ## 9. Current implementation boundary
 
-The package under src/race_engineer_acquisition/ includes the source-independent acquisition core, Windows Physics adapter, and an independent raw recorder. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 784-byte page size and advancing packet IDs over 100 reads. Stage 2 also passed the user-reported 10-minute acquisition/buffer benchmark. The recorder code now provides a separate bounded handoff, batched CRC-protected binary blocks, fsync and recovery, but automated and live persistence validation are pending. No source-level completeness or persistence guarantee is claimed until those validation gates pass.
+The package under src/race_engineer_acquisition/ includes the source-independent acquisition core, Windows Physics adapter, and an independent raw recorder. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 784-byte page size and advancing packet IDs over 100 reads. Stage 2 also passed the user-reported 10-minute acquisition/buffer benchmark. The recorder code provides a separate bounded handoff, batched CRC-protected binary blocks, fsync and recovery. The 31-test suite passed on Windows and Ubuntu, and normal live persistence passed; actual abrupt termination and physical storage failure still require target-PC validation. No source-level completeness or persistence guarantee is claimed until those validation gates pass.
 
 ## 10. Relationship to the Greenfield Architecture
 
@@ -147,4 +147,4 @@ The raw recording format is version 1. It begins with a fixed-size file header c
 
 The recorder worker batches records from its own bounded queue and flushes/fsyncs each completed block. The acquisition-to-recorder dispatcher is a separate thread. Queue rejections at both handoff boundaries are accounted independently. On finalization, the runner reconciles acquired snapshots against persisted snapshots, both queue rejection counts, recorder write-failure counts and pending queue contents. Recovery accepts only sequential, structurally valid, checksum-valid blocks and truncates the invalid trailing region when requested.
 
-The format and worker are implemented, and the 28-test suite has passed on Windows and Ubuntu. They are not yet signed off. A live Windows ACC recording with zero unexplained reconciliation delta, plus interrupted-session recovery validation, is required before Stage 3 completion.
+The format and worker are implemented; the 31-test suite has passed on Windows and Ubuntu, and a normal live Windows ACC recording completed with zero unexplained reconciliation delta. Stage 3 is not yet signed off: actual process interruption and physical storage-failure validation remain required.
