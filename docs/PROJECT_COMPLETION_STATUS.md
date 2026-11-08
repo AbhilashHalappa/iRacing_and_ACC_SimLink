@@ -57,7 +57,7 @@ Status meanings:
 
 ### Stage 1 — Physics acquisition core and Windows source adapter
 
-**Status: Implemented — live and sustained validation pending**
+**Status: Implemented — initial sustained live validation passed; timer-resolution retest pending**
 
 - [x] Immutable raw acquisition data models.
 - [x] Preallocated bounded SPSC ring buffer.
@@ -75,9 +75,9 @@ Status meanings:
 - [x] Live ACC smoke test observed 100 unique packet IDs, advancing from 4066 to 6320.
 - [x] One of 100 bracketed reads observed a packet-ID change during copying; this confirms why consistency retry handling is required.
 - [ ] Validate packet-ID field atomicity and consistency behavior more thoroughly on the target Windows environment.
-- [ ] Exercise the actual `PhysicsAcquirer` and ring buffer together during sustained ACC driving.
-- [ ] Confirm no unexplained application buffer rejections and quantify source packet gaps under driving load.
-- [ ] Establish measured acquisition cadence, read duration, CPU use and buffer high-water behavior.
+- [x] Exercise the actual `PhysicsAcquirer` and ring buffer together during three 120-second live ACC benchmark trials.
+- [x] Confirm zero application buffer rejections and quantify source packet gaps under driving load.
+- [x] Establish initial measured acquisition cadence, CPU use and buffer high-water behavior; repeat after the timer-resolution change.
 
 **Interpretation of the live test:** It proves that the Windows process can open the ACC Physics mapping, copy a page of the expected size and observe packet-ID progression. It does not prove that every ACC publication was observed, that the full acquisition pipeline is loss-free, or that sustained recording works.
 
@@ -96,10 +96,11 @@ Implemented in this stage:
 - [x] Add a live Windows benchmark harness exercising the actual adapter, acquirer, SPSC buffer and a separate draining consumer.
 - [x] Write benchmark JSON only after acquisition stops, outside the acquisition thread.
 - [x] Include acquired/consumed/rejected/pending reconciliation in the report.
-- [ ] Run the expanded automated acquisition test suite (17 tests expected) after these changes.
+- [ ] Run the expanded automated acquisition test suite (22 tests expected, including Windows timer-resolution lifecycle tests) after these changes.
 - [x] Run target-PC live trials at 120, 240 and 480 requested Hz for 120 seconds each under comparable ACC driving conditions.
 - [x] Review initial cadence, source packet gaps, retries, buffer rejects/high-water, CPU impact and final reconciliation.
-- [ ] Add a balanced 1 ms Windows timer-resolution request around benchmark trials and repeat the cadence sweep.
+- [x] Add a balanced 1 ms Windows timer-resolution request around benchmark trials.
+- [ ] Repeat the cadence sweep with the timer-resolution request active.
 - [ ] Select the operating polling cadence and buffer capacity from the post-fix measurements; do not treat the trial rates as production targets.
 
 **Stage exit gate:** A repeatable live benchmark with a documented operating cadence and quantified source-observation gaps and application-level losses. A zero application reconciliation delta does not mean every ACC publication was observed.
@@ -177,14 +178,14 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 2. A packet-ID gap indicates counter progression between observations; it is not proof of an application ring-buffer drop.
 3. Packet-ID bracketing is best-effort consistency validation, not an atomic snapshot guarantee.
 4. The direct 100-read live test did not exercise `PhysicsAcquirer` or the ring buffer.
-5. The run loop now supports a configurable monotonic polling cadence. The suitable production cadence remains unselected until the live 120/240/480 Hz sweep is measured.
+5. The run loop supports configurable monotonic polling. The initial sweep observed approximately 64.5 Hz for all three requested rates. The benchmark now requests a 1 ms WinMM timer resolution by default; the post-change cadence and suitable production rate remain unvalidated.
 6. The initial queue is SPSC. Multiple consumers require explicit fan-out and independent loss accounting.
 7. No raw recorder or persistence/recovery guarantee exists yet.
 8. No downstream lap/sector logic, coaching, UI or other application feature should be allowed to compromise the acquisition critical path.
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 2 code/test commit:** `177b66964b6f119219970382c9cb0bfd90a81406`  
+**Latest Stage 2 benchmark commit:** `13b696e179b28fd95dd32e8d67dfab4d87536160`  
 **Branch:** `feature/acquisition-foundation`
 
 **Latest user-reported automated test:** 13/13 acquisition tests passed before Stage 2 changes. The expanded test suite must be run again against the current branch tip.
@@ -208,13 +209,14 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Add a balanced WinMM 1 ms timer-resolution request for benchmark duration, run expanded tests, then repeat the three live trials. The timer request improves available wait granularity but does not guarantee a particular polling rate. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
+**Next action:** Pull the updated branch, run the expanded acquisition tests, then repeat the three live trials with the balanced WinMM 1 ms timer-resolution request active. The timer request improves available wait granularity but does not guarantee a particular polling rate. Do not begin the raw recorder until the acquisition measurement baseline and loss accounting are trustworthy.
 
 ## 7. Stage 2 implementation details
 
 - `PhysicsAcquirer.run(stop_event, poll_interval_ns=...)` now supports an explicit target cadence. It uses monotonic deadlines and skips missed slots rather than trying to catch up in a burst.
 - Poll intervals are measured between acquisition cycles, not between consistency retries. Read-attempt duration remains a separate metric.
 - The SPSC buffer reports high-water mark, full-buffer rejects, lock-contention rejects and total rejected snapshots independently.
+- `timing_windows.py` balances a WinMM 1 ms timer-resolution request for the duration of the live benchmark; the request is released after the trial and is not a guarantee of exact wake-up timing.
 - `scripts/benchmark_acc_physics.py` runs the real Windows source/acquirer/buffer path with a separate consumer thread and writes a timestamped JSON report after stopping.
 - Benchmark rates 120/240/480 Hz are exploratory comparison points only. The live measurements, not these requested values, determine the later operating target.
 
