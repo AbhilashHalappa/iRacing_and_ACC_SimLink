@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 complete; Stage 3 normal live recording and forced-process-termination recovery tests passed. Atomic periodic progress checkpoints and checkpoint-aware recovery reporting are implemented; checkpoint unit tests and recorder in-flight tests passed in CI on Windows and Ubuntu. Target-PC checkpointed crash validation has passed twice, each with zero checkpoint-known samples missing. An opt-in recorder-thread slow-storage simulator is implemented and has automated coverage; its live target-PC run, physical storage-failure validation and exact post-checkpoint loss accounting remain outstanding. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
+**Status:** Physics raw acquisition and recording foundation implemented. Stage 3 normal recording, forced-termination recovery, checkpoint-assisted recovery, live slow-storage simulation and bounded simulated-ENOSPC fault handling have been exercised. The target-PC slow-storage run persisted 11,800/11,800 samples with zero rejects; the target-PC simulated-ENOSPC run preserved three complete blocks and accounted for 11,780 unpersisted queued samples. Physical disk-full testing was intentionally skipped. The 784-byte Physics structure now has an 84-field structural coverage inventory; authoritative specification cross-check and individual live field validation remain pending. No decoder, Graphics adapter or Static adapter has been added.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -109,7 +109,7 @@ Implemented in this stage:
 
 ### Stage 3 — Independent raw persistence
 
-**Status: Implemented — normal live ACC recording and real forced-process-termination recovery passed; expanded acquisition/recorder suite and operational-script compilation passed on Windows and Ubuntu; physical storage-failure validation pending**
+**Status: Implemented and target-PC exercised — normal recording, abrupt-stop recovery, checkpoint recovery, slow-storage backlog/drain and simulated ENOSPC accounting passed; physical disk-full testing intentionally skipped**
 
 Implemented:
 - [x] Add a separate recorder worker; the acquisition loop does not perform disk I/O.
@@ -141,7 +141,7 @@ Implemented:
 
 ### Stage 4 — Reliability diagnostics and fault testing
 
-**Status: In progress — automated fault injection, two checkpoint-assisted abrupt-process recovery runs and slow-storage simulation implementation validated; live slow-storage and physical storage-failure tests remain**
+**Status: In progress — automated fault injection, two checkpoint-assisted abrupt-process recovery runs, live slow-storage simulation and live simulated-ENOSPC accounting validated**
 
 Planned work:
 - [x] Add automated delayed-storage, partial-write/disk-full and interrupted-block recovery tests.
@@ -157,8 +157,9 @@ Planned work:
 - [x] Validate checkpoint-based loss estimates against two forced-termination runs; both reported zero checkpoint-known samples missing. Captures after the last checkpoint remain outside the estimate.
 - [x] Run the controlled `--simulated-write-delay-ms 500` live ACC test on the target PC: 11,800 acquired/persisted, recorder queue high-water 4,247, zero rejects/failures, pending 0 and reconciliation delta 0.
 - [x] Implement bounded `--simulate-disk-full-after-batches N` ENOSPC fault injection and automated tests for complete-block preservation, failed-batch accounting, queued-sample visibility and tail recovery.
-- [ ] Run the target-PC simulated-ENOSPC test and inspect the recording/checkpoint recovery report.
-- [ ] Test physical slow-storage and disk-full behavior on the target PC.
+- [x] Run the target-PC simulated-ENOSPC test: three complete blocks recovered; 11,780 queued samples remained unpersisted and were identified by checkpoint accounting; reconciliation delta 0.
+- [x] Confirm recovery reports checkpoint-persisted samples missing = 0 and minimum checkpoint-known samples not recovered = 11,780 for this injected failure.
+- [x] Record that physical disk-full testing was intentionally skipped by user decision; it is not a remaining acceptance gate for this phase.
 
 **Stage exit gate:** Failure modes are observable, reproducible and correctly accounted for; sustained sessions complete without unexplained data loss.
 
@@ -176,6 +177,9 @@ Planned work:
 **Stage exit gate:** Acquisition and persistence meet documented performance/reliability targets, with evidence. Native implementation is optional and must be justified by measurements.
 
 ## 3. ACC data coverage
+
+A structural inventory of all 84 Physics fields, including byte offsets, C types, sizes, raw-preservation status, reference-decoder exposure and unused/deprecated naming, is maintained in [ACC Physics Field Coverage Audit](ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). The inventory confirms a 784-byte structure. Individual field values have not yet been validated live, and the offsets still require an authoritative-specification cross-check. This audit does not add a decoder.
+
 
 | ACC shared-memory page | Current state |
 |---|---|
