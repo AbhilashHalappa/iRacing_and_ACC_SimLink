@@ -51,6 +51,8 @@ def main() -> int:
         print(f"Checkpoint              : {checkpoint_path}")
         try:
             checkpoint = read_checkpoint(checkpoint_path)
+            if checkpoint.get("recording_file") != args.recording.name:
+                raise ValueError("Checkpoint belongs to a different recording file")
             acquisition = checkpoint.get("acquisition", {})
             recorder = checkpoint.get("recorder", {})
             accounting = checkpoint.get("accounting", {})
