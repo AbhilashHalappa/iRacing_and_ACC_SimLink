@@ -246,11 +246,6 @@ class PhysicsRecorderWorker:
         except Exception as exc:
             self.error = f"{type(exc).__name__}: {exc}"
             self.metrics.write_failure_count += 1
-            self.metrics.failed_snapshot_count += len(batch)
-            if batch:
-                if self.metrics.first_failed_sequence is None:
-                    self.metrics.first_failed_sequence = batch[0].capture_sequence
-                self.metrics.last_failed_sequence = batch[-1].capture_sequence
 
     def _persist(self, writer: RawPhysicsRecordingWriter, batch: list[PhysicsSnapshot]) -> None:
         try:
