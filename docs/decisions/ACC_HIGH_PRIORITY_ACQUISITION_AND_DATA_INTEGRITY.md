@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Source-independent acquisition core and Windows Physics adapter implemented; initial sustained benchmark sweep completed; Windows timer-resolution retest pending  
+**Status:** Source-independent acquisition core and Windows Physics adapter implemented; expanded tests and controlled 120/240/480 Hz live cadence sweep completed; longer-duration validation and production cadence selection pending  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -103,9 +103,9 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 
 The acquirer now supports a configurable monotonic polling interval. A zero interval is an explicit maximum-throughput mode; a positive interval uses deadline-based waiting and skips missed deadlines rather than issuing catch-up bursts. Poll start-to-start cadence is measured separately from individual read-attempt duration, and schedule lateness/overruns are counted.
 
-The live benchmark at scripts/benchmark_acc_physics.py exercises the Windows Physics adapter, PhysicsAcquirer, SPSC buffer and a separate draining consumer. It writes a timestamped JSON report only after acquisition stops. Initial 120-second live trials at requested 120/240/480 Hz observed 64.47/64.52/64.53 Hz respectively, with 0 buffer rejections and 0 reconciliation delta in all three. CPU use was 2.02–2.71% of one core. The nearly fixed cadence suggests ordinary Windows wait granularity is limiting the loop. The benchmark now requests a balanced 1 ms WinMM timer resolution by default; repeat the same sweep and compare against this baseline. This request improves available timer granularity but does not guarantee exact wake-up timing. The initial requested rates remain measurement points, not production targets.
+The live benchmark at scripts/benchmark_acc_physics.py exercises the Windows Physics adapter, PhysicsAcquirer, SPSC buffer and a separate draining consumer. It writes a timestamped JSON report only after acquisition stops. The initial 120-second live trials at requested 120/240/480 Hz observed 64.47/64.52/64.53 Hz respectively, with 0 buffer rejections and 0 reconciliation delta in all three. CPU use was 2.02–2.71% of one core. A balanced 1 ms WinMM timer-resolution request was then added around each trial. The expanded acquisition suite passed locally (22/22). The post-change 120-second trials observed 119.999/239.999/479.206 polling cycles/s at requested 120/240/480 Hz. CPU use was 2.71/3.16/4.53% of one core respectively. All trials had zero full-buffer rejects, zero lock-contention rejects and zero reconciliation delta. At 480 Hz, 46,851 unique snapshots were accepted and consumed (about 390.4/s); 10,655 duplicate observations were rejected, 1,703 source packet gaps were counted, and 196 inconsistent reads were retried. This indicates the polling loop can run near 480 Hz, but ACC did not provide a new packet on every poll. The inferred source publication rate is approximately 400 Hz in these conditions, not a guaranteed ACC specification. The 120/240/480 Hz values remain measurement points, not production targets. A longer-duration test and production cadence decision are still required.
 
-Measure read start-to-start intervals, read/copy duration, observed packet rate, packet-ID deltas, retry rate, buffer high-water/rejections and CPU use under real ACC driving conditions. Establish a baseline before optimizing. Application reconciliation must be reported separately from source packet-ID gaps.
+Measure read start-to-start intervals, read/copy duration, observed polling rate, unique accepted snapshot rate, packet-ID deltas, duplicate rate, retry rate, buffer high-water/rejections and CPU use under real ACC driving conditions. Application reconciliation must be reported separately from source packet-ID gaps. The controlled 120/240/480 Hz sweep is complete; run a longer-duration validation and select the production cadence based on the trade-off between source packet gaps, duplicate observations, CPU use and reliability.
 
 ### Stage 3 — Independent persistence
 
@@ -117,7 +117,7 @@ Expose acquisition and recorder counters, high-water marks, sequence ranges and 
 
 ### Stage 5 — Optimization and validation
 
-Only after measurement, decide whether faster polling, a native C++/Rust reader or process isolation is justified. Re-run packet-gap, application-loss, persistence and sustained-session tests after each change.
+Only after longer-duration measurement, decide on the production polling cadence and whether a native C++/Rust reader or process isolation is justified. Re-run packet-gap, duplicate, application-loss, persistence and sustained-session tests after each change.
 
 ## 8. Native implementation policy
 
