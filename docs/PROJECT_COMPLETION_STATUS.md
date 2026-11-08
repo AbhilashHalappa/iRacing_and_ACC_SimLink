@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 in progress — expanded tests and the post-timer 120/240/480 Hz live sweep completed. The requested polling cadence was achieved; the 480 Hz trial accepted approximately 390.4 unique snapshots/s. Longer-duration validation and production cadence selection remain pending.
+**Status:** Stage 2 complete — expanded tests, 120/240/480 Hz controlled sweep and a 10-minute 480 Hz live validation passed. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial. Stage 3 raw persistence is ready to begin.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -13,7 +13,7 @@ The project is being built from a clean foundation, with reliable telemetry acqu
 
 The current implementation can connect to ACC's Windows Physics shared-memory mapping, copy the raw Physics page and pass the source-independent acquisition tests. A live ACC test confirmed the expected page size and advancing packet IDs.
 
-**The project is not complete.** It currently acquires only the Physics page. Graphics and Static page acquisition, sustained end-to-end acquisition measurement, raw recording, crash recovery, reconciliation, and downstream application features remain outstanding.
+**The project is not complete.** It currently acquires only the Physics page. Graphics and Static page acquisition, raw recording, crash recovery, recorder-level reconciliation, and downstream application features remain outstanding.
 
 ### Current evidence
 
@@ -25,8 +25,8 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Windows ACC Physics adapter | Implemented; live connection verified | Read-only `Local\\acpmf_physics` mapping |
 | Automated acquisition tests | Passed locally | User reported 22/22 tests passing on 8 November 2026, including Windows timer-resolution lifecycle tests |
 | Live ACC page copy | Passed for a short smoke test | 100 reads; expected and actual page size both 784 bytes; 100 unique packet IDs; one bracketed read was inconsistent |
-| Sustained driving acquisition | Controlled live sweep completed | Two sets of three 120-second trials completed; all six trials had zero buffer rejects and zero reconciliation delta |
-| Polling cadence / CPU baseline | Post-timer controlled sweep measured; longer validation pending | With 1 ms WinMM request, observed polling was 119.999/239.999/479.206 Hz; CPU was 2.71/3.16/4.53% of one core. At 480 Hz, unique accepted snapshots averaged about 390.4/s due to duplicate packet observations |
+| Sustained driving acquisition | Controlled sweep and 10-minute soak passed | Three 120-second post-timer trials plus one 600-second 480 Hz trial; all had zero buffer rejects and zero reconciliation delta |
+| Polling cadence / CPU baseline | Validated; 480 Hz selected for acquisition polling | 600-second trial: 479.672 polls/s, 233,102 unique snapshots (388.50/s), 4.69% CPU, 54,702 duplicate observations, 6,899 source packet gaps, zero buffer rejects and zero reconciliation delta |
 | Graphics and Static acquisition | Not implemented | Current adapter reads Physics only |
 | Raw binary recorder | Not implemented | No durable raw recording or recovery guarantee |
 | End-of-session reconciliation | Not implemented | Requires recorder and final-drain logic |
@@ -57,7 +57,7 @@ Status meanings:
 
 ### Stage 1 — Physics acquisition core and Windows source adapter
 
-**Status: Implemented — expanded tests and controlled live cadence sweep passed; longer-duration validation pending**
+**Status: Implemented — controlled cadence sweep and 10-minute live validation passed**
 
 - [x] Immutable raw acquisition data models.
 - [x] Preallocated bounded SPSC ring buffer.
@@ -85,7 +85,7 @@ Status meanings:
 
 ### Stage 2 — Sustained acquisition measurement and cadence baseline
 
-**Status: In progress — expanded tests and controlled 120/240/480 Hz live sweep complete; longer-duration validation and production cadence selection pending**
+**Status: Complete — expanded tests, 120/240/480 Hz controlled sweep, 10-minute 480 Hz validation and operating cadence selection completed**
 
 Implemented in this stage:
 - [x] Add configurable monotonic polling intervals to `PhysicsAcquirer.run()`; zero retains explicit maximum-throughput mode, positive intervals use deadline-based waiting.
@@ -102,9 +102,10 @@ Implemented in this stage:
 - [x] Add a balanced 1 ms Windows timer-resolution request around benchmark trials.
 - [x] Repeat the 120/240/480 Hz cadence sweep with the timer-resolution request active.
 - [x] Confirm zero application buffer rejections and zero reconciliation delta in all three post-change trials.
-- [ ] Run a longer-duration validation and select the operating polling cadence and buffer capacity from the measured trade-offs; do not treat the trial rates as production targets.
+- [x] Run a 600-second live validation at 480 Hz with the 1 ms timer-resolution request active.
+- [x] Select 480 Hz as the benchmark operating polling cadence based on the measured unique snapshot rate, source packet gaps, duplicate observations and CPU cost. This is an evidence-backed project setting, not a guarantee of ACC publication frequency.
 
-**Stage exit gate:** A repeatable longer-duration live benchmark with a documented operating cadence and quantified source-observation gaps, duplicate observations and application-level losses. A zero application reconciliation delta does not mean every ACC publication was observed.
+**Stage exit gate: Passed.** The 600-second 480 Hz live run documented polling cadence, unique accepted snapshots, source packet gaps, duplicate observations, consistency retries, CPU cost and application-level reconciliation. A zero application reconciliation delta does not mean every ACC publication was observed.
 
 ### Stage 3 — Independent raw persistence
 
@@ -179,14 +180,14 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 2. A packet-ID gap indicates counter progression between observations; it is not proof of an application ring-buffer drop.
 3. Packet-ID bracketing is best-effort consistency validation, not an atomic snapshot guarantee.
 4. The direct 100-read live test did not exercise `PhysicsAcquirer` or the ring buffer.
-5. The run loop supports configurable monotonic polling. The initial sweep observed approximately 64.5 Hz for all three requested rates. With the benchmark's balanced 1 ms WinMM timer-resolution request, the second sweep achieved 119.999/239.999/479.206 polling cycles/s. At 480 Hz, unique accepted snapshots averaged about 390.4/s because duplicate packet observations were rejected when ACC had not published a new page. Longer-duration validation and production cadence selection remain outstanding.
+5. The run loop supports configurable monotonic polling. The initial sweep observed approximately 64.5 Hz for all three requested rates. With the benchmark's balanced 1 ms WinMM timer-resolution request, the second sweep achieved 119.999/239.999/479.206 polling cycles/s. A 600-second 480 Hz trial then achieved 479.672 polling cycles/s and accepted 233,102 unique snapshots (388.50/s), with 54,702 duplicate observations rejected and 6,899 source packet gaps. The 480 Hz polling cadence is selected for the next acquisition/recorder stage based on these measurements; ACC's exact publication rate is not guaranteed.
 6. The initial queue is SPSC. Multiple consumers require explicit fan-out and independent loss accounting.
 7. No raw recorder or persistence/recovery guarantee exists yet.
 8. No downstream lap/sector logic, coaching, UI or other application feature should be allowed to compromise the acquisition critical path.
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 2 benchmark commit:** `13b696e179b28fd95dd32e8d67dfab4d87536160`  
+**Latest Stage 2 documentation update:** this status record includes the user-reported 600-second live validation. The acquisition implementation remains on `feature/acquisition-foundation`.  
 **Branch:** `feature/acquisition-foundation`
 
 **Latest user-reported automated test:** 22/22 acquisition tests passed locally on 8 November 2026, including Windows timer-resolution lifecycle tests.
@@ -200,7 +201,15 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 - First/last packet IDs: 4066 / 6320
 - Packet ID advanced: yes
 
-**Latest live Stage 2 sweep (user-reported, 8 November 2026; 120 seconds per trial):**
+**Latest live Stage 2 validation (user-reported, 8 November 2026; 600-second 480 Hz trial):**
+
+| Requested cadence | Observed polling cadence | Unique acquired | Consumed | CPU (one core) | Inconsistent reads | Duplicates rejected | Source packet gaps | Buffer rejects | High-water | Pending | Reconciliation delta |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 480 Hz | 479.672 Hz | 233,102 | 233,102 | 4.69% | 1,278 | 54,702 | 6,899 | 0 | 2 | 0 | 0 |
+
+The 10-minute run had no producer errors, no buffer rejections, no pending records after drain and zero reconciliation delta. It supports 480 Hz as the project's selected polling cadence for the next stage. The 388.50 unique snapshots/s is the accepted snapshot rate; do not confuse it with the 479.67 polling rate.
+
+**Supporting 120-second post-timer sweep (user-reported):**
 
 | Requested cadence | Observed cadence | Acquired | Consumed | CPU (one core) | Inconsistent reads | Duplicates | Buffer rejects | High-water | Reconciliation delta |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -218,7 +227,7 @@ All three application-level reconciliations passed. The nearly fixed 15.5 ms ave
 - Poll intervals are measured between acquisition cycles, not between consistency retries. Read-attempt duration remains a separate metric.
 - The SPSC buffer reports high-water mark, full-buffer rejects, lock-contention rejects and total rejected snapshots independently.
 - `timing_windows.py` balances a WinMM 1 ms timer-resolution request for the duration of the live benchmark; the request is released after the trial and is not a guarantee of exact wake-up timing.
-- The user's post-change live sweep measured 119.999/239.999/479.206 polling cycles/s at requested 120/240/480 Hz. At 480 Hz, unique accepted snapshots averaged about 390.4/s, with duplicate observations rejected and 1,703 source packet gaps over 120 seconds.
+- The user's post-change 120-second live sweep measured 119.999/239.999/479.206 polling cycles/s at requested 120/240/480 Hz. The follow-up 600-second 480 Hz validation measured 479.672 polling cycles/s, 233,102 unique snapshots (388.50/s), 54,702 duplicates, 6,899 source packet gaps, 1,278 inconsistent reads/retries, 4.69% CPU and zero application buffer rejects or reconciliation delta.
 - `scripts/benchmark_acc_physics.py` runs the real Windows source/acquirer/buffer path with a separate consumer thread and writes a timestamped JSON report after stopping.
 - Benchmark rates 120/240/480 Hz are exploratory comparison points only. The live measurements, not these requested values, determine the later operating target.
 
