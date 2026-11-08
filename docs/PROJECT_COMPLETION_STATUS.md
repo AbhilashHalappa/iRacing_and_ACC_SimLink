@@ -42,7 +42,6 @@ Status meanings:
 
 ### Stage 0 — Project foundation and engineering contract
 
-<badge-placeholder />
 
 **Status: Complete**
 
