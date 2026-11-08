@@ -96,6 +96,7 @@ class RawPhysicsRecordingWriter:
         self._stream.flush()
         os.fsync(self._stream.fileno())
         self._next_block_sequence = 1
+        self._last_capture_sequence: int | None = None
         self._closed = False
 
     def write_batch(self, snapshots: Iterable[PhysicsSnapshot]) -> int:
@@ -105,12 +106,16 @@ class RawPhysicsRecordingWriter:
         if not items:
             return 0
         encoded = bytearray()
+        previous_sequence = self._last_capture_sequence
         for snapshot in items:
+            if previous_sequence is not None and snapshot.capture_sequence <= previous_sequence:
+                raise ValueError("Capture sequences must increase strictly across recording blocks")
             if len(snapshot.payload) != self.payload_size:
                 raise ValueError(
                     f"Physics payload must be {self.payload_size} bytes; got {len(snapshot.payload)}"
                 )
             encoded.extend(_encode_snapshot(snapshot))
+            previous_sequence = snapshot.capture_sequence
         payload = bytes(encoded)
         header = _BLOCK_HEADER.pack(
             _BLOCK_MAGIC,
@@ -125,6 +130,7 @@ class RawPhysicsRecordingWriter:
         self._stream.flush()
         os.fsync(self._stream.fileno())
         self._next_block_sequence += 1
+        self._last_capture_sequence = previous_sequence
         return time.perf_counter_ns() - started
 
     def close(self) -> None:
