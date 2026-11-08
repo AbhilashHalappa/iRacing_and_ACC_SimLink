@@ -62,14 +62,19 @@ def main() -> int:
     recorder_stop = threading.Event()
     producer_done = threading.Event()
     dispatcher_stats = {"transferred_count": 0}
+    producer_errors: list[str] = []
 
     def producer() -> None:
         try:
             interval_ns = max(1, round(1_000_000_000 / args.poll_hz))
             acquirer.run(acquisition_stop, poll_interval_ns=interval_ns)
+        except Exception as exc:
+            producer_errors.append(f"{type(exc).__name__}: {exc}")
         finally:
             try:
                 source.close()
+            except Exception as exc:
+                producer_errors.append(f"Source close {type(exc).__name__}: {exc}")
             finally:
                 producer_done.set()
 
