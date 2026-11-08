@@ -3,7 +3,7 @@
 **Last updated:** 8 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Stage 2 complete; Stage 3 normal live recording and forced-process-termination recovery tests passed. Automated recorder fault-injection tests passed on Windows and Ubuntu. Physical storage-failure validation and abnormal-shutdown loss reconciliation remain outstanding. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
+**Status:** Stage 2 complete; Stage 3 normal live recording and forced-process-termination recovery tests passed. Atomic periodic progress checkpoints and checkpoint-aware recovery reporting are implemented; checkpoint unit tests and recorder in-flight tests passed in CI on Windows and Ubuntu. Target-PC checkpointed crash validation, physical storage-failure validation and exact post-checkpoint loss accounting remain outstanding. The selected benchmark operating cadence is 480 Hz polling, yielding approximately 388.5 unique snapshots/s in the 10-minute trial.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -29,7 +29,7 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Polling cadence / CPU baseline | Validated; 480 Hz selected for acquisition polling | 600-second trial: 479.672 polls/s, 233,102 unique snapshots (388.50/s), 4.69% CPU, 54,702 duplicate observations, 6,899 source packet gaps, zero buffer rejects and zero reconciliation delta |
 | Graphics and Static acquisition | Not implemented | Current adapter reads Physics only |
 | Raw binary recorder | Implemented; normal live run and abrupt-stop recovery passed | Normal 120-second ACC run: 46,924 acquired/persisted, zero rejects/failures/pending, reconciliation delta 0. Forced termination after about 30 seconds: 11,938 snapshots in 11,517 CRC-valid blocks recovered; zero invalid/trailing bytes; no truncation needed. Abnormal-run queue reconciliation is unavailable because the process was killed before writing its report |
-| End-of-session reconciliation | Normal shutdown passed; abnormal shutdown partially validated | Normal run reconciled to zero delta. Abrupt-stop test confirms completed blocks survive, but cannot quantify queued/in-flight samples lost at termination because no final report was written |
+| End-of-session reconciliation | Normal shutdown passed; checkpoint-based abnormal-shutdown visibility implemented | A separate 1-second checkpoint records acquired/persisted counts, queue depths/rejections, dispatcher and recorder in-flight work. Recovery reports a minimum of checkpoint-known snapshots not recovered; it cannot include captures made after the final checkpoint |
 | Desktop UI, coaching and analysis | Deferred | Deliberately outside the current acquisition-first milestone |
 
 ## 2. Stage-by-stage completion
@@ -129,6 +129,11 @@ Implemented:
 - [x] Add `scripts/recover_acc_recording.py` to inspect and recover `.accraw` files after interrupted runs.
 - [x] Confirm the expanded fault-injection tests pass on Ubuntu and Windows in GitHub Actions (run 42492834805).
 - [x] Force-terminate a live recording process on the target Windows PC after approximately 30 seconds; recover 11,938 snapshots across 11,517 CRC-valid blocks with zero invalid/trailing bytes and no truncation.
+- [x] Add a separate periodic checkpoint worker (1-second default) with checksummed JSON, fsync and atomic replacement.
+- [x] Include acquired/persisted sequence positions, queue depths and losses, dispatcher handoff state, recorder in-flight batch range and a sampled accounting delta in each checkpoint.
+- [x] Extend recovery reporting to validate the sidecar and estimate the minimum number of checkpoint-known snapshots not recovered.
+- [x] Add checkpoint checksum/atomic-replacement and recorder in-flight tests; CI passed on Windows and Ubuntu (run 42496420115).
+- [ ] Validate checkpoint sidecar and loss estimate in a new forced-termination run on the target Windows PC.
 - [ ] Exercise real slow storage and physical disk-full/write failures on the target Windows PC.
 - [ ] Quantify queued/in-flight samples lost during abnormal termination; the forced-kill run cannot produce a final reconciliation report.
 
@@ -136,7 +141,7 @@ Implemented:
 
 ### Stage 4 — Reliability diagnostics and fault testing
 
-**Status: In progress — automated fault injection and abrupt-process recovery validated; storage-failure and abnormal-loss accounting remain**
+**Status: In progress — automated fault injection, abrupt-process recovery and checkpoint implementation validated; target-PC checkpoint validation and storage-failure testing remain**
 
 Planned work:
 - [x] Add automated delayed-storage, partial-write/disk-full and interrupted-block recovery tests.
@@ -146,7 +151,8 @@ Planned work:
 - [ ] Inject slow consumers and storage failures.
 - [x] Test forced process termination during active acquisition and recording; verify recovery of completed blocks.
 - [x] Verify recovery scanner accepts complete blocks and reports invalid/trailing bytes after abrupt termination (this run had none).
-- [ ] Verify quantitative reconciliation of queued/in-flight data after abnormal termination.
+- [x] Implement periodic durable checkpoints exposing queued/in-flight counts and sequence ranges for abnormal-shutdown analysis.
+- [ ] Validate checkpoint-based loss estimates against a new forced-termination run; captures after the last checkpoint remain outside the estimate.
 - [ ] Test physical slow-storage and disk-full behavior on the target PC.
 
 **Stage exit gate:** Failure modes are observable, reproducible and correctly accounted for; sustained sessions complete without unexplained data loss.
@@ -203,7 +209,7 @@ The adapter copies the Physics page as raw bytes. It does not decode all Physics
 
 ## 6. Latest verified baseline and next action
 
-**Latest Stage 3 validation update:** normal live ACC recording passed for 120 seconds at 480 Hz: 46,924 acquired and persisted, zero acquisition/recorder queue rejects, zero write failures, zero pending records, zero reconciliation delta and 12.04% CPU of one core. CI passed 31/31 tests on Windows and Ubuntu. A real forced-process-termination test recovered 11,938 snapshots across 11,517 valid blocks; invalid/trailing bytes were 0 and no truncation was required. This does not quantify queued/in-flight samples lost at termination. The acquisition implementation remains on `feature/acquisition-foundation`.  
+**Latest Stage 3 implementation update:** normal live ACC recording passed for 120 seconds at 480 Hz: 46,924 acquired and persisted, zero acquisition/recorder queue rejects, zero write failures, zero pending records, zero reconciliation delta and 12.04% CPU of one core. A real forced-process-termination test recovered 11,938 snapshots across 11,517 valid blocks; invalid/trailing bytes were 0 and no truncation was required. New atomic periodic checkpoints now expose acquired/persisted sequence positions, both queue depths and rejection ranges, dispatcher state, recorder in-flight batch state and sampled accounting delta. CI passed on Windows and Ubuntu for checkpoint integrity and in-flight metrics. The checkpoint implementation has not yet been exercised in a target-PC forced-stop run. The acquisition implementation remains on `feature/acquisition-foundation`.  
 **Branch:** `feature/acquisition-foundation`
 
 **Latest automated test:** GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu on 8 November 2026. This includes delayed-storage, simulated disk-full partial-write and interrupted-block recovery tests. Earlier baseline was 28 tests.
@@ -235,7 +241,7 @@ The 10-minute run had no producer errors, no buffer rejections, no pending recor
 
 All three application-level reconciliations passed. The nearly fixed 15.5 ms average interval, despite changing requested cadence, points to a Windows wait/timer-resolution limitation; it is a hypothesis to test, not yet a proven diagnosis. Source packet gaps were 40,509 / 40,822 / 40,655 respectively and remain distinct from application buffer losses.
 
-**Next action:** Exercise real slow storage and physical disk-full/write failure on the target Windows PC, then improve abnormal-shutdown accounting so queued/in-flight loss can be quantified. The forced-stop recovery test is complete: 11,938 snapshots in 11,517 valid blocks, zero invalid/trailing bytes, no truncation. The selected polling cadence remains 480 Hz; the acquisition core remains unchanged.
+**Next action:** Pull the checkpoint implementation and repeat the forced-termination test. Confirm the `.checkpoint.json` sidecar is present and review the additional checkpoint output from `scripts/recover_acc_recording.py`. Then test slow storage and physical disk-full/write failure on the target Windows PC. The previous forced-stop recovery test recovered 11,938 snapshots in 11,517 valid blocks, with zero invalid/trailing bytes and no truncation. The selected polling cadence remains 480 Hz; the acquisition critical path remains unchanged.
 
 ## 7. Stage 2 implementation details
 
