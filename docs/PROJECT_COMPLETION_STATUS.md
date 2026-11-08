@@ -13,7 +13,7 @@ The project is being built from a clean foundation, with reliable telemetry acqu
 
 The current implementation can connect to ACC's Windows Physics shared-memory mapping, copy the raw Physics page and pass the source-independent acquisition tests. A live ACC test confirmed the expected page size and advancing packet IDs.
 
-**The project is not complete.** It currently acquires only the Physics page. Graphics and Static page acquisition, raw recording, crash recovery, recorder-level reconciliation, and downstream application features remain outstanding.
+**The project is not complete.** It currently acquires only the Physics page. Raw Physics recording and recovery of completed CRC-valid blocks are implemented and tested. Checkpoint-assisted abnormal-shutdown loss estimation still needs target-PC validation, and physical storage-failure testing remains outstanding. Graphics and Static page acquisition and downstream application features are not yet implemented.
 
 ### Current evidence
 
