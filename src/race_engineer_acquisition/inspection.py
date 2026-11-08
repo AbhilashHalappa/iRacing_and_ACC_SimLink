@@ -6,6 +6,7 @@ It is not imported by the acquisition loop.
 """
 from __future__ import annotations
 
+import ctypes
 import csv
 import json
 import math
@@ -95,12 +96,28 @@ def inspect_recording(path: str | Path) -> dict[str, Any]:
 
     for field_name, field_type in field_specs:
         is_array = hasattr(field_type, "_length_")
+        scalar_type = field_type._type_ if is_array else field_type
         length = field_type._length_ if is_array else 1
+        if scalar_type is ctypes.c_int32:
+            scalar_type_name = "int32"
+        elif scalar_type is ctypes.c_float:
+            scalar_type_name = "float32"
+        else:
+            scalar_type_name = getattr(scalar_type, "__name__", str(scalar_type))
+        field_offset = getattr(_Physics, field_name).offset
+        field_size = ctypes.sizeof(field_type)
+        component_size = ctypes.sizeof(scalar_type)
+
         for component in range(length):
             key = field_name if not is_array else f"{field_name}[{component}]"
             accumulators[key] = {
                 "field": field_name,
                 "component": component if length > 1 else None,
+                "field_type": scalar_type_name,
+                "field_offset_bytes": field_offset,
+                "field_size_bytes": field_size,
+                "array_length": length,
+                "component_offset_bytes": field_offset + component * component_size,
                 "sample_count": 0,
                 "finite_count": 0,
                 "non_finite_count": 0,
@@ -143,6 +160,8 @@ def inspect_recording(path: str | Path) -> dict[str, Any]:
         unique = row.pop("_unique")
         row["name"] = key
         row["unique_values_observed"] = len(unique)
+        row["unique_values_limit"] = 4096
+        row["unique_values_count_exact"] = len(unique) < 4096
         row["observed_behavior"] = (
             "no_finite_values" if row["finite_count"] == 0
             else "varies" if row["minimum"] != row["maximum"]
@@ -157,9 +176,12 @@ def inspect_recording(path: str | Path) -> dict[str, Any]:
         "first_capture_sequence": samples[0][0],
         "last_capture_sequence": samples[-1][0],
         "field_component_count": len(fields),
+        "unique_value_tracking_limit_per_component": 4096,
         "interpretation": (
             "Observed variation is descriptive only. It does not prove a field's "
-            "meaning or correctness; correlate with a controlled ACC action."
+            "meaning or correctness; correlate with a controlled ACC action. "
+            "Unique-value counts are exact below the tracking limit; when the "
+            "limit is reached, the reported count is a lower bound."
         ),
         "fields": fields,
     }
@@ -172,10 +194,12 @@ def write_inspection_outputs(report: dict[str, Any], json_path: str | Path,
     if csv_path is not None:
         with Path(csv_path).open("w", newline="", encoding="utf-8") as stream:
             writer = csv.DictWriter(stream, fieldnames=[
-                "name", "field", "component", "sample_count", "finite_count",
-                "non_finite_count", "zero_count", "nonzero_count", "minimum",
-                "maximum", "first_value", "last_value", "unique_values_observed",
-                "observed_behavior",
+                "name", "field", "component", "field_type", "field_offset_bytes",
+                "field_size_bytes", "array_length", "component_offset_bytes",
+                "sample_count", "finite_count", "non_finite_count", "zero_count",
+                "nonzero_count", "minimum", "maximum", "first_value", "last_value",
+                "unique_values_observed", "unique_values_limit",
+                "unique_values_count_exact", "observed_behavior",
             ])
             writer.writeheader()
             writer.writerows(report["fields"])
