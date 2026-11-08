@@ -51,6 +51,9 @@ class RecorderMetrics:
     in_flight_last_sequence: int | None = None
     last_block_write_duration_ns: int = 0
     max_block_write_duration_ns: int = 0
+    simulated_write_delay_ns: int = 0
+    last_persist_duration_ns: int = 0
+    max_persist_duration_ns: int = 0
 
 
 def _encode_snapshot(snapshot: PhysicsSnapshot) -> bytes:
@@ -224,13 +227,17 @@ class PhysicsRecorderWorker:
         *,
         payload_size: int = 784,
         batch_size: int = 128,
+        simulated_write_delay_seconds: float = 0.0,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
+        if simulated_write_delay_seconds < 0:
+            raise ValueError("simulated_write_delay_seconds cannot be negative")
         self.buffer = buffer
         self.path = Path(path)
         self.payload_size = payload_size
         self.batch_size = batch_size
+        self.simulated_write_delay_seconds = simulated_write_delay_seconds
         self.metrics = RecorderMetrics()
         self.error: str | None = None
 
@@ -267,7 +274,12 @@ class PhysicsRecorderWorker:
         self.metrics.in_flight_snapshot_count = len(batch)
         self.metrics.in_flight_first_sequence = batch[0].capture_sequence
         self.metrics.in_flight_last_sequence = batch[-1].capture_sequence
+        persist_started_ns = time.perf_counter_ns()
         try:
+            if self.simulated_write_delay_seconds:
+                delay_ns = round(self.simulated_write_delay_seconds * 1_000_000_000)
+                time.sleep(self.simulated_write_delay_seconds)
+                self.metrics.simulated_write_delay_ns += delay_ns
             duration = writer.write_batch(batch)
         except Exception:
             self.metrics.failed_snapshot_count += len(batch)
@@ -286,6 +298,11 @@ class PhysicsRecorderWorker:
                 self.metrics.max_block_write_duration_ns, duration
             )
         finally:
+            persist_duration = time.perf_counter_ns() - persist_started_ns
+            self.metrics.last_persist_duration_ns = persist_duration
+            self.metrics.max_persist_duration_ns = max(
+                self.metrics.max_persist_duration_ns, persist_duration
+            )
             self.metrics.in_flight_snapshot_count = 0
             self.metrics.in_flight_first_sequence = None
             self.metrics.in_flight_last_sequence = None
