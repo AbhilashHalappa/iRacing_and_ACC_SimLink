@@ -47,7 +47,7 @@ Review requested versus observed polling rate, source packet gaps, consistency r
 
 ## Next gate
 
-The expanded acquisition tests (22/22), 120/240/480 Hz live sweep and 10-minute 480 Hz validation are complete. The 10-minute run accepted 233,102 unique snapshots (388.50/s), recorded 6,899 source packet gaps and rejected 54,702 duplicate observations, with no buffer rejects, no pending records and zero reconciliation delta. The selected acquisition polling cadence for Stage 3 is 480 Hz. Next: implement an independent raw recorder with its own bounded handoff, append-only binary blocks, integrity checks, recovery and final-drain reconciliation.
+The expanded acquisition tests (22/22), 120/240/480 Hz live sweep and 10-minute 480 Hz validation are complete. The 10-minute run accepted 233,102 unique snapshots (388.50/s), recorded 6,899 source packet gaps and rejected 54,702 duplicate observations, with no buffer rejects, no pending records and zero reconciliation delta. The selected acquisition polling cadence for Stage 3 is 480 Hz. The independent raw recorder implementation is now present; its automated tests and live ACC recording/recovery validation are the next gate.
 
 See:
 - [Project Completion Status](docs/PROJECT_COMPLETION_STATUS.md)
