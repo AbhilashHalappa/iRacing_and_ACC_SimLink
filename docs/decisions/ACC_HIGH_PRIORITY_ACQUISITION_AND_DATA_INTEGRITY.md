@@ -109,7 +109,17 @@ Measure read start-to-start intervals, read/copy duration, observed polling rate
 
 ### Stage 3 — Independent persistence
 
-Add a recorder worker, bounded recorder handoff, batched binary blocks, checksums, flush policy, crash recovery and end-of-session reconciliation. Recorder work must never execute in the acquisition loop.
+Implementation added; automated and live validation pending.
+
+- A second bounded SPSC queue separates acquisition from persistence.
+- A dedicated recorder worker writes batches; the acquisition loop remains unchanged and performs no disk I/O.
+- The versioned `.accraw` format stores sequence, packet ID, monotonic timestamps and raw page bytes in append-only blocks.
+- CRC32 protects each block; the file header also has a checksum.
+- Completed blocks are flushed and fsynced.
+- Recovery scans sequential complete blocks and truncates an incomplete/corrupt tail.
+- `scripts/record_acc_physics.py` runs acquisition, dispatch and persistence on separate threads and reports final reconciliation.
+
+Validation still required: automated tests on Windows/Linux, live ACC recording at 480 Hz, slow-storage/disk-full fault injection and interrupted-session recovery. Recorder work must never execute in the acquisition loop.
 
 ### Stage 4 — Reliability diagnostics
 
@@ -125,8 +135,16 @@ Start with the narrow Python acquisition boundary and measure it. A native C++ o
 
 ## 9. Current implementation boundary
 
-The package under src/race_engineer_acquisition/ includes the source-independent acquisition core and a Windows adapter for the audited ACC Physics mapping and page layout. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 784-byte page size and advancing packet IDs over 100 reads. One read had differing bracketing IDs. This does not validate the full PhysicsAcquirer-plus-buffer pipeline, sustained sampling cadence, source-level completeness or persistence. No live sampling-rate or persistence guarantee is claimed.
+The package under src/race_engineer_acquisition/ includes the source-independent acquisition core, Windows Physics adapter, and an independent raw recorder. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 784-byte page size and advancing packet IDs over 100 reads. Stage 2 also passed the user-reported 10-minute acquisition/buffer benchmark. The recorder code now provides a separate bounded handoff, batched CRC-protected binary blocks, fsync and recovery, but automated and live persistence validation are pending. No source-level completeness or persistence guarantee is claimed until those validation gates pass.
 
 ## 10. Relationship to the Greenfield Architecture
 
 This decision supplements [GREENFIELD_ARCHITECTURE_PROPOSAL.md](../architecture/GREENFIELD_ARCHITECTURE_PROPOSAL.md). The architecture proposal defines the system boundaries; this document defines the acquisition core, consistency contract, buffer semantics and data-integrity gates. The validated lap/sector decision remains downstream and authoritative for lap processing.
+
+## Stage 3 recording format and operational contract
+
+The raw recording format is version 1. It begins with a fixed-size file header containing the magic/version, expected Physics payload size, UTC creation timestamp and header CRC32. Each append-only block contains a monotonically increasing block sequence, record count, encoded payload length and CRC32 over the block payload. Each record stores capture sequence, ACC packet ID, read-start, read-complete and capture timestamps (all monotonic nanoseconds), payload length and the raw page bytes.
+
+The recorder worker batches records from its own bounded queue and flushes/fsyncs each completed block. The acquisition-to-recorder dispatcher is a separate thread. Queue rejections at both handoff boundaries are accounted independently. On finalization, the runner reconciles acquired snapshots against persisted snapshots, both queue rejection counts, recorder write-failure counts and pending queue contents. Recovery accepts only sequential, structurally valid, checksum-valid blocks and truncates the invalid trailing region when requested.
+
+The format and worker are implemented, not yet signed off. A successful unit-test run and live Windows ACC recording with zero unexplained reconciliation delta are required before Stage 3 completion.
