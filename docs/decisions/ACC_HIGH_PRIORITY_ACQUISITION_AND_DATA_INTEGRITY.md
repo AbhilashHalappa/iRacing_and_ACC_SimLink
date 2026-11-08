@@ -118,8 +118,9 @@ Implementation and normal live validation passed; 31/31 automated tests passed o
 - Completed blocks are flushed and fsynced.
 - Recovery scans sequential complete blocks and truncates an incomplete/corrupt tail.
 - `scripts/record_acc_physics.py` runs acquisition, dispatch and persistence on separate threads and reports final reconciliation.
+- `scripts/recover_acc_recording.py` inspects a `.accraw` file and, by default, truncates only an incomplete/corrupt trailing region while preserving complete blocks.
 
-Live normal-recording validation: 120 seconds at 480 Hz; 46,924 snapshots acquired and persisted; zero acquisition/recorder queue rejects, zero write failures, zero pending records, reconciliation delta 0, and 12.04% CPU of one core. GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu, including delayed storage, simulated disk-full partial-block failure, and interrupted-second-block recovery. Real abrupt process termination and physical disk-full/slow-storage tests on the target PC remain outstanding. Recorder work must never execute in the acquisition loop.
+Live normal-recording validation: 120 seconds at 480 Hz; 46,924 snapshots acquired and persisted; zero acquisition/recorder queue rejects, zero write failures, zero pending records, reconciliation delta 0, and 12.04% CPU of one core. GitHub Actions run 42492834805 passed the expanded 31-test suite on both Windows and Ubuntu, including delayed storage, simulated disk-full partial-block failure, and interrupted-second-block recovery. Real abrupt process termination and physical disk-full/slow-storage tests on the target PC remain outstanding. The README now documents a controlled force-stop procedure and recovery command for the next Windows validation. Recorder work must never execute in the acquisition loop.
 
 ### Stage 4 — Reliability diagnostics
 
