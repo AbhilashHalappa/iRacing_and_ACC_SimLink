@@ -1,9 +1,9 @@
 # Race Engineer ACC New — Project Completion Status
 
-**Last updated:** 8 November 2026  
+**Last updated:** 9 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Physics raw acquisition and recording foundation implemented. Stage 3 normal recording, forced-termination recovery, checkpoint-assisted recovery, live slow-storage simulation and bounded simulated-ENOSPC fault handling have been exercised. The target-PC slow-storage run persisted 11,800/11,800 samples with zero rejects; the target-PC simulated-ENOSPC run preserved three complete blocks and accounted for 11,780 unpersisted queued samples. Physical disk-full testing was intentionally skipped. The 784-byte Physics structure now has an 84-field structural coverage inventory; authoritative specification cross-check and individual live field validation remain pending. No decoder, Graphics adapter or Static adapter has been added.
+**Status:** Physics raw acquisition and recording foundation implemented. Stage 3 normal recording, forced-termination recovery, checkpoint-assisted recovery, live slow-storage simulation and bounded simulated-ENOSPC fault handling have been exercised. The target-PC slow-storage run persisted 11,800/11,800 samples with zero rejects; the target-PC simulated-ENOSPC run preserved three complete blocks and accounted for 11,780 unpersisted queued samples. Physical disk-full testing was intentionally skipped. The Physics adapter now uses the corroborated 800-byte layout: `current_max_rpm` is int32 at offset 588, `mz[4]` is at offset 592, and later fields use corrected offsets. The final 16 bytes are opaque. Legacy 784-byte recordings remain identifiable and raw-readable. No decoder, Graphics adapter or Static adapter has been added.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -24,7 +24,7 @@ The current implementation can connect to ACC's Windows Physics shared-memory ma
 | Physics acquisition loop | Implemented | Injectable source/clock, monotonic timestamps, sequence assignment and retry/accounting metrics |
 | Windows ACC Physics adapter | Implemented; live connection verified | Read-only `Local\\acpmf_physics` mapping |
 | Automated acquisition tests | Passed locally | User reported 22/22 tests passing on 8 November 2026, including Windows timer-resolution lifecycle tests |
-| Live ACC page copy | Passed for a short smoke test | 100 reads; expected and actual page size both 784 bytes; 100 unique packet IDs; one bracketed read was inconsistent |
+| Live ACC page copy | Passed for a short smoke test | 100 reads; expected and actual page size 800 bytes; 100 unique packet IDs; one bracketed read was inconsistent |
 | Sustained driving acquisition | Controlled sweep and 10-minute soak passed | Three 120-second post-timer trials plus one 600-second 480 Hz trial; all had zero buffer rejects and zero reconciliation delta |
 | Polling cadence / CPU baseline | Validated; 480 Hz selected for acquisition polling | 600-second trial: 479.672 polls/s, 233,102 unique snapshots (388.50/s), 4.69% CPU, 54,702 duplicate observations, 6,899 source packet gaps, zero buffer rejects and zero reconciliation delta |
 | Graphics and Static acquisition | Not implemented | Current adapter reads Physics only |
@@ -178,7 +178,7 @@ Planned work:
 
 ## 3. ACC data coverage
 
-A structural inventory of all 84 Physics fields, including byte offsets, C types, sizes, raw-preservation status, reference-decoder exposure and unused/deprecated naming, is maintained in [ACC Physics Field Coverage Audit](ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). The inventory confirms a 784-byte structure. Automated regression tests now lock all 84 field names, types, array lengths, offsets and sizes, plus the total structure size and contiguous layout; CI execution for the new tests is pending. Individual field values have not yet been validated live, and the offsets still require an authoritative-specification cross-check. This audit does not add a decoder.
+A structural inventory of all 82 named Physics fields, including byte offsets, C types, sizes, raw-preservation status, reference-decoder exposure and unused/deprecated naming, is maintained in [ACC Physics Field Coverage Audit](ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). The inventory confirms a 800-byte structure. Automated regression tests now lock all 82 named field names, types, array lengths, offsets and sizes, plus the total structure size and contiguous layout; CI execution for the new tests is pending. Individual field values have not yet been validated live, and the offsets still require an authoritative-specification cross-check. This audit does not add a decoder.
 
 
 | ACC shared-memory page | Current state |
@@ -203,7 +203,7 @@ Current package: `src/race_engineer_acquisition/`
 - `tests/acquisition/test_recorder.py` — recorder format, recovery and worker tests.
 - `tests/acquisition/` — unit tests for buffer, acquirer and Windows source adapter.
 
-The adapter copies the Physics page as raw bytes. It does not decode all Physics fields, read Graphics or Static, record to disk, or feed UI/coaching/lap-analysis consumers.
+The adapter copies the complete 800-byte Physics page as raw bytes; the 16-byte tail is opaque. It does not decode all Physics fields, read Graphics or Static, record to disk, or feed UI/coaching/lap-analysis consumers.
 
 ## 5. Known limitations and decisions
 
