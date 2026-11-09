@@ -1,7 +1,7 @@
 import struct
 import unittest
 
-from race_engineer_acquisition.graphics import GraphicsAcquirer, RawGraphicsRead
+from race_engineer_acquisition.graphics import GRAPHICS_MAP, GraphicsAcquirer, RawGraphicsRead
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 
 
@@ -28,6 +28,9 @@ def read(before, copied, after, suffix=b"page"):
 
 
 class GraphicsAcquirerTests(unittest.TestCase):
+    def test_windows_graphics_mapping_name_uses_single_namespace_separator(self):
+        self.assertEqual(GRAPHICS_MAP, r"Local\acpmf_graphics")
+
     def test_capture_preserves_complete_payload_and_timestamps(self):
         buffer = AcquisitionRingBuffer(4)
         acquirer = GraphicsAcquirer(
