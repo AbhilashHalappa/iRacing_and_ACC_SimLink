@@ -97,7 +97,7 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 - [x] Packet-ID gap accounting.
 - [x] Deterministic unit tests using a fake source and clock.
 - [x] Implement the Windows ACC Shared Memory Physics adapter using the corrected 800-byte ACC Physics page layout.
-- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the expected-size page under the earlier 784-byte layout; the adapter is now corrected to 800 bytes and requires a fresh live validation.\n- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
+- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the corrected 800-byte page; the earlier 784-byte adapter layout is superseded.\n- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
 
 ### Stage 2 — Acquisition measurement
 
@@ -153,4 +153,4 @@ The format and worker are implemented; the previous 31-test suite passed on Wind
 
 ## 11. Physics ABI correction — 9 November 2026
 
-The Windows Physics ctypes structure now models an 800-byte page. `current_max_rpm` is an `int32` at byte 588; `mz[4]` occupies bytes 592–607; all subsequent named fields move 16 bytes later than the former 784-byte declaration. Bytes 784–799 are stored as an opaque 16-byte array with no semantic names. The recorder defaults to the current 800-byte payload size. The recording header continues to store the payload size, so legacy 784-byte recordings remain distinguishable; the offline inspector reads them as raw legacy snapshots and deliberately does not reinterpret them using the new offsets. Automated layout tests now lock the 800-byte size and field offsets. A fresh target-PC recording and cross-platform test run are the next acceptance checks.
+The Windows Physics ctypes structure now models an 800-byte page. `current_max_rpm` is an `int32` at byte 588; `mz[4]` occupies bytes 592–607; all subsequent named fields move 16 bytes later than the former 784-byte declaration. Bytes 784–799 are stored as an opaque 16-byte array with no semantic names. The recorder defaults to the current 800-byte payload size. The recording header stores the payload size, and the offline inspector accepts only the authoritative 800-byte layout. Historical 784-byte recordings are outside the supported format and are rejected rather than interpreted. Automated layout tests now lock the 800-byte size and field offsets. A fresh target-PC 800-byte recording and cross-platform test run are the next acceptance checks.
