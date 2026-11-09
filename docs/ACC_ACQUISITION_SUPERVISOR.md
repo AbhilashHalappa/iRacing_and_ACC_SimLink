@@ -58,7 +58,7 @@ environment:
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m unittest tests.acquisition.test_supervisor -v
+python -m unittest discover -s tests/acquisition -p "test_supervisor.py" -v
 python -m unittest discover -s tests/acquisition -v
 ```
 
