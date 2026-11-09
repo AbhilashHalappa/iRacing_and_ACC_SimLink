@@ -128,6 +128,26 @@ class FanOutTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             dispatcher.register("late", 1)
 
+    def test_failed_consumer_accounts_queued_and_in_flight_items(self):
+        dispatcher = FanOutDispatcher(source_with(60, 61, 62))
+        consumer = dispatcher.register("decoder", 3)
+        stop = Event()
+        stop.set()
+        dispatcher.run(stop)
+        in_flight = consumer.try_get()
+        self.assertEqual(in_flight.capture_sequence, 60)
+
+        failed_count = consumer.mark_failed("decoder worker stopped unexpectedly")
+        metrics = consumer.metrics
+        self.assertEqual(failed_count, 3)
+        self.assertEqual(metrics.dispatched_count, 3)
+        self.assertEqual(metrics.processed_count, 0)
+        self.assertEqual(metrics.failed_count, 3)
+        self.assertEqual(metrics.pending_count, 0)
+        self.assertEqual(metrics.first_failed_sequence, 60)
+        self.assertEqual(metrics.last_failed_sequence, 62)
+        self.assertEqual(metrics.dispatched_count, metrics.processed_count + metrics.failed_count + metrics.pending_count)
+
     def test_required_consumer_loss_is_explicit(self):
         dispatcher = FanOutDispatcher(source_with(50, 51))
         recorder = dispatcher.register("required-recorder", 1, required=True)
