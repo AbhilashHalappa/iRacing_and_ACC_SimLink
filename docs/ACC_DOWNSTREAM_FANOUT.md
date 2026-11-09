@@ -88,9 +88,11 @@ Loss is never converted into a successful recording result.
 ## Memory bounds
 
 Every consumer queue is a fixed-capacity ring of references. If consumer
-capacities are \(C_1, C_2, \ldots, C_n\), the fan-out layer retains at most
-\(\sum_i C_i\) queued snapshot references, plus the currently in-flight item
-per consumer and bounded bookkeeping entries for those in-flight items.
+capacities are \(C_1, C_2, \ldots, C_n\), the consumer queues retain at most
+\(\sum_i C_i\) outstanding snapshot references in total. Each consumer's
+capacity includes both queued and in-flight items; dequeueing does not free
+capacity until that item is acknowledged or failed. The dispatcher itself
+holds at most one additional source item while offering it to the consumers.
 
 The snapshots and their immutable payload bytes are shared by reference
 between consumer queues; fan-out does not allocate a second payload copy for
