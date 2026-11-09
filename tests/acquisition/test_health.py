@@ -89,14 +89,15 @@ class AcquisitionHealthTests(unittest.TestCase):
         self.assertEqual(health.consecutive_failures, 0)
 
     def test_buffer_rejection_is_in_common_health(self):
-        source = FailsOnce(RawPhysicsRead(1, 1, b"physics"))
-        # Use a source that succeeds on both calls after its injected first error.
-        with self.assertRaises(OSError):
-            PhysicsAcquirer(source, AcquisitionRingBuffer(1)).capture_once()
-        acquirer = PhysicsAcquirer(
-            type("Source", (), {"read_physics": lambda self: RawPhysicsRead(1, 1, b"x")})(),
-            AcquisitionRingBuffer(1),
-        )
+        class SequenceSource:
+            def __init__(self):
+                self.packet = 0
+
+            def read_physics(self):
+                self.packet += 1
+                return RawPhysicsRead(self.packet, self.packet, b"x")
+
+        acquirer = PhysicsAcquirer(SequenceSource(), AcquisitionRingBuffer(1))
         acquirer.capture_once()
         acquirer.capture_once()
         self.assertEqual(acquirer.health.snapshot.buffer_rejections, 1)
