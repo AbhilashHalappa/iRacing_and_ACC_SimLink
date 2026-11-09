@@ -107,5 +107,35 @@ class GraphicsAcquirerTests(unittest.TestCase):
         self.assertEqual(buffer.try_get().acc_graphics_packet_id, 1)
 
 
+    def test_windows_source_uses_reported_mapping_size_and_copies_every_byte(self):
+        class FakeMapping:
+            size = 4096
+
+            def __init__(self):
+                self.closed = False
+
+            def read_packet_id(self):
+                return 123
+
+            def copy_page(self):
+                return struct.pack("<i", 123) + bytes((i % 251 for i in range(4092)))
+
+            def close(self):
+                self.closed = True
+
+        from race_engineer_acquisition.graphics import WindowsACCGraphicsSource
+
+        mapping = FakeMapping()
+        source = WindowsACCGraphicsSource(mapping_factory=lambda: mapping)
+        self.assertEqual(source.page_size, 4096)
+        raw = source.read_graphics()
+        self.assertTrue(raw.is_consistent)
+        self.assertEqual(len(raw.payload), 4096)
+        self.assertEqual(raw.payload[0:4], struct.pack("<i", 123))
+        self.assertEqual(raw.payload[4:], bytes((i % 251 for i in range(4092))))
+        source.close()
+        self.assertTrue(mapping.closed)
+
+
 if __name__ == "__main__":
     unittest.main()
