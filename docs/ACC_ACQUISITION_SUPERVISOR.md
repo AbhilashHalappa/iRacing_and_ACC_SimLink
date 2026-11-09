@@ -82,12 +82,12 @@ repeating Physics or Graphics field recordings.
 With ACC running, execute:
 
 ```powershell
-python scripts/validate_acc_acquisition_supervisor.py --seconds 30
+python scripts/validate_acc_acquisition_supervisor.py --seconds 120 --minimum-rate-ratio 0.99
 ```
 
 The script opens all three independent mappings through their worker threads
 and drains each SPSC queue on a separate validation thread. It requests a 1 ms
-timer resolution by default, measures actual successful-read rates, reconciles
+timer resolution by default, measures actual start-to-start poll cadence and successful-read rates, reconciles
 all captured records against drained/rejected/pending records, and checks clean
 shutdown. Acceptance requires at least 99% of the configured 480 Hz Physics
 and 100 Hz Graphics read rates, zero source read failures, zero buffer rejects,
