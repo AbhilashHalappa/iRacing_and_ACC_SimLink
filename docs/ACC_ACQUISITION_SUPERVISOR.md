@@ -133,12 +133,14 @@ consecutive-failure count.
 
 Health ownership is split by field: the supervisor alone writes lifecycle
 state, while the corresponding acquisition worker alone writes read and buffer
-counters. These fields are stored independently so concurrent updates cannot
-overwrite each other. Readers obtain a frozen snapshot without acquiring a
-lock. Health reads are therefore detached and non-blocking. Existing
-stream-specific metrics remain on `acquirer.metrics` (Physics packet gaps,
-consistency retries and timing; Graphics packet observations and consistency;
-Static unchanged-read counts). Common health does not replace those metrics.
+counters. Worker counters are updated in place; the hot path does not allocate
+or replace a health dataclass on every successful source read. A sequence
+counter lets readers retry if a worker update overlaps snapshot construction,
+so each returned frozen snapshot is a coherent, detached view without a lock
+in the acquisition path. Existing stream-specific metrics remain on
+`acquirer.metrics` (Physics packet gaps, consistency retries and timing;
+Graphics packet observations and consistency; Static unchanged-read counts).
+Common health does not replace those metrics.
 
 The common health test suite is:
 
