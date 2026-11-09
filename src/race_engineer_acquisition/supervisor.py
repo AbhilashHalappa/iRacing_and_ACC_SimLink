@@ -188,7 +188,7 @@ class AcquisitionSupervisor:
                 thread = runtime.thread
                 if runtime.state not in ("stopped", "failed"):
                     return
-                if thread is not None and thread is not current and thread.is_alive():
+                if thread is not None and thread is not current and thread.ident is not None and thread.is_alive():
                     return
             try:
                 self._timer_resolution.__exit__(None, None, None)
