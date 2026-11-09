@@ -75,6 +75,7 @@ class BoundedConsumerQueue(Generic[T]):
         self._last_lost_sequence: int | None = None
         self._first_failed_sequence: int | None = None
         self._last_failed_sequence: int | None = None
+        self._high_water_mark = 0
         self._closed = False
         self._failed = False
         self._error: str | None = None
@@ -107,10 +108,18 @@ class BoundedConsumerQueue(Generic[T]):
             if self._closed or self._failed:
                 self._record_rejection(item)
                 return False
+            # Capacity bounds all outstanding references, including items
+            # already dequeued but not yet acknowledged by the consumer.
+            if self._buffer.size + len(self._in_flight) >= self.capacity:
+                self._record_rejection(item)
+                return False
             if not self._buffer.try_put(item):
                 self._record_rejection(item)
                 return False
             self._dispatched_count += 1
+            self._high_water_mark = max(
+                self._high_water_mark, self._buffer.size + len(self._in_flight)
+            )
             return True
 
     def try_get(self) -> T | None:
@@ -195,7 +204,7 @@ class BoundedConsumerQueue(Generic[T]):
                 in_flight_count=in_flight,
                 pending_count=queued + in_flight,
                 capacity=self.capacity,
-                high_water_mark=self._buffer.high_water_mark,
+                high_water_mark=self._high_water_mark,
                 first_lost_sequence=self._first_lost_sequence,
                 last_lost_sequence=self._last_lost_sequence,
                 first_failed_sequence=self._first_failed_sequence,
