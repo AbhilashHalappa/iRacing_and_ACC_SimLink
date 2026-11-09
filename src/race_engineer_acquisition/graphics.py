@@ -311,6 +311,19 @@ class GraphicsRecordingRecovery:
     page_size: int
 
 
+@dataclass(frozen=True, slots=True)
+class GraphicsRecordingSample:
+    """Decoded Graphics record, including downstream persistence metadata."""
+
+    capture_sequence: int
+    acc_graphics_packet_id: int
+    read_start_ns: int
+    read_complete_ns: int
+    capture_timestamp_ns: int
+    persistence_timestamp_ns: int | None
+    payload: bytes
+
+
 @dataclass(slots=True)
 class GraphicsRecorderMetrics:
     persisted_snapshot_count: int = 0
@@ -340,11 +353,11 @@ def _encode_graphics_snapshot(
 
 def _decode_graphics_block(
     payload: bytes, record_count: int, *, format_version: int = 2
-) -> list[GraphicsSnapshot]:
+ ) -> list[GraphicsRecordingSample]:
     if format_version not in (1, 2):
         raise ValueError(f"Unsupported Graphics recording format version: {format_version}")
     record_header = _RECORD_HEADER_V1 if format_version == 1 else _RECORD_HEADER_V2
-    records = []
+    records: list[GraphicsRecordingSample] = []
     offset = 0
     for _ in range(record_count):
         if len(payload) - offset < record_header.size:
@@ -359,8 +372,8 @@ def _decode_graphics_block(
         end = offset + size
         if end > len(payload):
             raise ValueError("Truncated Graphics record payload")
-        records.append(GraphicsSnapshot(
-            seq, packet, started, completed, captured, payload[offset:end], persisted_at
+        records.append(GraphicsRecordingSample(
+            seq, packet, started, completed, captured, persisted_at, payload[offset:end]
         ))
         offset = end
     if offset != len(payload):
