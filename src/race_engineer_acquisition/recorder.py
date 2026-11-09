@@ -89,7 +89,7 @@ def _encode_snapshot(snapshot: PhysicsSnapshot, persistence_timestamp_ns: int) -
 
 def _decode_block_payload(
     payload: bytes, record_count: int, *, format_version: int = 2
- ) -> list[PhysicsRecordingSample]:
+) -> list[PhysicsRecordingSample]:
     if format_version not in (1, 2):
         raise ValueError(f"Unsupported Physics recording format version: {format_version}")
     record_header = _RECORD_HEADER_V1 if format_version == 1 else _RECORD_HEADER_V2
