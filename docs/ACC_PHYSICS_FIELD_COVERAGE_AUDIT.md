@@ -1,14 +1,14 @@
 # ACC Physics Page — Field Coverage Audit
 
-**Status:** 800-byte ACC Physics layout strongly corroborated by the ACC v1.8.12 reference transcription and controlled live captures; exact Kunos v1.9 ABI/header confirmation remains unavailable.  
+**Status:** 800-byte ACC Physics layout strongly corroborated by three independent reader implementations, corrected field offsets and live read-only 800-byte mapping probes; exact Kunos v1.9 ABI/header confirmation remains unavailable.  
 **Page size:** 800 bytes  
 **Layout:** Little-endian, `_pack_ = 4`  
-**Primary layout baseline:** `SolusDev-sys/CppAccSharedMemory`, `C++AccSharedMemory.cpp` on `main`, which its README identifies as based on the ACC Shared Memory v1.8.12 documentation attributed to KS Dev Team. This third-party transcription uses 4-byte packing and the same 800-byte Physics field sequence as this adapter.  
+**Layout evidence:** three independent ACC readers include `mz[4]` after `currentMaxRpm`; the outlying 784-byte transcription omits this member. The live read-only probe confirmed readable data through byte 799. The final 16 bytes are preserved opaquely.  
 **Secondary decoder reference:** `AbhilashHalappa/Race-Engineer-ACC`, branch `diagnostic/high-res-capture-2026-11-07`, `src/acc_shared_memory_extended.py`, blob `e9a54bda008cb6ff1797dfdc14b07b297a461ab9`.
 
 ## Architecture boundary
 
-This is an audit only. It does not add a decoder or change the acquisition pipeline.
+This audit documents the corrected raw ABI. It does not add a decoder or semantic interpretation for the opaque tail.
 
 - The high-priority Physics acquisition thread remains raw-only.
 - It copies the complete 800-byte page and timestamps/sequences the observation.
@@ -25,8 +25,6 @@ This is an audit only. It does not add a decoder or change the acquisition pipel
 - **Observed:** a field changed in a live capture, but controlled causality, axis/sign calibration or semantic confirmation is missing.
 - **Unresolved:** latest evidence is contradictory or implausible; do not use the declared interpretation.
 - **Reference unused:** this reflects the cited third-party reference, not an official Kunos guarantee.
-
-| `tail_reserved` | `c_ubyte[16]` | 784 | 16 | Yes | No | Opaque/reserved bytes | Preserved raw; semantics intentionally not assigned |
 
 ## Complete field inventory
 
@@ -115,6 +113,7 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 | `ignition_on` | `c_int32` | 772 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
 | `starter_engine_on` | `c_int32` | 776 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
 | `engine_running` | `c_int32` | 780 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
+| `tail_reserved` | `c_ubyte[16]` | 784 | 16 | Yes | No | Opaque/reserved bytes | Preserved raw; semantics intentionally not assigned |
 
 ## Layout regression tests
 
@@ -243,9 +242,9 @@ The pad-life value `1.401298464e-45` is the smallest positive IEEE-754 float32 s
 
 ## Important limitations
 
-The inventory describes the ACC v1.8.12-derived 800-byte reference transcription and the current adapter. It does not prove that every member is actively populated by ACC 1.10.4. Some are explicitly named unused/deprecated; others may be reserved, constant or conditionally populated.
+The inventory describes the corroborated 800-byte reference layout and the current adapter. It does not prove that every member is actively populated by ACC 1.10.4. Some are explicitly named unused/deprecated; others may be reserved, constant or conditionally populated.
 
-The offset inventory is calculated from the ctypes declaration using little-endian scalar widths and 4-byte packing. The matching ACC-specific v1.8.12 field sequence, 800-byte size and live tail-field behaviour provide strong corroboration. The remaining uncertainty is whether Kunos changed any member in the observed Shared Memory v1.9 build; the official version-matched header was not located.
+The offset inventory is calculated from the ctypes declaration using little-endian scalar widths and 4-byte packing. Independent readers and live 800-byte mapping reads support the added `mz[4]` member and corrected downstream offsets. The final 16 bytes remain opaque. An official version-matched Kunos header was not located.
 
 ## Remaining Physics work and next page
 
