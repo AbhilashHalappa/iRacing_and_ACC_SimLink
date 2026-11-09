@@ -141,7 +141,10 @@ class AcquisitionHealthTests(unittest.TestCase):
         self.assertEqual(supervisor.status["physics"]["health"].lifecycle_state, "running")
         release.set()
         deadline = time.monotonic() + 1
-        while supervisor.status["physics"]["state"] != "failed" and time.monotonic() < deadline:
+        while (
+            supervisor.status["physics"]["state"] != "failed"
+            or supervisor.status["physics"]["health"].lifecycle_state != "failed"
+        ) and time.monotonic() < deadline:
             time.sleep(0.005)
         status = supervisor.status["physics"]
         self.assertEqual(status["state"], "failed")
