@@ -122,8 +122,8 @@ class AcquisitionSupervisor:
                     with self._lock:
                         runtime.state = "failed"
                         runtime.error = f"{type(exc).__name__}: {exc}"
-                if runtime.spec.health is not None:
-                    runtime.spec.health.set_lifecycle("failed")
+                    if runtime.spec.health is not None:
+                        runtime.spec.health.set_lifecycle("failed")
                     alive = self._rollback_startup()
                     suffix = f" Workers still running: {', '.join(alive)}." if alive else " All started workers stopped."
                     raise AcquisitionStartupError(
@@ -151,6 +151,8 @@ class AcquisitionSupervisor:
             with self._lock:
                 if runtime.close_error:
                     runtime.state = "failed"
+                    if runtime.spec.health is not None:
+                        runtime.spec.health.set_lifecycle("failed")
                 elif not failed and runtime.state != "failed":
                     runtime.state = "stopped"
                     if runtime.spec.health is not None:
