@@ -17,6 +17,7 @@ from threading import Event
 from typing import Iterable
 
 from .acc_windows import PHYSICS_SIZE
+from .fanout import BoundedConsumerQueue
 from .models import PhysicsSnapshot
 from .ring_buffer import AcquisitionRingBuffer
 
@@ -280,7 +281,7 @@ class PhysicsRecorderWorker:
 
     def __init__(
         self,
-        buffer: AcquisitionRingBuffer[PhysicsSnapshot],
+        buffer: AcquisitionRingBuffer[PhysicsSnapshot] | BoundedConsumerQueue[PhysicsSnapshot],
         path: str | Path,
         *,
         payload_size: int = PHYSICS_SIZE,
