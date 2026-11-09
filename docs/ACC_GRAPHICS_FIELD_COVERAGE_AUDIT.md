@@ -197,3 +197,12 @@ The 87-field candidate inventory in this audit therefore uses Pro Engineer's com
 The separate Graphics raw-only reader/recorder has been added. It preserves the complete mapping allocation discovered at runtime (4,096 bytes in the existing target capture) and does not use the candidate 1,588-byte struct to limit acquisition. The 87-field candidate inventory remains an offline interpretation reference only.
 
 Automated tests are present for the Graphics acquisition and recording path; CI and live target-PC validation are pending. This does not change the ABI sign-off status above: field offsets/types for Shared Memory 1.9 remain unconfirmed as a complete official contract.
+
+
+## Graphics raw acquisition automated validation — 9 November 2026
+
+The raw-only Graphics acquisition and recording path now has dedicated automated coverage. GitHub Actions run [42598727306](https://github.com/AbhilashHalappa/Race-Engineer-ACC-New/actions/runs/42598727306) passed **60/60 tests on Ubuntu and 60/60 on Windows**, including the new Graphics acquisition/recorder tests and compilation of the live runner. The source-size test uses a 4,096-byte fake mapping and verifies that every byte is copied and preserved.
+
+The raw acquirer deliberately preserves every consistent poll, including repeated packet IDs. It counts repeated IDs as an observation metric but does not deduplicate them, because a same-ID page could still contain changed bytes. The capture remains a latest-state polling interface, not an ACC event queue; source-level updates between polls can still be missed.
+
+Target-PC validation of the new production-style runner remains pending. The earlier 18,000-sample diagnostic capture is existing evidence, not a substitute for validating this new acquisition/recording pipeline.
