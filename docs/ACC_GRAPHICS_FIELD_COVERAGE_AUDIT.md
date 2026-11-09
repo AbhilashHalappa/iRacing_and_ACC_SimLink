@@ -206,3 +206,166 @@ The raw-only Graphics acquisition and recording path now has dedicated automated
 The raw acquirer deliberately preserves every consistent poll, including repeated packet IDs. It counts repeated IDs as an observation metric but does not deduplicate them, because a same-ID page could still contain changed bytes. The capture remains a latest-state polling interface, not an ACC event queue; source-level updates between polls can still be missed.
 
 Target-PC validation of the new standalone runner remains pending; it is not yet wired into normal application startup. The earlier 18,000-sample diagnostic capture is existing evidence, not a substitute for validating this new acquisition/recording pipeline.
+
+
+---
+
+## Six-minute full-page Graphics audit addendum — 9 November 2026
+
+This addendum records the later six-minute dry-condition capture. It supersedes any earlier statement in this document that target-PC Graphics raw acquisition validation was still pending: the separate raw-only recorder was subsequently exercised on the target PC and the complete recording was audited.
+
+**Recording:** `user_data/raw_recordings/acc_graphics_20261109T110805_109825Z.gfxraw`  
+**Full report:** `user_data/raw_recordings/acc_graphics_complete_audit.json`  
+**Command:** `python scripts/audit_acc_graphics_all_fields.py <recording>.gfxraw --json-out <report>.json`
+
+### Capture and integrity
+
+| Measure | Result |
+|---|---:|
+| Capture duration | 360.0 s |
+| Poll rate | 100 Hz |
+| Samples acquired / persisted | 36,001 / 36,001 |
+| Mapping page copied | 4,096 bytes per sample |
+| Candidate layout decoded offline | 1,588 bytes |
+| Opaque mapping remainder | 2,508 bytes |
+| Acquisition rejects | 0 |
+| Recorder queue rejects | 0 |
+| Write failures | 0 |
+| Pending at shutdown | 0 |
+| Reconciliation delta | 0 |
+| CRC, record sequence, packet-ID checks | Passed |
+| CPU | 8.33% |
+| Conditions | Dry session; user reported a major crash/damage incident during the capture |
+
+The capture validates the raw-only recording path and the ability to run the candidate offline audit against a complete six-minute recording. It does not certify every candidate field's semantics or establish an official Kunos ABI.
+
+### Scalar field results — all 77 members
+
+The existing complete candidate inventory above supplies each field's source type and byte offset. This table records the new capture's exact terminal summary. “Changes” means sample-to-sample value transitions; it is descriptive, not semantic proof.
+
+| Field | First → last | Min…max | Changes |
+|---|---:|---:|---:|
+| `packet_id` | 623 → 22189 | 623…22189 | 21,566 |
+| `status` | 2 → 2 | 2…2 | 0 |
+| `session` | 2 → 2 | 2…2 | 0 |
+| `completed_laps` | 0 → 1 | 0…1 | 1 |
+| `position` | 25 → 25 | 24…25 | 2 |
+| `i_current_time` | 0 → 159162 | 0…159162 | 19,125 |
+| `i_last_time` | 2147483647 → 154825 | 154825…2147483647 | 1 |
+| `i_best_time` | 2147483647 → 2147483647 | 2147483647…2147483647 | 0 |
+| `session_time_left` | 1200000 → 880942 | 880942…1200000 | 19,126 |
+| `distance_traveled` | 0.681819 → 9940.289063 | 0.681819…9940.289063 | 19,895 |
+| `is_in_pit` | 0 → 0 | 0…1 | 4 |
+| `current_sector_index` | 0 → 1 | 0…2 | 4 |
+| `last_sector_time` | 0 → 102755 | 0…102917 | 4 |
+| `number_of_laps` | 0 → 0 | 0…0 | 0 |
+| `replay_time_multiplier` | 0 → 0 | 0…0 | 0 |
+| `normalized_car_position` | 0.838400 → 0.557969 | 0…1 | 17,906 |
+| `active_cars` | 25 → 25 | 25…25 | 0 |
+| `player_car_id` | 24 → 24 | 24…24 | 0 |
+| `penalty_time` | 0 → 0 | 0…0 | 0 |
+| `flag` | 0 → 7 | 0…8 | 15 |
+| `penalty` | 0 → 0 | 0…1 | 2 |
+| `ideal_line_on` | 1 → 1 | 1…1 | 0 |
+| `is_in_pit_lane` | 0 → 0 | 0…1 | 2 |
+| `surface_grip` | 0 → 0 | 0…0 | 0 |
+| `mandatory_pit_done` | 1 → 1 | 1…1 | 0 |
+| `wind_speed` | 0.0165633 → 0.0165605 | 0.0165605…0.0165633 | 1,521 |
+| `wind_direction` | 209.646545 → 209.662323 | 209.646545…209.662323 | 1,034 |
+| `is_setup_menu_visible` | 0 → 0 | 0…0 | 0 |
+| `main_display_index` | 1 → 1 | 1…1 | 0 |
+| `secondary_display_index` | 0 → 0 | 0…0 | 0 |
+| `tc` | 6 → 7 | 6…7 | 1 |
+| `tc_cut` | 6 → 7 | 6…7 | 1 |
+| `engine_map` | 7 → 6 | 6…7 | 1 |
+| `abs` | 6 → 7 | 6…7 | 1 |
+| `fuel_x_lap` | 3.660000 → 3.011387 | 3.011387…3.660000 | 1 |
+| `rain_lights` | 0 → 1 | 0…1 | 1 |
+| `flashing_lights` | 0 → 0 | 0…0 | 0 |
+| `lights_stage` | 0 → 1 | 0…1 | 1 |
+| `exhaust_temperature` | 117.939774 → 232.918259 | 117.939774…569.978455 | 21,566 |
+| `wiper_stage` | 0 → 1 | 0…1 | 1 |
+| `driver_stint_total_time_left` | -1000 → -1000 | -1000…-1000 | 0 |
+| `driver_stint_time_left` | -1000 → -320040 | -320040…-1000 | 15,280 |
+| `rain_tyres` | 0 → 0 | 0…0 | 0 |
+| `session_index` | 0 → 0 | 0…0 | 0 |
+| `used_fuel` | 0 → 4.974590 | 0…4.974590 | 19,668 |
+| `i_delta_lap_time` | 0 → 0 | 0…0 | 0 |
+| `i_estimated_lap_time` | 2147483647 → 2147483647 | 2147483647…2147483647 | 0 |
+| `is_delta_positive` | 0 → 0 | 0…0 | 0 |
+| `i_split` | 16303 → 56407 | 0…102750 | 21,566 |
+| `is_valid_lap` | 1 → 1 | 1…1 | 0 |
+| `fuel_estimated_laps` | 16.939890 → 18.936594 | 15.997464…19.443092 | 19,627 |
+| `missing_mandatory_pits` | 0 → 0 | 0…0 | 0 |
+| `clock` | 61201.304688 → 61561.308594 | 61201.304688…61561.308594 | 21,566 |
+| `direction_lights_left` | 0 → 1 | 0…1 | 1 |
+| `direction_lights_right` | 0 → 0 | 0…1 | 2 |
+| `global_yellow` | 0 → 1 | 0…1 | 13 |
+| `global_yellow_1` | 0 → 0 | 0…1 | 4 |
+| `global_yellow_2` | 0 → 1 | 0…1 | 9 |
+| `global_yellow_3` | 0 → 0 | 0…0 | 0 |
+| `global_white` | 0 → 0 | 0…0 | 0 |
+| `global_green` | 0 → 0 | 0…1 | 14 |
+| `global_chequered` | 0 → 0 | 0…0 | 0 |
+| `global_red` | 1 → 0 | 0…1 | 1 |
+| `mfd_tyre_set` | 1 → 1 | 1…1 | 0 |
+| `mfd_fuel_to_add` | 0 → 0 | 0…0 | 0 |
+| `mfd_tyre_pressure_lf` | 26.5 → 28.2 | 25.3…28.2 | 3 |
+| `mfd_tyre_pressure_rf` | 26.5 → 28.2 | 25.3…28.2 | 3 |
+| `mfd_tyre_pressure_lr` | 25.3 → 27.5 | 24.5…27.5 | 3 |
+| `mfd_tyre_pressure_rr` | 25.3 → 27.6 | 24.5…27.6 | 3 |
+| `track_grip_status` | 1 → 1 | 1…1 | 0 |
+| `rain_intensity` | 0 → 0 | 0…0 | 0 |
+| `rain_intensity_in_10min` | 0 → 0 | 0…0 | 0 |
+| `rain_intensity_in_30min` | 0 → 0 | 0…0 | 0 |
+| `current_tyre_set` | 1 → 1 | 1…1 | 0 |
+| `strategy_tyre_set` | 2 → 2 | 2…2 | 0 |
+| `gap_ahead` | 0 → 163 | 0…163 | 5 |
+| `gap_behind` | 0 → -141180 | -141422…0 | 5 |
+
+### Arrays and strings
+
+The audit reports 8 array members and 2 strings. The scalar terminal table does not summarize full arrays; per-element statistics are in the JSON report.
+
+| Field | Candidate layout | New capture finding |
+|---|---|---|
+| `current_time` | `uint16[15]` | UTF-16 time string `-:--:---` → `2:39:162`; agrees with `i_current_time=159162` |
+| `last_time` | `uint16[15]` | Initial uninitialized-looking value; final `2:34:825`; agrees with `i_last_time=154825` |
+| `best_time` | `uint16[15]` | Uninitialized-looking throughout; integer companion remains sentinel |
+| `split` | `uint16[15]` | Candidate UTF-16 time string; needs format/companion interpretation |
+| `car_coordinates` | `float32[60][3]` | 180 float values (60 XYZ triplets); per-slot detail is in JSON and has not yet been manually reviewed |
+| `car_id` | `int32[60]` | 60 values; first/last displayed slot is 24; full ID-to-slot mapping needs review |
+| `delta_lap_time` | `uint16[15]` | UTF-16 sentinel string `-:--:---`; integer companion is zero |
+| `estimated_lap_time` | `uint16[15]` | Uninitialized-looking throughout; integer companion remains sentinel |
+| `tyre_compound` | UTF-16LE, 33 code units | `dry_compound` throughout; populated string observed, transition not tested |
+| `track_status` | UTF-16LE, 33 code units | `FAST` throughout; populated string observed, transition not tested |
+
+The six time-like arrays are fixed-width UTF-16 strings, not 15 independent numeric measurements. Their raw first/last u16 elements in the console table are character code units and must not be interpreted as time values.
+
+### Important new interpretations and unresolved items
+
+- **Dry session:** `tyre_compound=dry_compound`, `track_status=FAST`, and all three rain-intensity fields were zero. This is consistent with the user's correction that this was a dry-condition session.
+- **Rain lights are not rain:** `rain_lights` changed 0→1; this is a light-control state, not evidence of wet weather.
+- **Setup controls:** TC, TC Cut, ABS and Engine Map changed. In the separate controlled setup capture, TC=4, TC Cut=8, ABS=6 agreed with the user's selected values, but Engine Map showed 8 at candidate offset `0x4FC` while the UI showed 9. Keep Engine Map unresolved.
+- **Pit state:** both `is_in_pit` and `is_in_pit_lane` changed. They are separate candidate fields.
+- **Race control:** `flag`, `penalty`, global yellow, global green and global red changed. Their event/enum meanings need correlation; these are not damage values.
+- **Fuel and tyres:** `used_fuel`, `fuel_estimated_laps`, `fuel_x_lap`, MFD pressures and gap fields populated/changed. Their units, signs and calculations are not all independently validated.
+- **Coordinates/IDs:** `player_car_id=24`; the terminal summary alone is insufficient to establish which coordinate slot maps to the player. Review all 60 IDs and 60 XYZ triplets in the JSON before using player coordinates.
+- **No Graphics damage channel:** none of the 87 candidate members is an explicitly named vehicle-damage field. Penalty, flags, coordinates and exhaust temperature must not be presented as damage measurements.
+
+### Crash-context event index
+
+The script generated 46 event-index samples from changes to position, flag, penalty, global flags, pit state, lap count, sector and validity. The index is explicitly a correlation aid, not collision detection. A penalty or flag transition cannot establish that a crash occurred. The complete event list is retained in the local JSON report; it must be correlated with the user's incident timing before assigning meaning.
+
+The Physics audit already documents `car_damage[5]` at offset 224 and the prior controlled pit-service repair observation. That evidence is not repeated here as a Graphics field. The distinct Physics `suspension_damage[4]` at offset 680–695 remains separately classified in the Physics audit and must not be conflated with `car_damage[5]`.
+
+### Updated next steps — reuse existing evidence first
+
+1. Inspect the JSON per-slot summaries for all 60 car IDs and all 60 XYZ triplets; resolve player-slot mapping from existing data.
+2. Review the existing 46 event-index rows around the reported incident; do not request another capture for this first review.
+3. Investigate the Engine Map 9-versus-8 discrepancy using existing controlled capture evidence.
+4. Preserve the 2,508-byte post-candidate region as opaque; its all-zero state in this capture does not establish permanent absence.
+5. Only request a new targeted capture if one named question cannot be answered from existing recordings. A tyre-compound transition is not validated by this dry-only recording, but that gap does not justify repeating unrelated tests.
+6. Keep Graphics raw acquisition and offline candidate decoding separate; do not modify Physics as part of this Graphics audit.
+
+**Current conclusion:** the raw-only Graphics recorder has now passed a six-minute target-PC capture with complete accounting and integrity checks. The 87-field candidate audit provides a field inventory and live observations. The candidate layout remains provisional for ACC Shared Memory 1.9; field semantics are individually qualified above.
