@@ -209,3 +209,25 @@ The mapping allocation size is intentionally reported separately from the 1,588-
 ## Out of scope for Stage 5.1
 
 No production Graphics structure, acquisition thread, recorder or semantic decoder is added by this investigation document. Those follow only after the live Shared Memory 1.9 ABI check. Physics code and its existing 784-byte adapter remain untouched.
+
+
+## RaceIQ and Pro Engineer cross-check — 9 November 2026
+
+The requested reference implementations have now been inspected directly, at pinned commits:
+
+- **RaceIQ:** [ACC structure definitions](https://github.com/SpeedHQ/RaceIQ/blob/64a34783f706722cf342e18ecb7fc06d29f30f8e/packages/capture-formats/src/acc/structs.ts), [ACC adapter notes](https://github.com/SpeedHQ/RaceIQ/blob/64a34783f706722cf342e18ecb7fc06d29f30f8e/docs/reference/adapters/acc.md), and [shared-memory reader](https://github.com/SpeedHQ/RaceIQ/blob/64a34783f706722cf342e18ecb7fc06d29f30f8e/packages/game-acc/src/shared-memory.ts).
+- **Pro Engineer:** [complete ACC structures](https://github.com/Rgosh/ac-pro-engineer/blob/b33ab4b2c8dfcfeb1079cfb08197fe7e77127b26/core/src/games/assetto_corsa_competizione/structs.rs) and [ACC implementation plan/live-capture notes](https://github.com/Rgosh/ac-pro-engineer/blob/b33ab4b2c8dfcfeb1079cfb08197fe7e77127b26/docs/plan-acc.md).
+
+### Direct comparison results
+
+1. Both use `Local\\acpmf_graphics` and declare a **1,588-byte** ACC Graphics structure.
+2. RaceIQ's current `GRAPHICS` offset map contains 44 explicit offset descriptors. Every descriptor aligns to the corresponding Pro Engineer member offset; naming differs mainly by camelCase versus snake_case, and RaceIQ represents the large car arrays by base offset/stride.
+3. RaceIQ's offset map ends at `clock` (offset 1488) and does not explicitly enumerate the final 96 bytes. Its parser also accepts a 1,320-byte legacy minimum for old recordings. That compatibility path is not the complete current page and will not be used as the new raw-recording size.
+4. Pro Engineer declares the complete 87-member `AccGraphics` structure, including direction indicators, global flags, MFD requests, track-grip/rain fields, tyre-set indices and gaps through `gap_behind` at offset 1584. It has compile-time assertions for total size 1588 and selected field offsets.
+5. Pro Engineer's implementation notes describe a 337-second / 8,376-sample live ACC session capture and distinguish fields whose offsets were supported by observed values from fields that remained zero and were only retained for layout. This is useful empirical corroboration, not an official Kunos header.
+
+### Decision
+
+Use the **complete 87-field Pro Engineer sequence** as the full candidate field inventory, with RaceIQ as an independent offset cross-check for the 44 descriptors it exposes. Keep the existing target-PC raw capture of the **entire 4,096-byte mapping allocation**; treat the first 1,588 bytes as the candidate logical Graphics structure and the remaining 2,508 bytes as opaque mapping tail unless new evidence proves otherwise. Do not truncate new raw captures to 1,320 bytes or to the subset of fields currently consumed by the application.
+
+This materially strengthens the 1,588-byte candidate but does **not** turn the v1.8.12-derived third-party layout into official Shared Memory 1.9 confirmation. The existing live target capture and trailing-zero observation remain separate evidence. No production Graphics structure or reader is authorized by this cross-check alone.
