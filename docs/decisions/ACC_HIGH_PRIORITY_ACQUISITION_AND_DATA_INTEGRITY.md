@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Physics acquisition and raw recorder validated and closed for the current scope; corrected 800-byte layout strongly corroborated; target-PC live recording, CRC inspection and independent raw-byte cross-check passed on 9 November 2026; full field semantics and official Kunos header confirmation remain qualified; decoder deferred; Graphics and Static remain separate and unimplemented  
+**Status:** Physics acquisition and raw recorder validated and closed for the current scope; corrected 800-byte layout strongly corroborated; target-PC live recording, CRC inspection and independent raw-byte cross-check passed on 9 November 2026; full field semantics and official Kunos header confirmation remain qualified; decoder deferred; Graphics has a separate raw-only acquisition/recording path validated on the target PC, while Static remains unimplemented  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -167,7 +167,7 @@ This closes the Physics acquisition and raw-recording foundation for the current
 
 The fields at Physics offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not selected setup levels. No Graphics fields are part of this decision.
 
-**Boundary:** keep Physics standalone. Do not merge Graphics or Static structures into the Physics page or change the completed Physics ABI as part of future page work. Graphics/Static acquisition is a separate future scope.
+**Boundary:** keep Physics standalone. Do not merge Graphics or Static structures into the Physics page or change the completed Physics ABI as part of future page work. Graphics raw-only acquisition is implemented and independently validated; its candidate field layout remains provisional. Static acquisition is a separate future scope.
 
 
 ## 10. Evidence-first validation and no-repeat policy — 9 November 2026
