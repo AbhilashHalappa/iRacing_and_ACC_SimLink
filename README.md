@@ -22,7 +22,7 @@ The initial source-independent core is in `src/race_engineer_acquisition/`:
 - Packet-ID gap, duplicate, regression and consistency-retry accounting.
 - A Windows read-only adapter for the audited `Local\\acpmf_physics` mapping/layout.
 
-**Important:** ACC Shared Memory exposes latest-state pages, not a guaranteed delivery queue. The project distinguishes source packet progression from application-level buffer loss and does not claim zero source-level packet loss. The current implementation reads Physics only; Graphics and Static are not implemented. The recorder has passed a normal live recording smoke test; the expanded 31-test fault-injection suite has passed on Windows and Ubuntu; real interrupted-session and physical storage-failure validation are still required before Stage 3 can be signed off.
+**Important:** ACC Shared Memory exposes latest-state pages, not a guaranteed delivery queue. The project distinguishes source packet progression from application-level buffer loss and does not claim zero source-level packet loss. Physics acquisition and recording are closed for their defined scope. A separate raw-only Graphics acquisition and recording path has been added; Static acquisition remains unimplemented. The recorder has passed a normal live recording smoke test; the expanded 31-test fault-injection suite has passed on Windows and Ubuntu; real interrupted-session and physical storage-failure validation are still required before Stage 3 can be signed off.
 
 ## Run the current tests
 
@@ -52,7 +52,7 @@ The complete 82-field, 800-byte structural inventory is documented in [docs/ACC_
 
 ## Current gate
 
-**Physics acquisition: closed for the current scope.** The 9 November live recording and independent raw-byte cross-check are documented in [Physics Field Coverage Audit](docs/ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). The audit distinguishes structural/layout evidence, acquisition and recording integrity, selected raw-byte comparisons, and field-specific semantic confidence. No Physics decoder is being added as part of this closure. Graphics and Static remain separate future acquisition scopes.
+**Physics acquisition: closed for the current scope.** The 9 November live recording and independent raw-byte cross-check are documented in [Physics Field Coverage Audit](docs/ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). Graphics is now a separate raw-only acquisition/recording path, with live validation pending; its candidate field layout remains separate from Physics. Static remains a future acquisition scope.
 
 See:
 - [Project Completion Status](docs/PROJECT_COMPLETION_STATUS.md)
@@ -114,6 +114,8 @@ python scripts/recover_acc_recording.py $recording.FullName
 The recovery utility preserves complete sequential CRC-valid blocks and truncates only an incomplete/corrupt tail. Use `--no-truncate` first if you want a read-only inspection. It automatically looks for the matching `.checkpoint.json` sidecar and reports the last checkpoint's acquired/persisted sequences, queue depths, in-flight work, checkpoint accounting delta, and a minimum count of checkpoint-known snapshots not recovered. Share the recovery output; do not delete the test recording or checkpoint until they have been reviewed. The real forced-termination recovery test passed: 11,938 snapshots were recovered from 11,517 complete blocks; the scanner reported 0 invalid/trailing bytes and did not truncate the file. Because the process was killed before finalization, this test does not quantify queued/in-flight samples lost at termination. A physical disk-full/slow-storage test remains outstanding. The checkpoint is a periodic point-in-time snapshot, not an exact accounting of captures made after the last checkpoint; the reported unrecovered count is a minimum for checkpoint-known work, and total crash loss can be higher. Do not treat Stage 3 as complete until the target-PC slow-storage simulation and physical storage-failure behavior are validated.
 
 
-## Graphics acquisition — current discovery status
+## Graphics acquisition — raw-only implementation added
 
-The existing Graphics ABI investigation and full-mapping raw capture are documented in [ACC_GRAPHICS_ABI_INVESTIGATION.md](docs/ACC_GRAPHICS_ABI_INVESTIGATION.md) and [ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md). RaceIQ and Pro Engineer have now been cross-checked: both declare a 1,588-byte Graphics structure; Pro Engineer supplies the complete 87-field candidate, while RaceIQ's explicit offset map corroborates its overlapping fields. The target-PC capture retains the full 4,096-byte mapping. The Shared Memory 1.9 ABI remains unsigned-off pending evidence reconciliation; no production Graphics reader has been added.
+The existing Graphics ABI investigation, field-coverage audit and 18,000-sample full-mapping capture are documented in [ACC_GRAPHICS_ABI_INVESTIGATION.md](docs/ACC_GRAPHICS_ABI_INVESTIGATION.md) and [ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md). RaceIQ and Pro Engineer have been cross-checked: both declare a 1,588-byte candidate structure; Pro Engineer supplies the complete 87-field inventory, while RaceIQ's 44 explicit offset descriptors align with the corresponding Pro Engineer offsets.
+
+A separate raw-only Graphics reader and CRC-block recorder now copy the entire mapping allocation reported by Windows (4,096 bytes in the existing target capture). The 1,588-byte candidate is not used to limit or decode the payload; bytes beyond it are retained unchanged. Physics code and recordings are untouched. Automated tests are added, but the new path still requires CI and target-PC live validation. The exact Shared Memory 1.9 field ABI remains unsigned-off pending evidence reconciliation.
