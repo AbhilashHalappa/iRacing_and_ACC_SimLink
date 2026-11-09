@@ -305,3 +305,14 @@ Physics offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs
 **Closure limits:** no claim that every Physics field has fully validated semantics or calibrated units; no claim of official Kunos header confirmation; no source-level zero-loss guarantee. The 800-byte Physics layout is the only supported recording layout.
 
 **Scope freeze:** Physics remains a standalone page and layer. Do not add Graphics or Static fields/readers, do not merge page structures, and do not change the Physics layout as part of subsequent Graphics work. Graphics and Static acquisition remain unimplemented and outside this closure.
+
+
+## Graphics structure reference cross-check — 9 November 2026
+
+**Status: Stage 5.1 reference comparison completed; target Shared Memory 1.9 ABI remains not signed off.**
+
+The existing Graphics investigation, read-only probe, 18,000-sample full-mapping recording and field-coverage audit were reviewed. RaceIQ and Pro Engineer were then inspected directly at pinned revisions. Both declare `Local\\acpmf_graphics` as 1,588 bytes. RaceIQ's 44 explicit offset descriptors align with the corresponding Pro Engineer members; Pro Engineer provides the complete 87-field sequence through offset 1584. RaceIQ's offset map stops at offset 1488 and its 1,320-byte parser minimum is legacy compatibility only.
+
+The existing target capture preserves the full 4,096-byte mapping allocation; the final 2,508 bytes were observed zero throughout the 18,000 samples. Keep those bytes in raw capture as opaque tail; do not reinterpret them as extra fields. The first 1,588 bytes remain a strongly corroborated candidate logical structure, not official Kunos Shared Memory 1.9 confirmation.
+
+No production Graphics reader, decoder, recorder or Physics change was made in this reference cross-check. The next gate is offline raw-capture correlation and explicit confirmation that the existing capture's field evidence is reconciled with the 87-field candidate inventory. Do not repeat already-confirmed lap/sector/validity tests or create a new capture unless a specific unresolved field requires a controlled event.
