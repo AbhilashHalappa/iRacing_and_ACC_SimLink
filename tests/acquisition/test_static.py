@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 import unittest
 
 from race_engineer_acquisition.supervisor import AcquisitionStream, AcquisitionSupervisor
@@ -90,8 +89,6 @@ class StaticAcquisitionTests(unittest.TestCase):
 
 
     def test_supervised_worker_emits_initial_and_changed_pages_then_closes_source(self):
-        stop_event = threading.Event()
-
         class TickClock:
             def __init__(self):
                 self.value = 0
@@ -106,12 +103,13 @@ class StaticAcquisitionTests(unittest.TestCase):
                 super().__init__([b"first001", b"first001", b"second02"])
                 self.reads = 0
                 self.closed = 0
+                self.stop_event = None
 
             def read_static(self):
                 result = super().read_static()
                 self.reads += 1
                 if self.reads == 3:
-                    stop_event.set()
+                    self.stop_event.set()
                 return result
 
             def close(self):
@@ -120,10 +118,14 @@ class StaticAcquisitionTests(unittest.TestCase):
         source = StopAfterThreeReads()
         buffer = AcquisitionRingBuffer[object](capacity=8)
         acquirer = StaticAcquirer(source, buffer, clock_ns=TickClock())
+        def run_static(stop):
+            source.stop_event = stop
+            acquirer.run(stop, refresh_interval_ns=1)
+
         supervisor = AcquisitionSupervisor([
             AcquisitionStream(
                 "static",
-                lambda stop: acquirer.run(stop, refresh_interval_ns=1),
+                run_static,
                 source.close,
                 acquirer.health,
             )
