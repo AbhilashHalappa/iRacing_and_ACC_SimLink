@@ -125,8 +125,8 @@ Offsets are hexadecimal byte offsets. Types are the candidate v1.8.12 transcript
 | 69 | `global_yellow_3` | `int32` | `0x5E8` | B — decoded as boolean | D | Needs sector-specific yellow event |
 | 70 | `global_white` | `int32` | `0x5EC` | B — decoded as boolean | D | Needs white-flag event |
 | 71 | `global_green` | `int32` | `0x5F0` | B — decoded as boolean | O — raw value remained 1 in inspected snapshots | This is global-green, not lap validity |
-| 72 | `global_chequered` | `int32` | `0x5F4` | B — retained in candidate layout; not projected by previous decoder output | D | Retain for offset correctness; flag-event correlation pending |
-| 73 | `global_red` | `int32` | `0x5F8` | B — retained in candidate layout; not projected by previous decoder output | D | Retain for offset correctness; flag-event correlation pending |
+| 72 | `global_chequered` | `int32` | `0x5F4` | R — retained in candidate layout; not projected by previous decoder output | D | Retain for offset correctness; flag-event correlation pending |
+| 73 | `global_red` | `int32` | `0x5F8` | R — retained in candidate layout; not projected by previous decoder output | D | Retain for offset correctness; flag-event correlation pending |
 | 74 | `mfd_tyre_set` | `int32` | `0x5FC` | B — decoded | D | Change MFD tyre-set selection |
 | 75 | `mfd_fuel_to_add` | `float32` | `0x600` | B — decoded | D | Change MFD fuel target |
 | 76 | `mfd_tyre_pressure_lf` | `float32` | `0x604` | B — decoded into four-pressure tuple | D | Compare MFD LF pressure |
@@ -153,7 +153,7 @@ Offsets are hexadecimal byte offsets. Types are the candidate v1.8.12 transcript
 
 ## Next validation actions — offline first
 
-1. Use the existing 18,000-sample recording to extract candidate fields at `0x0F8`, `0x0A8`, `0x08C`, `0x090`, `0x094`, `0x52C`, `0x560`, `0x594`, and the car-array ranges. Compare against existing CSV timestamps and known lap/sector boundaries. Do not require another live capture for this pass.
+1. Use the existing 18,000-sample recording to extract candidate fields at `0x0F8`, `0x0A8`, `0x08C`, `0x090`, `0x094`, `0x52C`, `0x550`, `0x574`, and the car-array ranges. Compare against existing CSV timestamps and known lap/sector boundaries. Do not require another live capture for this pass.
 2. Inspect all bytes from candidate structure end `0x634` (1,588 decimal) through the 4,096-byte mapping allocation separately. Do not label them structure fields without independent evidence.
 3. Verify candidate field ordering/types against independent Shared Memory 1.9 evidence if obtainable. The current third-party references are v1.8.12-derived and cannot alone sign off v1.9.
 4. Add offset/size regression tests only after the layout has been independently justified. Preserve the complete 4,096-byte raw page and unknown bytes in the acquisition/recording design.
