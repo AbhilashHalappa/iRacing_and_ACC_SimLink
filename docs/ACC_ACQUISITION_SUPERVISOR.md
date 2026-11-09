@@ -83,3 +83,42 @@ The script opens all three independent mappings through their worker threads,
 then requests shutdown. It reports each stream's state, capture count, pending
 buffer entries, buffer rejections and source-close errors. It performs no disk
 writes and does not repeat Physics/Graphics field recordings.
+
+
+## Common per-stream health
+
+Every Physics, Graphics and Static acquirer exposes `acquirer.health.snapshot`,
+an immutable `AcquisitionHealthSnapshot`. The supervisor also includes that
+same snapshot in `supervisor.status[name]["health"]`.
+
+Common fields:
+
+- `lifecycle_state`: `idle`, `starting`, `running`, `stopped` or `failed`.
+- `successful_reads` and `source_read_failures`.
+- `consecutive_failures`, reset after the next successful source read.
+- `last_successful_read_ns`: local monotonic completion timestamp, not an ACC
+  source timestamp.
+- `last_read_duration_ns` and `max_read_duration_ns`.
+- `buffer_rejections` and `last_error`.
+
+Source exceptions are counted at the source-read boundary and re-raised. The
+supervisor records the fatal worker state and error; it does not silently retry
+or change the existing fail-fast worker policy. A caller using `capture_once()`
+directly can catch an exception and retry; the next successful read resets the
+consecutive-failure count.
+
+The health accumulator is single-writer: only the corresponding acquisition
+worker updates its tracker. It publishes a frozen snapshot by replacing one
+reference; readers do not acquire a lock. Health reads are therefore detached
+and non-blocking. The supervisor owns lifecycle-state updates. Existing
+stream-specific metrics remain on `acquirer.metrics` (Physics packet gaps,
+consistency retries and timing; Graphics packet observations and consistency;
+Static unchanged-read counts). Common health does not replace those metrics.
+
+The common health test suite is:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests/acquisition -p "test_health.py" -v
+python -m unittest discover -s tests/acquisition -v
+```
