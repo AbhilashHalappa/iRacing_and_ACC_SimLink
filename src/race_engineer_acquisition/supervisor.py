@@ -54,6 +54,7 @@ class AcquisitionSupervisor:
         streams: Iterable[AcquisitionStream],
         *,
         thread_factory=Thread,
+        startup_rollback_timeout_seconds: float = 5.0,
     ) -> None:
         specs = tuple(streams)
         if not specs:
@@ -63,14 +64,18 @@ class AcquisitionSupervisor:
             raise ValueError("stream names must be non-empty")
         if len(set(names)) != len(names):
             raise ValueError("stream names must be unique")
+        if startup_rollback_timeout_seconds <= 0:
+            raise ValueError("startup rollback timeout must be positive")
         self._thread_factory = thread_factory
+        self._startup_rollback_timeout_seconds = startup_rollback_timeout_seconds
         self._runtimes = {
             spec.name: _StreamRuntime(spec, Event(), close_lock=Lock())
             for spec in specs
         }
         self._lock = Lock()
+        self._lifecycle_lock = Lock()
         self._started = False
-        self._startup_failed = False
+        self._stop_requested = False
 
     @property
     def status(self) -> dict[str, dict[str, str | None]]:
@@ -87,33 +92,36 @@ class AcquisitionSupervisor:
 
     def start(self) -> None:
         """Start every stream on its own thread or roll back partial startup."""
-        with self._lock:
-            if self._started:
-                raise RuntimeError("acquisition supervisor has already been started")
-            self._started = True
-
-        for name, runtime in self._runtimes.items():
+        with self._lifecycle_lock:
             with self._lock:
-                runtime.state = "starting"
-            try:
-                thread = self._thread_factory(
-                    target=self._run_stream,
-                    args=(name,),
-                    name=f"ACC-{name}-Acquisition",
-                    daemon=True,
-                )
-                runtime.thread = thread
-                thread.start()
-            except BaseException as exc:
+                if self._started:
+                    raise RuntimeError("acquisition supervisor has already been started")
+                if self._stop_requested:
+                    raise RuntimeError("a stopped acquisition supervisor cannot be restarted")
+                self._started = True
+
+            for name, runtime in self._runtimes.items():
                 with self._lock:
-                    runtime.state = "failed"
-                    runtime.error = f"{type(exc).__name__}: {exc}"
-                    self._startup_failed = True
-                self._rollback_startup()
-                raise AcquisitionStartupError(
-                    f"Could not start acquisition stream {name!r}; "
-                    "started workers were asked to stop and cleaned up."
-                ) from exc
+                    runtime.state = "starting"
+                try:
+                    thread = self._thread_factory(
+                        target=self._run_stream,
+                        args=(name,),
+                        name=f"ACC-{name}-Acquisition",
+                        daemon=True,
+                    )
+                    runtime.thread = thread
+                    thread.start()
+                except BaseException as exc:
+                    with self._lock:
+                        runtime.state = "failed"
+                        runtime.error = f"{type(exc).__name__}: {exc}"
+                    alive = self._rollback_startup()
+                    suffix = f" Workers still running: {', '.join(alive)}." if alive else " All started workers stopped."
+                    raise AcquisitionStartupError(
+                        f"Could not start acquisition stream {name!r};"
+                        f"{suffix}"
+                    ) from exc
 
     def _run_stream(self, name: str) -> None:
         runtime = self._runtimes[name]
@@ -148,18 +156,25 @@ class AcquisitionSupervisor:
                 with self._lock:
                     runtime.close_error = f"{type(exc).__name__}: {exc}"
 
-    def _rollback_startup(self) -> None:
+    def _rollback_startup(self) -> tuple[str, ...]:
         for runtime in self._runtimes.values():
             runtime.stop_event.set()
-        for runtime in self._runtimes.values():
+        import time
+
+        deadline = time.monotonic() + self._startup_rollback_timeout_seconds
+        alive: list[str] = []
+        for name, runtime in self._runtimes.items():
             thread = runtime.thread
             if thread is not None and thread.ident is not None:
-                thread.join()
+                thread.join(max(0.0, deadline - time.monotonic()))
+                if thread.is_alive():
+                    alive.append(name)
             else:
                 self._close_once(runtime)
                 with self._lock:
                     if runtime.state != "failed":
                         runtime.state = "stopped"
+        return tuple(alive)
 
     def join(self, timeout: float | None = None) -> tuple[str, ...]:
         """Wait for workers without requesting stop; return names still alive."""
@@ -179,26 +194,29 @@ class AcquisitionSupervisor:
         those workers and are closed by their finally blocks when they exit.
         Repeated calls are safe and do not close a source twice.
         """
-        for runtime in self._runtimes.values():
-            runtime.stop_event.set()
+        with self._lifecycle_lock:
+            with self._lock:
+                self._stop_requested = True
+            for runtime in self._runtimes.values():
+                runtime.stop_event.set()
 
-        import time
+            import time
 
-        deadline = None if timeout is None else time.monotonic() + max(0.0, timeout)
-        alive: list[str] = []
-        for name, runtime in self._runtimes.items():
-            thread = runtime.thread
-            if thread is None or thread.ident is None:
-                self._close_once(runtime)
-                with self._lock:
-                    if runtime.state != "failed":
-                        runtime.state = "stopped"
-                continue
-            remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
-            thread.join(remaining)
-            if thread.is_alive():
-                alive.append(name)
-        return tuple(alive)
+            deadline = None if timeout is None else time.monotonic() + max(0.0, timeout)
+            alive: list[str] = []
+            for name, runtime in self._runtimes.items():
+                thread = runtime.thread
+                if thread is None or thread.ident is None:
+                    self._close_once(runtime)
+                    with self._lock:
+                        if runtime.state != "failed":
+                            runtime.state = "stopped"
+                    continue
+                remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
+                thread.join(remaining)
+                if thread.is_alive():
+                    alive.append(name)
+            return tuple(alive)
 
 
 @dataclass(frozen=True, slots=True)
