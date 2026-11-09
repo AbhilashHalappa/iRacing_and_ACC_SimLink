@@ -40,8 +40,8 @@ class GraphicsAcquirerTests(unittest.TestCase):
         snapshot = acquirer.capture_once()
         self.assertEqual(snapshot.capture_sequence, 1)
         self.assertEqual(snapshot.acc_graphics_packet_id, 42)
-        self.assertEqual(snapshot.read_start_ns, 100)
-        self.assertEqual(snapshot.read_complete_ns, 110)
+        self.assertEqual(snapshot.read_start_ns, 110)
+        self.assertEqual(snapshot.read_complete_ns, 120)
         self.assertEqual(snapshot.payload, struct.pack("<i", 42) + b"full-mapping")
         self.assertEqual(buffer.try_get(), snapshot)
 
@@ -144,6 +144,20 @@ class GraphicsAcquirerTests(unittest.TestCase):
         self.assertEqual(raw.payload[4:], bytes((i % 251 for i in range(4092))))
         source.close()
         self.assertTrue(mapping.closed)
+
+
+    def test_start_to_start_poll_intervals_are_measured(self):
+        acquirer = GraphicsAcquirer(
+            FakeSource([read(1, 1, 1), read(2, 2, 2), read(3, 3, 3)]),
+            AcquisitionRingBuffer(4), clock_ns=FakeClock(),
+        )
+        acquirer.capture_once()
+        acquirer.capture_once()
+        acquirer.capture_once()
+        self.assertEqual(acquirer.metrics.poll_interval_count, 2)
+        self.assertEqual(acquirer.metrics.total_poll_interval_ns, 60)
+        self.assertEqual(acquirer.metrics.min_poll_interval_ns, 30)
+        self.assertEqual(acquirer.metrics.max_poll_interval_ns, 30)
 
 
 if __name__ == "__main__":
