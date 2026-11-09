@@ -255,37 +255,9 @@ def main() -> int:
         raise SystemExit("Mapping page is smaller than the 1,588-byte candidate.")
 
     scalar_values = {name: [] for name in SCALARS}
-    pages: list[bytes] = []
-    bracket_inconsistent = 0
-    packet_changes = 0
-    previous_packet = None
-    first_ns = last_ns = None
-    sample_meta = []
-
-    cursor = HEADER.size
-    for index in range(sample_count):
-        monotonic_ns, before, copied, after = SAMPLE.unpack_from(data, cursor)
-        page_start = cursor + SAMPLE.size
-        page = data[page_start:page_start + page_size]
-        pages.append(page)
-        if before != copied or copied != after:
-            bracket_inconsistent += 1
-        if previous_packet is not None and copied != previous_packet:
-            packet_changes += 1
-        previous_packet = copied
-        first_ns = monotonic_ns if first_ns is None else first_ns
-        last_ns = monotonic_ns
-        sample_meta.append({
-            "sample": index,
-            "monotonic_ns": monotonic_ns,
-            "packet_id_before": before,
-            "packet_id_copy": copied,
-            "packet_id_after": after,
-            "bracket_consistent": before == copied == after,
-        })
+    for page in pages:
         for name, (offset, fmt) in SCALARS.items():
             scalar_values[name].append(decode(page, offset, fmt))
-        cursor += stride
 
     scalars = {}
     for name, values in scalar_values.items():
