@@ -101,7 +101,6 @@ def main() -> int:
             except Exception as exc:
                 producer_errors.append(f"Source close {type(exc).__name__}: {exc}")
             # Source ownership ends here; dispatcher shutdown is signalled by main.
-            pass
 
     recorder_thread = threading.Thread(
         target=recorder.run, args=(recorder_stop,), name="ACC-Raw-Recorder", daemon=True
@@ -278,6 +277,8 @@ def main() -> int:
             not producer_error and not recorder.error and recovery_ok and checkpoint_ok
             and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0
             and acquisition_rejected == 0 and recorder_rejected == 0 and failed == 0
+            and dispatcher_in_flight == 0 and fanout.metrics.error is None
+            and fanout.metrics.required_delivery_rejection_count == 0
         ) else "failed",
         "recovery_validation_passed": recovery_ok,
         "checkpoint_validation_passed": checkpoint_ok,
@@ -314,6 +315,7 @@ def main() -> int:
             "pending": pending_acquisition,
         },
         "dispatcher": asdict(fanout.metrics),
+        "dispatcher_error": fanout.metrics.error,
         "recorder_consumer": asdict(consumer_final),
         "recorder_buffer": {
             "capacity": recorder_buffer.capacity,
