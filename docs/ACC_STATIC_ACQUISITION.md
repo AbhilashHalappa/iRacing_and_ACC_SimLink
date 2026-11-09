@@ -2,7 +2,7 @@
 
 **Updated:** 9 November 2026  
 **Branch:** `feature/acquisition-foundation`  
-**Status:** Raw-only adapter and change-detected acquisition implemented; target-PC stable-page acquisition check passed. Live ACC 1.9 values strongly favor candidate layout B. A conservative candidate-B decoder and regression tests have been added; local execution of the expanded test set is pending.
+**Status:** Raw-only change-detected acquisition is implemented and runs as an independently supervised worker. Focused worker lifecycle/failure tests and a supervised live ACC smoke test are documented below. Candidate-B decoder status and ABI limitations remain unchanged.
 
 ## Scope
 
@@ -50,6 +50,60 @@ The first successful read is always emitted. Later reads are emitted only when t
   - Explicit absent source packet ID and source timestamp.
   - Local monotonic timestamp preservation.
   - Full mapping copy and clean close through an injected mapping.
+
+## Supervised worker lifecycle
+
+The Static stream is part of the common acquisition supervisor and runs on its
+own worker thread. The runtime registers the existing
+`StaticAcquirer.run(stop_event, refresh_interval_ns=...)` entry point with
+the supervisor using the configured Static refresh interval (one second by
+default).
+
+Worker contract:
+- The first successful raw-page read is offered to the Static SPSC buffer.
+- Subsequent reads are compared against the last successfully queued page;
+  unchanged pages do not emit snapshots.
+- If the bounded buffer rejects a changed page, that page is not marked as
+  observed. The next refresh retries it, even if the bytes have not changed.
+- Source-read exceptions increment the common Static health failure counters
+  and propagate to the supervisor. The stream becomes `failed`; the error
+  remains visible in supervisor status.
+- On worker exit, the supervisor closes the Static source/mapping exactly
+  once. A timed-out live worker retains mapping ownership until it exits.
+- Static remains independent: no source packet ID or source timestamp is
+  added, and no decoding or persistence occurs in the worker.
+
+Focused tests:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest tests.acquisition.test_static -v
+python -m unittest discover -s tests/acquisition -v
+```
+
+The focused Static tests cover initial/unchanged/changed observations,
+buffer-rejection retry, full mapping copy, supervised worker startup and
+shutdown, exactly-once source close, common health lifecycle, and source
+failure propagation/counting.
+
+### Existing supervised live ACC evidence
+
+The existing 120-second all-stream Windows validation already exercised
+Static through `create_acc_acquisition_runtime()` and the supervisor; no
+separate Static-only live recording is needed. Its Static result was:
+
+- Successful reads: **121** (approximately 1 Hz).
+- Emitted snapshots: **1** (the initial page).
+- Unchanged reads: **120** (derived from reads minus the one initial capture).
+- Consumed snapshots: **1**.
+- Source read failures: **0**.
+- Buffer rejections: **0**; pending records: **0**; reconciliation delta: **0**.
+- Worker and health lifecycle: **stopped**; timer resolution released.
+
+This is stable-page live evidence. A changed-page event during a live ACC
+session is not claimed by that run; changed-page and full-buffer retry behavior
+are covered by deterministic tests. No Physics/Graphics field recordings or
+additional 600-second performance benchmark are required for Issue #3.
 
 ## ABI and validation limitations
 
