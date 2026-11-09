@@ -79,10 +79,16 @@ def main() -> int:
         captures = metrics.capture_count
         health = status["health"]
         read_hz = health.successful_reads / elapsed if elapsed else 0.0
+
+        # Static is deliberately a 1 Hz change detector, not a fixed-rate
+        # polling benchmark. Only Physics and Graphics expose interval metrics.
+        interval_count = getattr(metrics, "poll_interval_count", 0)
+        total_interval_ns = getattr(metrics, "total_poll_interval_ns", 0)
         poll_hz = (
-            metrics.poll_interval_count * 1_000_000_000 / metrics.total_poll_interval_ns
-            if metrics.poll_interval_count and metrics.total_poll_interval_ns else 0.0
+            interval_count * 1_000_000_000 / total_interval_ns
+            if interval_count and total_interval_ns else None
         )
+        poll_hz_display = f"{poll_hz:.2f}" if poll_hz is not None else "n/a"
         capture_hz = captures / elapsed if elapsed else 0.0
         rejected = buffer.total_rejection_count
         reconciliation = captures - consumed[name] - rejected - buffer.size
@@ -90,7 +96,7 @@ def main() -> int:
         minimum = target * args.minimum_rate_ratio if target is not None else None
         print(
             f"{name}: state={status['state']} reads={health.successful_reads} "
-            f"poll_hz={poll_hz:.2f} read_hz={read_hz:.2f} capture_hz={capture_hz:.2f} "
+            f"poll_hz={poll_hz_display} read_hz={read_hz:.2f} capture_hz={capture_hz:.2f} "
             f"target_hz={target if target is not None else 'n/a'} "
             f"minimum_hz={minimum if minimum is not None else 'n/a'} "
             f"consumed={consumed[name]} read_failures={health.source_read_failures} "
@@ -118,7 +124,7 @@ def main() -> int:
             or reconciliation != 0
             or status["timer_resolution_active"]
             or status["timer_resolution_error"] is not None
-            or (target is not None and poll_hz < minimum)
+            or (target is not None and (poll_hz is None or poll_hz < minimum))
         ):
             failed = True
 
