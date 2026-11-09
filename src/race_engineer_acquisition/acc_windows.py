@@ -1,8 +1,8 @@
 """Read-only ACC Physics Shared Memory adapter for Windows.
 
-The ctypes Physics layout is transcribed from the project's audited ACC Shared
-Memory v1.8.12 decoder. This module copies the raw page only; channel decoding
-is deliberately downstream from acquisition.
+The ctypes Physics layout follows the 800-byte ACC Shared Memory v1.9 layout
+corroborated by independent implementations and live raw-page evidence. This
+module copies the raw page only; channel decoding is downstream from acquisition.
 """
 from __future__ import annotations
 
@@ -51,8 +51,8 @@ class _Physics(ctypes.LittleEndianStructure):
         ("tyre_contact_point", ctypes.c_float * 12), ("tyre_contact_normal", ctypes.c_float * 12),
         ("tyre_contact_heading", ctypes.c_float * 12), ("brake_bias", ctypes.c_float),
         ("local_velocity", ctypes.c_float * 3), ("p2p_activation_unused", ctypes.c_int32),
-        ("p2p_status_unused", ctypes.c_int32), ("current_max_rpm_unused", ctypes.c_float),
-        ("fx_unused", ctypes.c_float * 4), ("fy_unused", ctypes.c_float * 4),
+        ("p2p_status_unused", ctypes.c_int32), ("current_max_rpm", ctypes.c_int32),
+        ("mz_unused", ctypes.c_float * 4), ("fx_unused", ctypes.c_float * 4), ("fy_unused", ctypes.c_float * 4),
         ("slip_ratio", ctypes.c_float * 4), ("slip_angle", ctypes.c_float * 4),
         ("tc_in_action_unused", ctypes.c_int32), ("abs_in_action_unused", ctypes.c_int32),
         ("suspension_damage_unused", ctypes.c_float * 4), ("tyre_temp_unused", ctypes.c_float * 4),
@@ -60,9 +60,7 @@ class _Physics(ctypes.LittleEndianStructure):
         ("front_brake_compound", ctypes.c_int32), ("rear_brake_compound", ctypes.c_int32),
         ("pad_life", ctypes.c_float * 4), ("disc_life", ctypes.c_float * 4),
         ("ignition_on", ctypes.c_int32), ("starter_engine_on", ctypes.c_int32),
-        ("engine_running", ctypes.c_int32), ("kerb_vibration", ctypes.c_float),
-        ("slip_vibration", ctypes.c_float), ("g_vibration", ctypes.c_float),
-        ("abs_vibration", ctypes.c_float),
+        ("engine_running", ctypes.c_int32), ("tail_reserved", ctypes.c_ubyte * 16),
     ]
 
 
