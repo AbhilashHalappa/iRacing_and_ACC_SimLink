@@ -228,7 +228,7 @@ class PhysicsRecorderWorker:
         buffer: AcquisitionRingBuffer[PhysicsSnapshot],
         path: str | Path,
         *,
-        payload_size: int = 784,
+        payload_size: int = PHYSICS_SIZE,
         batch_size: int = 128,
         simulated_write_delay_seconds: float = 0.0,
         simulated_disk_full_after_batches: int | None = None,
