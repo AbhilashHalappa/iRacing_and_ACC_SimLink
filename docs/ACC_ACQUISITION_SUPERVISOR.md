@@ -94,8 +94,7 @@ and 100 Hz Graphics read rates, zero source read failures, zero buffer rejects,
 zero reconciliation delta, empty queues and released timer resolution. It
 performs no disk writes and does not repeat Physics/Graphics field recordings.
 
-Run the full 120-second validation (matching the original benchmark duration)
-with:
+Run the 120-second multi-stream smoke validation with:
 
 ```powershell
 python scripts/validate_acc_acquisition_supervisor.py --seconds 120 --minimum-rate-ratio 0.99
@@ -148,3 +147,16 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests/acquisition -p "test_health.py" -v
 python -m unittest discover -s tests/acquisition -v
 ```
+
+
+## Physics-only performance parity
+
+The 120-second multi-stream smoke test is not a like-for-like CPU benchmark
+against the historical 600-second Physics-only baseline. Use the dedicated
+Physics-only supervised benchmark and follow its comparison rules:
+
+- Benchmark harness: `scripts/benchmark_acc_physics_supervised.py`
+- Methodology and recorded baseline: [ACC Physics Acquisition Performance Parity](ACC_PHYSICS_PERFORMANCE_PARITY.md)
+
+Do not declare overall performance parity from the multi-stream smoke test.
+The supervised Physics-only 600-second result must be reviewed separately.
