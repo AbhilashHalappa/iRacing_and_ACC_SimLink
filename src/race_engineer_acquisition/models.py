@@ -32,6 +32,7 @@ class PhysicsSnapshot:
     read_complete_ns: int
     capture_timestamp_ns: int
     payload: bytes
+
     @property
     def acquisition_duration_ns(self) -> int:
         return self.read_complete_ns - self.read_start_ns
