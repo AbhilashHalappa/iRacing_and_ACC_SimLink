@@ -1,6 +1,6 @@
 """Regression tests for the complete ACC Physics shared-memory layout.
 
-These assertions lock the audited 784-byte ABI transcription. They do not
+These assertions lock the audited 800-byte ABI transcription. They do not
 replace verification against Kunos' authoritative shared-memory specification
 or live validation against a running ACC build.
 """
@@ -74,35 +74,33 @@ EXPECTED_FIELDS = (
     ("local_velocity", ctypes.c_float, 3, 568, 12),
     ("p2p_activation_unused", ctypes.c_int32, 1, 580, 4),
     ("p2p_status_unused", ctypes.c_int32, 1, 584, 4),
-    ("current_max_rpm_unused", ctypes.c_float, 1, 588, 4),
-    ("fx_unused", ctypes.c_float, 4, 592, 16),
-    ("fy_unused", ctypes.c_float, 4, 608, 16),
-    ("slip_ratio", ctypes.c_float, 4, 624, 16),
-    ("slip_angle", ctypes.c_float, 4, 640, 16),
-    ("tc_in_action_unused", ctypes.c_int32, 1, 656, 4),
-    ("abs_in_action_unused", ctypes.c_int32, 1, 660, 4),
-    ("suspension_damage_unused", ctypes.c_float, 4, 664, 16),
-    ("tyre_temp_unused", ctypes.c_float, 4, 680, 16),
-    ("water_temp_c", ctypes.c_float, 1, 696, 4),
-    ("brake_pressure", ctypes.c_float, 4, 700, 16),
-    ("front_brake_compound", ctypes.c_int32, 1, 716, 4),
-    ("rear_brake_compound", ctypes.c_int32, 1, 720, 4),
-    ("pad_life", ctypes.c_float, 4, 724, 16),
-    ("disc_life", ctypes.c_float, 4, 740, 16),
-    ("ignition_on", ctypes.c_int32, 1, 756, 4),
-    ("starter_engine_on", ctypes.c_int32, 1, 760, 4),
-    ("engine_running", ctypes.c_int32, 1, 764, 4),
-    ("kerb_vibration", ctypes.c_float, 1, 768, 4),
-    ("slip_vibration", ctypes.c_float, 1, 772, 4),
-    ("g_vibration", ctypes.c_float, 1, 776, 4),
-    ("abs_vibration", ctypes.c_float, 1, 780, 4),
+    ("current_max_rpm", ctypes.c_int32, 1, 588, 4),
+    ("mz_unused", ctypes.c_float, 4, 592, 16),
+    ("fx_unused", ctypes.c_float, 4, 608, 16),
+    ("fy_unused", ctypes.c_float, 4, 624, 16),
+    ("slip_ratio", ctypes.c_float, 4, 640, 16),
+    ("slip_angle", ctypes.c_float, 4, 656, 16),
+    ("tc_in_action_unused", ctypes.c_int32, 1, 672, 4),
+    ("abs_in_action_unused", ctypes.c_int32, 1, 676, 4),
+    ("suspension_damage_unused", ctypes.c_float, 4, 680, 16),
+    ("tyre_temp_unused", ctypes.c_float, 4, 696, 16),
+    ("water_temp_c", ctypes.c_float, 1, 712, 4),
+    ("brake_pressure", ctypes.c_float, 4, 716, 16),
+    ("front_brake_compound", ctypes.c_int32, 1, 732, 4),
+    ("rear_brake_compound", ctypes.c_int32, 1, 736, 4),
+    ("pad_life", ctypes.c_float, 4, 740, 16),
+    ("disc_life", ctypes.c_float, 4, 756, 16),
+    ("ignition_on", ctypes.c_int32, 1, 772, 4),
+    ("starter_engine_on", ctypes.c_int32, 1, 776, 4),
+    ("engine_running", ctypes.c_int32, 1, 780, 4),
+    ("tail_reserved", ctypes.c_ubyte, 16, 784, 16),
 )
 
 
 class PhysicsLayoutRegressionTests(unittest.TestCase):
     def test_total_structure_size_is_784_bytes(self):
-        self.assertEqual(ctypes.sizeof(_Physics), 784)
-        self.assertEqual(PHYSICS_SIZE, 784)
+        self.assertEqual(ctypes.sizeof(_Physics), 800)
+        self.assertEqual(PHYSICS_SIZE, 800)
 
     def test_every_field_name_type_count_offset_and_size(self):
         actual_fields = _Physics._fields_
@@ -129,7 +127,7 @@ class PhysicsLayoutRegressionTests(unittest.TestCase):
             with self.subTest(field=name):
                 self.assertEqual(offset, expected_offset)
                 expected_offset += size
-        self.assertEqual(expected_offset, 784)
+        self.assertEqual(expected_offset, 800)
 
 
 if __name__ == "__main__":
