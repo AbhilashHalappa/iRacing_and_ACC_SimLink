@@ -81,7 +81,7 @@ class AcquisitionSupervisor:
         self._stop_requested = False
 
     @property
-    def status(self) -> dict[str, dict[str, str | None]]:
+    def status(self) -> dict[str, dict[str, object | None]]:
         """Return a detached status snapshot; common health metrics are separate."""
         with self._lock:
             return {
@@ -89,6 +89,7 @@ class AcquisitionSupervisor:
                     "state": runtime.state,
                     "error": runtime.error,
                     "close_error": runtime.close_error,
+                    "health": (runtime.spec.health.snapshot if runtime.spec.health is not None else None),
                 }
                 for name, runtime in self._runtimes.items()
             }
@@ -106,6 +107,8 @@ class AcquisitionSupervisor:
             for name, runtime in self._runtimes.items():
                 with self._lock:
                     runtime.state = "starting"
+                if runtime.spec.health is not None:
+                    runtime.spec.health.set_lifecycle("starting")
                 try:
                     thread = self._thread_factory(
                         target=self._run_stream,
@@ -183,6 +186,8 @@ class AcquisitionSupervisor:
                 with self._lock:
                     if runtime.state != "failed":
                         runtime.state = "stopped"
+                        if runtime.spec.health is not None:
+                            runtime.spec.health.set_lifecycle("stopped")
         return tuple(alive)
 
     def join(self, timeout: float | None = None) -> tuple[str, ...]:
@@ -220,6 +225,8 @@ class AcquisitionSupervisor:
                     with self._lock:
                         if runtime.state != "failed":
                             runtime.state = "stopped"
+                            if runtime.spec.health is not None:
+                                runtime.spec.health.set_lifecycle("stopped")
                     continue
                 remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
                 thread.join(remaining)
