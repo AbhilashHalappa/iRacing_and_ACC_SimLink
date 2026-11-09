@@ -37,12 +37,26 @@ def main() -> int:
         metrics = runtime.acquirers[name].metrics
         buffer = runtime.buffers[name]
         captures = metrics.capture_count
+        health = status["health"]
         print(
             f"{name}: state={status['state']} captures={captures} "
+            f"reads={health.successful_reads} read_failures={health.source_read_failures} "
+            f"consecutive_failures={health.consecutive_failures} "
+            f"last_read_ns={health.last_read_duration_ns} "
+            f"max_read_ns={health.max_read_duration_ns} "
+            f"last_success_ns={health.last_successful_read_ns} "
             f"buffer_pending={buffer.size} buffer_rejections={buffer.total_rejection_count} "
-            f"error={status['error']} close_error={status['close_error']}"
+            f"health_state={health.lifecycle_state} error={status['error']} "
+            f"close_error={status['close_error']}"
         )
-        if status["state"] != "stopped" or captures < 1:
+        if (
+            status["state"] != "stopped"
+            or health.lifecycle_state != "stopped"
+            or captures < 1
+            or health.successful_reads < 1
+            or health.source_read_failures != 0
+            or health.consecutive_failures != 0
+        ):
             failed = True
 
     if still_running or failed:
