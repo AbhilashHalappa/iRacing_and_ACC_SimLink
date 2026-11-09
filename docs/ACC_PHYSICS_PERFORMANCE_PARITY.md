@@ -1,6 +1,6 @@
 # ACC Physics Acquisition Performance Parity
 
-**Status:** Initial supervised parity run failed; targeted health-update optimization committed; post-optimization 600-second run pending.
+**Status:** ACCEPTED — supervised Physics acquisition achieved live 600-second performance parity with the direct benchmark; all polling, integrity and lifecycle gates passed.
 **Branch:** `feature/acquisition-foundation`
 **Purpose:** Verify that the supervised Physics acquisition path preserves the original Physics-only performance, without reducing the 480 Hz target or weakening acceptance thresholds.
 
@@ -79,6 +79,66 @@ benchmark again and compare all three performance metrics. If it still misses
 the reference, investigate the scheduling/read path; do not weaken thresholds
 or alter data-quality guarantees.
 
+## Final supervised parity result — passed
+
+The final 600-second supervised Physics-only benchmark was completed on
+2026-11-09 after aligning the supervised benchmark's empty-queue drain wait
+with the original direct benchmark (time.sleep(0.0005)). The production
+Physics reader and acquisition behavior were not changed for this harness
+correction.
+
+Report:
+user_data/benchmarks/acc_physics_supervised_parity_20261109_164020_UTC.json
+
+Measured result:
+- Elapsed time: **600.003 seconds**.
+- Requested polling cadence: **480 Hz**.
+- Average observed poll cadence: **479.12 Hz**.
+- Unique accepted Physics snapshots: **232,697 total; 387.83 snapshots/s**.
+- Consumed snapshots: **232,697**.
+- Buffer rejections: **0**.
+- Pending snapshots after drain: **0**.
+- Reconciliation delta: **0**.
+- Process CPU: **5.82% of one core**.
+- Supervisor state: **stopped**.
+- Timer resolution active after shutdown: **false**.
+- Supervisor errors: **none**.
+- Harness result: **PASSED**.
+
+### Direct-benchmark comparison
+
+The same-day direct Physics benchmark reference was **479.24 Hz** and
+**232,633 unique snapshots / 600 seconds = 387.72 snapshots/s**.
+
+| Metric | Direct benchmark | Final supervised benchmark | Difference |
+|---|---:|---:|---:|
+| Poll cadence | 479.24 Hz | 479.12 Hz | -0.12 Hz (-0.025%) |
+| Unique accepted snapshots/s | 387.72 | 387.83 | +0.11 (+0.028%) |
+| Unique accepted snapshots | 232,633 | 232,697 | +64 |
+
+The supervised run therefore achieved practical parity with the same-day
+direct run for both polling cadence and unique accepted snapshot throughput.
+It is also close to the historical reference of 479.672 Hz and approximately
+388.50 unique snapshots/s, with expected run-to-run variation.
+
+The final supervised CPU result was **5.82% of one core**, compared with the
+historical reference of approximately **4.69%**. CPU is recorded as an
+observation and is not claimed to be at parity. The measured polling cadence,
+unique accepted snapshot throughput, data-integrity gates and lifecycle gates
+all passed. The CPU observation does not justify changing acquisition
+correctness behavior or relaxing any acceptance threshold.
+
+### Performance acceptance decision
+
+**Performance acceptance is granted for the supervised Physics acquisition
+path.** The 480 Hz target and 99% polling floor remain unchanged. No source-read,
+consistency, packet-ID, timestamp, snapshot, retry, buffer or data-quality
+requirements were weakened.
+
+Issue #2 was already closed for the common health implementation. The final
+live parity evidence is recorded here and in the issue discussion. No further
+600-second benchmark is required for this acceptance decision.
+
 ## Acceptance and interpretation
 
 Compare the supervised run against the historical baseline using the same definitions:
@@ -88,4 +148,4 @@ Compare the supervised run against the historical baseline using the same defini
 
 Use the same machine, ACC session conditions, power mode and background workload where possible. A 600-second run is required for the primary comparison. If environment or session conditions differ materially, record them and repeat rather than claiming parity from a short run.
 
-**No performance acceptance is granted by this document alone.** The supervised parity result must be recorded here after the live run. Do not close the performance portion of Issue #2 or proceed on the assumption of parity until the measured 600-second result has been reviewed. Do not alter the 480 Hz target or the acquisition hot path to satisfy the benchmark.
+**Performance acceptance is recorded above.** Retain the 480 Hz target and all acquisition data-quality guarantees. Future changes to the Physics acquisition path should be evaluated against this accepted benchmark.
