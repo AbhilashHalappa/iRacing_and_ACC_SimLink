@@ -1,7 +1,7 @@
 import unittest
 from threading import Event
 
-from race_engineer_acquisition.fanout import FanOutDispatcher
+from race_engineer_acquisition.fanout import BoundedConsumerQueue, FanOutDispatcher
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 
 
@@ -127,6 +127,21 @@ class FanOutTests(unittest.TestCase):
         dispatcher.run(stop)
         with self.assertRaises(RuntimeError):
             dispatcher.register("late", 1)
+
+    def test_capacity_includes_unacknowledged_in_flight_items(self):
+        consumer = BoundedConsumerQueue("bounded", 1)
+        self.assertTrue(consumer.offer(Item(70)))
+        item = consumer.try_get()
+        self.assertEqual(item.capture_sequence, 70)
+        self.assertFalse(consumer.offer(Item(71)))
+        metrics = consumer.metrics
+        self.assertEqual(metrics.pending_count, 1)
+        self.assertEqual(metrics.in_flight_count, 1)
+        self.assertEqual(metrics.queued_count, 0)
+        self.assertEqual(metrics.high_water_mark, 1)
+        self.assertEqual(metrics.rejected_count, 1)
+        consumer.acknowledge(item)
+        self.assertEqual(consumer.metrics.pending_count, 0)
 
     def test_failed_consumer_accounts_queued_and_in_flight_items(self):
         dispatcher = FanOutDispatcher(source_with(60, 61, 62))
