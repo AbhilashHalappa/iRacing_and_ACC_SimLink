@@ -183,7 +183,7 @@ The D-BOX-enabled capture recorded 46,897 acquired and persisted snapshots, zero
 
 ### Layout cross-check — 420-byte prefix versus 800-byte ACC layout
 
-The 420-byte boundary is the end of the prefix through `is_ai_controlled`; it is not the end of the Physics page. The ACC v1.8.12 reference transcription continues with tyre contact vectors, brake bias, local velocity, slip ratio/angle, water temperature, brake pressure, compounds, pad/disc life and engine/vibration state, matching the field order and 800-byte size in this adapter. The latest live capture independently supports many of those tail fields at the adapter's declared offsets. Therefore, the 420-byte candidate is rejected as a complete Physics layout; it remains only a useful prefix boundary.
+The 420-byte boundary is the end of the prefix through `is_ai_controlled`; it is not the end of the Physics page. The ACC v1.8.12 reference transcription continues with tyre contact vectors, brake bias, local velocity, slip ratio/angle, water temperature, brake pressure, compounds, pad/disc life and engine state; the final 16 bytes are opaque, matching the corrected field order and 800-byte size in this adapter. The latest live capture independently supports many of those tail fields at the adapter's declared offsets. Therefore, the 420-byte candidate is rejected as a complete Physics layout; it remains only a useful prefix boundary.
 
 A separate C# implementation (`heikowulf/ACCsharedmemory/Physics.cs`) has additional `mz[4]` before `fx[4]` and version comments for later fields. That produces a different tail layout and is not consistent with the ACC v1.8.12 800-byte transcription used here. It is treated as a different/version-expanded layout, not silently merged into this ACC 1.10.4 adapter. We have not found a Kunos-published v1.9 header that conclusively settles this variant question, so the exact v1.9 ABI claim remains open.
 
@@ -235,8 +235,8 @@ The pad-life value `1.401298464e-45` is the smallest positive IEEE-754 float32 s
 
 | Check | Result | Interpretation |
 |---|---|---|
-| Structure-derived layout size | 784 bytes | Matches the ACC v1.8.12 reference transcription; exact Kunos v1.9 header not independently available |
-| Live page-copy smoke test | 100 reads; 784 expected/actual bytes; 100 unique advancing packet IDs | Confirms mapping access, page length and packet progression |
+| Structure-derived layout size | 800 bytes | Corrected layout includes int32 `current_max_rpm` and `mz[4]`; three independent readers plus live mapping probe support this size |
+| Earlier live page-copy smoke test | 100 reads; 784 bytes under the superseded layout | Historical evidence only; new read-only probe requested an 800-byte view and observed data through byte 799 |
 | Controlled field validation | Subset listed above | Evidence applies only to those fields and tested states |
 | Raw recording preservation | Complete raw page payload per sample | No field is removed by acquisition/recording filtering |
 
