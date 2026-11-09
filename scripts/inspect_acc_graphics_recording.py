@@ -22,6 +22,11 @@ from typing import Any
 HEADER = struct.Struct("<8sII")
 SAMPLE = struct.Struct("<Qiii")
 MAGIC = b"ACCGFXR1"
+RAW_HEADER = struct.Struct("<8sIIQI")
+RAW_BLOCK = struct.Struct("<4sQIII")
+RAW_RECORD = struct.Struct("<QQQQQI")
+RAW_MAGIC = b"ACCGFX01"
+RAW_BLOCK_MAGIC = b"GFXB"
 CANDIDATE_STRUCT_SIZE = 1588
 
 SCALARS: dict[str, tuple[int, str]] = {
@@ -101,6 +106,69 @@ def array_summary(pages: list[bytes], offset: int, count: int,
         "slots": slots,
     }
 
+
+def read_raw_gfxraw(data: bytes) -> tuple[int, list[bytes], list[dict[str, int]]]:
+    """Read and CRC-check the production .gfxraw block/record format."""
+    if len(data) < RAW_HEADER.size:
+        raise SystemExit("Graphics raw recording header is incomplete.")
+    magic, version, page_size, _created_ns, header_crc = RAW_HEADER.unpack_from(data)
+    if magic != RAW_MAGIC or version != 1:
+        raise SystemExit("Unsupported .gfxraw recording header.")
+    if __import__("zlib").crc32(data[:RAW_HEADER.size - 4]) != header_crc:
+        raise SystemExit("Graphics raw recording header CRC mismatch.")
+    if page_size < CANDIDATE_STRUCT_SIZE:
+        raise SystemExit(f"Page size {page_size} is smaller than candidate structure.")
+
+    pages: list[bytes] = []
+    metadata: list[dict[str, int]] = []
+    cursor = RAW_HEADER.size
+    expected_block = 1
+    previous_capture = 0
+    import zlib
+    while cursor < len(data):
+        if len(data) - cursor < RAW_BLOCK.size:
+            raise SystemExit("Truncated Graphics block header.")
+        block_magic, block_seq, count, payload_len, checksum = RAW_BLOCK.unpack_from(data, cursor)
+        cursor += RAW_BLOCK.size
+        if block_magic != RAW_BLOCK_MAGIC or block_seq != expected_block or count <= 0:
+            raise SystemExit(f"Invalid Graphics block header at block {expected_block}.")
+        end = cursor + payload_len
+        if end > len(data):
+            raise SystemExit(f"Truncated Graphics block {block_seq}.")
+        block = data[cursor:end]
+        if zlib.crc32(block) != checksum:
+            raise SystemExit(f"Graphics block {block_seq} CRC mismatch.")
+        block_cursor = 0
+        for _ in range(count):
+            if len(block) - block_cursor < RAW_RECORD.size:
+                raise SystemExit(f"Truncated record header in block {block_seq}.")
+            sequence, packet, started, completed, captured, size = RAW_RECORD.unpack_from(block, block_cursor)
+            block_cursor += RAW_RECORD.size
+            if size != page_size or block_cursor + size > len(block):
+                raise SystemExit(f"Invalid page size in capture sequence {sequence}.")
+            if sequence <= previous_capture:
+                raise SystemExit("Graphics capture sequence is not strictly increasing.")
+            page = block[block_cursor:block_cursor + size]
+            block_cursor += size
+            if struct.unpack_from("<i", page, 0)[0] != packet:
+                raise SystemExit(f"Packet ID mismatch in capture sequence {sequence}.")
+            pages.append(page)
+            metadata.append({
+                "capture_sequence": sequence,
+                "packet_id": packet,
+                "read_start_ns": started,
+                "read_complete_ns": completed,
+                "capture_timestamp_ns": captured,
+            })
+            previous_capture = sequence
+        if block_cursor != len(block):
+            raise SystemExit(f"Unexpected trailing bytes in Graphics block {block_seq}.")
+        cursor = end
+        expected_block += 1
+    if not pages:
+        raise SystemExit("Graphics recording contains no snapshots.")
+    return page_size, pages, metadata
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("recording", type=Path, help="*.graphics-recording.bin file")
@@ -109,27 +177,82 @@ def main() -> int:
     args = parser.parse_args()
 
     data = args.recording.read_bytes()
-    if len(data) < HEADER.size:
-        raise SystemExit("Recording is shorter than its header.")
+    if len(data) < 8:
+        raise SystemExit("Recording is shorter than its magic header.")
 
-    magic, schema, page_size = HEADER.unpack_from(data)
-    if magic != MAGIC:
-        raise SystemExit(f"Unexpected magic {magic!r}; expected {MAGIC!r}.")
-    if schema != 1:
-        raise SystemExit(f"Unsupported recording schema: {schema}.")
-    if page_size < CANDIDATE_STRUCT_SIZE:
-        raise SystemExit(f"Page size {page_size} is smaller than candidate structure.")
-
-    stride = SAMPLE.size + page_size
-    payload_size = len(data) - HEADER.size
-    sample_count, remainder = divmod(payload_size, stride)
-    if remainder:
-        raise SystemExit(
-            f"Truncated/invalid recording: {remainder} trailing bytes after "
-            f"{sample_count} complete samples."
+    if data[:8] == RAW_MAGIC:
+        page_size, pages, raw_metadata = read_raw_gfxraw(data)
+        schema = 1
+        sample_meta = [
+            {
+                "sample": i,
+                "monotonic_ns": item["capture_timestamp_ns"],
+                "packet_id_before": item["packet_id"],
+                "packet_id_copy": item["packet_id"],
+                "packet_id_after": item["packet_id"],
+                "bracket_consistent": True,
+            }
+            for i, item in enumerate(raw_metadata)
+        ]
+        first_ns = raw_metadata[0]["capture_timestamp_ns"]
+        last_ns = raw_metadata[-1]["capture_timestamp_ns"]
+        sample_count = len(pages)
+        sample_stride = RAW_RECORD.size + page_size
+        bracket_inconsistent = 0
+        packet_changes = sum(
+            1 for a, b in zip(raw_metadata, raw_metadata[1:])
+            if a["packet_id"] != b["packet_id"]
         )
-    if not sample_count:
-        raise SystemExit("Recording contains no samples.")
+        recording_format = "ACCGFX01 CRC-block .gfxraw"
+    else:
+        if len(data) < HEADER.size:
+            raise SystemExit("Recording is shorter than its header.")
+        magic, schema, page_size = HEADER.unpack_from(data)
+        if magic != MAGIC:
+            raise SystemExit(f"Unexpected recording magic {magic!r}.")
+        if schema != 1:
+            raise SystemExit(f"Unsupported recording schema: {schema}.")
+        if page_size < CANDIDATE_STRUCT_SIZE:
+            raise SystemExit(f"Page size {page_size} is smaller than candidate structure.")
+        stride = SAMPLE.size + page_size
+        payload_size = len(data) - HEADER.size
+        sample_count, remainder = divmod(payload_size, stride)
+        if remainder:
+            raise SystemExit(
+                f"Truncated/invalid diagnostic recording: {remainder} trailing bytes."
+            )
+        if not sample_count:
+            raise SystemExit("Recording contains no samples.")
+        pages = []
+        sample_meta = []
+        cursor = HEADER.size
+        bracket_inconsistent = 0
+        packet_changes = 0
+        previous_packet = None
+        first_ns = last_ns = None
+        for index in range(sample_count):
+            monotonic_ns, before, copied, after = SAMPLE.unpack_from(data, cursor)
+            page = data[cursor + SAMPLE.size:cursor + stride]
+            pages.append(page)
+            if before != copied or copied != after:
+                bracket_inconsistent += 1
+            if previous_packet is not None and copied != previous_packet:
+                packet_changes += 1
+            previous_packet = copied
+            first_ns = monotonic_ns if first_ns is None else first_ns
+            last_ns = monotonic_ns
+            sample_meta.append({
+                "sample": index, "monotonic_ns": monotonic_ns,
+                "packet_id_before": before, "packet_id_copy": copied,
+                "packet_id_after": after,
+                "bracket_consistent": before == copied == after,
+            })
+            cursor += stride
+        sample_stride = stride
+        recording_format = "ACCGFXR1 diagnostic full-page format"
+
+    if page_size < CANDIDATE_STRUCT_SIZE:
+        raise SystemExit("Mapping page is smaller than the 1,588-byte candidate.")
 
     scalar_values = {name: [] for name in SCALARS}
     pages: list[bytes] = []
@@ -194,9 +317,11 @@ def main() -> int:
         "recording": str(args.recording),
         "file_size_bytes": len(data),
         "schema_version": schema,
+        "recording_format": recording_format,
         "page_size_bytes": page_size,
+        "candidate_structure_size_bytes": CANDIDATE_STRUCT_SIZE,
         "sample_count": sample_count,
-        "sample_stride_bytes": stride,
+        "sample_stride_bytes": sample_stride,
         "duration_seconds_monotonic": (
             (last_ns - first_ns) / 1_000_000_000 if sample_count > 1 else 0
         ),
@@ -204,6 +329,7 @@ def main() -> int:
             "first": sample_meta[0]["packet_id_copy"],
             "last": sample_meta[-1]["packet_id_copy"],
             "unique_count": len({m["packet_id_copy"] for m in sample_meta}),
+            "duplicate_observations": sample_count - len({m["packet_id_copy"] for m in sample_meta}),
             "changed_samples": packet_changes,
             "inconsistent_brackets": bracket_inconsistent,
         },
