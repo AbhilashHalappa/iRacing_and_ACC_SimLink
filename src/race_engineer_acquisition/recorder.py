@@ -21,11 +21,12 @@ from .models import PhysicsSnapshot
 from .ring_buffer import AcquisitionRingBuffer
 
 _FILE_MAGIC = b"ACCPHY01"
-_FILE_VERSION = 1
+_FILE_VERSION = 2
 _FILE_HEADER = struct.Struct("<8sIIQI")
 _BLOCK_MAGIC = b"PHBK"
 _BLOCK_HEADER = struct.Struct("<4sQIII")
-_RECORD_HEADER = struct.Struct("<QQQQQI")
+_RECORD_HEADER_V1 = struct.Struct("<QQQQQI")
+_RECORD_HEADER_V2 = struct.Struct("<QQQQQQI")
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,31 +60,44 @@ class RecorderMetrics:
     simulated_disk_full_triggered: bool = False
 
 
-def _encode_snapshot(snapshot: PhysicsSnapshot) -> bytes:
+def _encode_snapshot(snapshot: PhysicsSnapshot, persistence_timestamp_ns: int) -> bytes:
     payload = bytes(snapshot.payload)
-    header = _RECORD_HEADER.pack(
+    header = _RECORD_HEADER_V2.pack(
         snapshot.capture_sequence,
         snapshot.acc_physics_packet_id,
         snapshot.read_start_ns,
         snapshot.read_complete_ns,
         snapshot.capture_timestamp_ns,
+        persistence_timestamp_ns,
         len(payload),
     )
     return header + payload
 
 
-def _decode_block_payload(payload: bytes, record_count: int) -> list[PhysicsSnapshot]:
+def _decode_block_payload(
+    payload: bytes, record_count: int, *, format_version: int = 2
+) -> list[PhysicsSnapshot]:
+    if format_version not in (1, 2):
+        raise ValueError(f"Unsupported Physics recording format version: {format_version}")
+    record_header = _RECORD_HEADER_V1 if format_version == 1 else _RECORD_HEADER_V2
     snapshots: list[PhysicsSnapshot] = []
     offset = 0
     for _ in range(record_count):
-        if len(payload) - offset < _RECORD_HEADER.size:
+        if len(payload) - offset < record_header.size:
             raise ValueError("Truncated snapshot record header")
-        seq, packet, started, completed, captured, size = _RECORD_HEADER.unpack_from(payload, offset)
-        offset += _RECORD_HEADER.size
+        values = record_header.unpack_from(payload, offset)
+        if format_version == 1:
+            seq, packet, started, completed, captured, size = values
+            persisted_at = None
+        else:
+            seq, packet, started, completed, captured, persisted_at, size = values
+        offset += record_header.size
         end = offset + size
         if end > len(payload):
             raise ValueError("Truncated snapshot payload")
-        snapshots.append(PhysicsSnapshot(seq, packet, started, completed, captured, payload[offset:end]))
+        snapshots.append(PhysicsSnapshot(
+            seq, packet, started, completed, captured, payload[offset:end], persisted_at
+        ))
         offset = end
     if offset != len(payload):
         raise ValueError("Unexpected bytes after block records")
@@ -93,12 +107,17 @@ def _decode_block_payload(payload: bytes, record_count: int) -> list[PhysicsSnap
 class RawPhysicsRecordingWriter:
     """Single-writer append-only file with CRC-protected blocks."""
 
-    def __init__(self, path: str | Path, *, payload_size: int = PHYSICS_SIZE, created_utc_ns: int | None = None) -> None:
+    def __init__(
+        self, path: str | Path, *, payload_size: int = PHYSICS_SIZE,
+        created_utc_ns: int | None = None, clock_ns=time.perf_counter_ns,
+    ) -> None:
         if payload_size <= 0:
             raise ValueError("payload_size must be positive")
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.payload_size = payload_size
+        self._clock_ns = clock_ns
+        self._last_persistence_timestamp_ns: int | None = None
         self.created_utc_ns = time.time_ns() if created_utc_ns is None else created_utc_ns
         self._stream = self.path.open("xb")
         prefix = struct.pack("<8sIIQ", _FILE_MAGIC, _FILE_VERSION, payload_size, self.created_utc_ns)
@@ -115,7 +134,6 @@ class RawPhysicsRecordingWriter:
         items = list(snapshots)
         if not items:
             return 0
-        encoded = bytearray()
         previous_sequence = self._last_capture_sequence
         for snapshot in items:
             if previous_sequence is not None and snapshot.capture_sequence <= previous_sequence:
@@ -124,8 +142,19 @@ class RawPhysicsRecordingWriter:
                 raise ValueError(
                     f"Physics payload must be {self.payload_size} bytes; got {len(snapshot.payload)}"
                 )
-            encoded.extend(_encode_snapshot(snapshot))
             previous_sequence = snapshot.capture_sequence
+
+        # One recorder-boundary timestamp is shared by every sample in this
+        # batch. It is sampled after batch assembly and before block I/O.
+        persistence_timestamp_ns = self._clock_ns()
+        if (
+            self._last_persistence_timestamp_ns is not None
+            and persistence_timestamp_ns < self._last_persistence_timestamp_ns
+        ):
+            raise RuntimeError("Monotonic persistence clock moved backwards")
+        encoded = bytearray()
+        for snapshot in items:
+            encoded.extend(_encode_snapshot(snapshot, persistence_timestamp_ns))
         payload = bytes(encoded)
         header = _BLOCK_HEADER.pack(
             _BLOCK_MAGIC,
@@ -141,6 +170,7 @@ class RawPhysicsRecordingWriter:
         os.fsync(self._stream.fileno())
         self._next_block_sequence += 1
         self._last_capture_sequence = previous_sequence
+        self._last_persistence_timestamp_ns = persistence_timestamp_ns
         return time.perf_counter_ns() - started
 
     def close(self) -> None:
@@ -168,7 +198,7 @@ def recover_recording(path: str | Path, *, truncate_invalid_tail: bool = True) -
         if len(header) != _FILE_HEADER.size:
             raise ValueError("Recording file header is incomplete")
         magic, version, payload_size, _created_ns, checksum = _FILE_HEADER.unpack(header)
-        if magic != _FILE_MAGIC or version != _FILE_VERSION:
+        if magic != _FILE_MAGIC or version not in (1, 2):
             raise ValueError("Unsupported raw Physics recording format")
         if zlib.crc32(header[:-4]) != checksum:
             raise ValueError("Recording file header checksum mismatch")
@@ -180,6 +210,7 @@ def recover_recording(path: str | Path, *, truncate_invalid_tail: bool = True) -
         snapshot_count = 0
         last_block = 0
         last_sequence = None
+        last_persistence_timestamp_ns = None
         while True:
             block_header = stream.read(_BLOCK_HEADER.size)
             if not block_header:
@@ -193,7 +224,9 @@ def recover_recording(path: str | Path, *, truncate_invalid_tail: bool = True) -
             if len(block_payload) != payload_len or zlib.crc32(block_payload) != checksum:
                 break
             try:
-                records = _decode_block_payload(block_payload, count)
+                records = _decode_block_payload(
+                    block_payload, count, format_version=version
+                )
             except ValueError:
                 break
             if any(len(item.payload) != payload_size for item in records):
@@ -205,6 +238,15 @@ def recover_recording(path: str | Path, *, truncate_invalid_tail: bool = True) -
                 for index in range(1, len(records))
             ):
                 break
+            if version == 2:
+                timestamps = [item.persistence_timestamp_ns for item in records]
+                if any(value is None for value in timestamps):
+                    break
+                if timestamps[0] < (last_persistence_timestamp_ns or 0):
+                    break
+                if any(timestamps[i] < timestamps[i - 1] for i in range(1, len(timestamps))):
+                    break
+                last_persistence_timestamp_ns = timestamps[-1]
             last_sequence = records[-1].capture_sequence
             snapshot_count += count
             block_count += 1
