@@ -71,7 +71,7 @@ Status meanings:
 - [x] Windows read-only ACC Physics shared-memory adapter.
 - [x] Physics page layout transcribed from the audited decoder source.
 - [x] Expanded automated acquisition tests: 22/22 passed in the user's local run on 8 November 2026.
-- [x] Live ACC smoke test: 100 page copies; expected page size 784 bytes matched actual page size 784 bytes.
+- [x] Live ACC smoke test: 100 page copies; the earlier 784-byte adapter smoke test predates the corrected 800-byte ABI.
 - [x] Live ACC smoke test observed 100 unique packet IDs, advancing from 4066 to 6320.
 - [x] One of 100 bracketed reads observed a packet-ID change during copying; this confirms why consistency retry handling is required.
 - [ ] Validate packet-ID field atomicity and consistency behavior more thoroughly on the target Windows environment.
@@ -224,8 +224,8 @@ The adapter copies the complete 800-byte Physics page as raw bytes; the 16-byte 
 **Latest automated test:** GitHub Actions run 42497405943 passed the operational-script compilation step and complete acquisition/recorder unit-test suite on both Windows and Ubuntu on 8 November 2026. The suite includes delayed-storage, simulated disk-full partial-write, interrupted-block recovery, checkpoint checksum/atomic-replacement, checkpoint write-failure retention, recorder in-flight visibility and slow-storage simulation tests. The earlier 31-test baseline was run 42492834805.
 
 **Latest user-reported live ACC smoke test (Stage 1):**
-- Expected Physics page: 784 bytes
-- Actual copied page: 784 bytes
+- Expected Physics page: 800 bytes
+- Actual copied page: 800 bytes
 - Reads: 100
 - Consistent bracketed reads: 99
 - Unique packet IDs: 100
