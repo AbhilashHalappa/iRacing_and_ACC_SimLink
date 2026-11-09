@@ -62,7 +62,7 @@ For each consumer, counters have these meanings:
   in-flight samples explicitly failed when the consumer shuts down abnormally.
 - **pending:** queued samples plus dequeued but not yet acknowledged in-flight
   samples.
-- **high-water mark:** maximum number of queued entries observed.
+- **high-water mark:** maximum outstanding depth observed (queued plus in-flight).
 
 The per-consumer invariants are:
 
