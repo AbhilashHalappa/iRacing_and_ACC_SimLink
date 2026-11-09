@@ -16,6 +16,7 @@ The project-level stage tracker, evidence, limitations and next-stage acceptance
 The initial source-independent core is in `src/race_engineer_acquisition/`:
 
 - Immutable raw Physics observation models.
+- Separate immutable raw Graphics observation models; the Graphics reader copies the complete mapping allocation without decoding the candidate struct.
 - A bounded, preallocated SPSC ring buffer that never overwrites unread samples.
 - Non-blocking producer insertion with explicit loss accounting.
 - An injectable Physics acquisition loop with monotonic read timestamps.
@@ -118,4 +119,4 @@ The recovery utility preserves complete sequential CRC-valid blocks and truncate
 
 The existing Graphics ABI investigation, field-coverage audit and 18,000-sample full-mapping capture are documented in [ACC_GRAPHICS_ABI_INVESTIGATION.md](docs/ACC_GRAPHICS_ABI_INVESTIGATION.md) and [ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md). RaceIQ and Pro Engineer have been cross-checked: both declare a 1,588-byte candidate structure; Pro Engineer supplies the complete 87-field inventory, while RaceIQ's 44 explicit offset descriptors align with the corresponding Pro Engineer offsets.
 
-A separate raw-only Graphics reader and CRC-block recorder now copy the entire mapping allocation reported by Windows (4,096 bytes in the existing target capture). The 1,588-byte candidate is not used to limit or decode the payload; bytes beyond it are retained unchanged. Physics code and recordings are untouched. Automated tests are added, but the new path still requires CI and target-PC live validation. The exact Shared Memory 1.9 field ABI remains unsigned-off pending evidence reconciliation.
+A separate raw-only Graphics reader and CRC-block recorder now copy the entire mapping allocation reported by Windows (4,096 bytes in the existing target capture). The 1,588-byte candidate is not used to limit or decode the payload; bytes beyond it are retained unchanged. Physics code and recordings are untouched. Automated tests are added, but the new path still requires CI and target-PC live validation. The exact Shared Memory 1.9 field ABI remains not signed off pending evidence reconciliation.
