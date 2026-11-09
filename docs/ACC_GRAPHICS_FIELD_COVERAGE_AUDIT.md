@@ -43,10 +43,11 @@ Multiple labels may apply. **None of A/B/C alone certifies the exact v1.9 ABI.**
 
 1. The previous branch's project log explicitly records live-confirmed fixes for lap validity/history, track-limit warning, S1/S2/S3 timing, reference-lap validity, PRE-CORNER refresh, overlay update/retention, and Corner Coach reference correctness. These are application-level behaviours. The log does not identify all underlying raw Graphics offsets.
 2. The previous branch's decoder and consumers establish broad prior implementation coverage for the Graphics fields listed below. Several candidate structure members are retained for layout correctness but intentionally not projected to application state.
-3. The 2026-11-09 full-lap recording strongly correlates candidate offsets `0x004` (status), `0x084` (completed_laps), `0x0A4` (sector), and `0x580` (is_valid_lap) with observed game events.
+3. The 2026-11-09 full-lap recording strongly correlates candidate offsets `0x004` (status), `0x084` (completed_laps), `0x0A4` (sector), and `0x580` (is_valid_lap) with observed game events. Offline inspection also supports `0x0F8` as normalized track position: values progress through the 0–1 range and wrap near the completed-lap boundary. The first three coordinate floats at `0x100` change throughout the moving portion of the recording; with `active_cars=1`, this is consistent with the sole active car's coordinate triple, though player-ID association is not proven.
 4. The pit-state distinction is supported by the earlier user-confirmed pit-lane probe: `0x0A0` was zero while `0x4D4` was one.
 5. The candidate `0x578` (`is_delta_positive`) changed from 0 to 1 in the full-lap recording, but there was no user-confirmed delta-sign event. It is observation-only, not semantically validated.
-6. The 4,096-byte mapping allocation does not establish a 4,096-byte logical struct. The 1,588-byte candidate remains unverified for Shared Memory 1.9.
+6. Offline inspection found bytes `0x634`–`0xFFF` (2,508 bytes) entirely zero in all 18,000 samples, with no changes. This supports—but does not prove—the 1,588-byte candidate logical-size boundary. The 4,096-byte mapping allocation does not establish a 4,096-byte logical struct, and the candidate remains unverified for Shared Memory 1.9.
+7. The 60 candidate car-ID slots remained zero and unchanged in this single-car recording (`active_cars=1`); the car-ID array is therefore unverified, not disproven.
 
 ## Complete candidate field inventory
 
@@ -70,14 +71,14 @@ Offsets are hexadecimal byte offsets. Types are the candidate v1.8.12 transcript
 | 14 | `distance_traveled` | `float32` | `0x09C` | B — decoded as `distance_traveled_m` | D | Compare against Physics distance/speed integration |
 | 15 | `is_in_pit` | `int32` | `0x0A0` | B — decoded as boolean | C — separate pit-lane probe had pit=0 while pit-lane=1; full lap remained 0 | Strong distinction evidence; pit-box true state not yet captured |
 | 16 | `current_sector_index` / `sector` | `int32` | `0x0A4` | A/B — S1/S2/S3 live timing confirmed; decoded and consumed by sector recorder | C — values 0/1/2; 2→0 occurred 40 ms before completed-lap increment | Strong semantic/offset correlation |
-| 17 | `last_sector_time` / `last_sector_time_ms` | `int32` | `0x0A8` | A/B — S1/S2/S3 timing live-confirmed; consumed at sector boundaries | D — no numeric duration correlation in this recording | Prior behaviour established; raw numeric offset still needs correlation |
+| 17 | `last_sector_time` / `last_sector_time_ms` | `int32` | `0x0A8` | A/B — S1/S2/S3 timing live-confirmed; consumed at sector boundaries | O — changed at samples 711, 4502, 8797, 12730, and 16759; transitions align with candidate sector-index transitions | Strong transition correlation with sector changes; numeric interpretation/units remain unverified (observed values include 37,895 and 80,850) |
 | 18 | `number_of_laps` | `int32` | `0x0AC` | B — decoded | D | Compare against known session lap limit |
 | 19 | `tyre_compound` | `uint16[33]` | `0x0B0` | B — decoded as UTF-16 string | D | Compare selected compound; verify encoding/termination |
 | 20 | `replay_time_multiplier` | `float32` | `0x0F4` | R — candidate layout member retained as unused | D | Preserve for ABI; no application behaviour claim |
-| 21 | `normalized_car_position` | `float32` | `0x0F8` | B — consumed by ACC lap anchoring | D | Previous use established; raw offset/value range not independently checked here |
+| 21 | `normalized_car_position` | `float32` | `0x0F8` | B — consumed by ACC lap anchoring | C — 9,740 unique values, range 0–1; sampled progression wraps from 0.928863 at sample 12,000 to 0.030613 at 13,000, near completed-lap increment at 12,734 | Strong empirical support for normalized track position; first wrap also overlaps pause-to-live resumption, so startup/resume behaviour should not be overinterpreted |
 | 22 | `active_cars` | `int32` | `0x0FC` | B — decoded and bounds coordinate/ID arrays | D | Validate count against known grid size |
-| 23 | `car_coordinates[60][3]` | `float32[60][3]` | `0x100` | B — decoded for active cars and player position | D | Needs multi-car movement/coordinate correlation |
-| 24 | `car_id[60]` | `int32[60]` | `0x3D0` | B — decoded for active cars/player lookup | D | Needs player/other-car ID correlation |
+| 23 | `car_coordinates[60][3]` | `float32[60][3]` | `0x100` | B — decoded for active cars and player position | O — only coordinate slots 0, 1, and 2 changed; each changed in about 10,631 samples; `active_cars=1` throughout | Strong support for a changing XYZ triple in the first array entry; player association and full 60×3 array layout still need a multi-car/ID-controlled capture |
+| 24 | `car_id[60]` | `int32[60]` | `0x3D0` | B — decoded for active cars/player lookup | O — all 60 slots were zero in the first sample and no slot changed; `active_cars=1` | Unverified; this single-car recording does not exercise meaningful car-ID population |
 | 25 | `player_car_id` | `int32` | `0x4C0` | B — decoded and used to locate player coordinates | D | Correlate with car_id array |
 | 26 | `penalty_time` | `float32` | `0x4C4` | B — decoded as `penalty_time_s` | D | Requires a known penalty-time state |
 | 27 | `flag` | `int32` | `0x4C8` | B — decoded | D | Raw enum values retained; no controlled flag transition |
@@ -105,11 +106,11 @@ Offsets are hexadecimal byte offsets. Types are the candidate v1.8.12 transcript
 | 49 | `driver_stint_time_left` | `int32` | `0x520` | B — decoded as `driver_stint_left_ms` | D | Correlate against driver timer |
 | 50 | `rain_tyres` | `int32` | `0x524` | B — decoded as boolean | D | Compare selected tyre set/type |
 | 51 | `session_index` | `int32` | `0x528` | B — decoded | D | Compare session progression/index |
-| 52 | `used_fuel` | `float32` | `0x52C` | B — decoded as `used_fuel_l`; previous log documents live fuel projection | D | Previous app feature use; raw offset still needs value correlation |
+| 52 | `used_fuel` | `float32` | `0x52C` | B — decoded as `used_fuel_l`; previous log documents live fuel projection | O — 10,634 unique values; range 2.6816–6.9732 during recording | Dynamic float observation; exact semantics/units not independently correlated with fuel display or consumption |
 | 53 | `delta_lap_time` | `uint16[15]` | `0x530` | R — candidate layout member not projected by previous decoder | D | Retain for layout; compare with numeric delta field |
-| 54 | `i_delta_lap_time` | `int32` | `0x550` | B — decoded as `delta_lap_time_ms` | D | Compare sign/magnitude against reference delta |
+| 54 | `i_delta_lap_time` | `int32` | `0x550` | B — decoded as `delta_lap_time_ms` | O — 1,892 unique values; range −1,042 to 2,518 | Dynamic signed integer; compare with displayed reference delta before semantic sign-off |
 | 55 | `estimated_lap_time` | `uint16[15]` | `0x554` | R — candidate layout member not projected by previous decoder | D | Retain; compare with numeric estimate if needed |
-| 56 | `i_estimated_lap_time` | `int32` | `0x574` | B — decoded as `estimated_lap_time_ms` | D | Compare against ACC estimated lap |
+| 56 | `i_estimated_lap_time` | `int32` | `0x574` | B — decoded as `estimated_lap_time_ms` | O — 1,893 unique values; range includes `2147483647` sentinel and finite values 119,140–122,583 | Dynamic integer with apparent unavailable sentinel; compare finite values against ACC estimate before semantic sign-off |
 | 57 | `is_delta_positive` | `int32` | `0x578` | B — decoded as `delta_positive` | O — 0→1 at sample 14,620; no user-confirmed delta sign at that moment | Candidate offset observed; semantic correlation still needed |
 | 58 | `i_split` | `int32` | `0x57C` | B — decoded as `split_ms` | D | Correlate against split display |
 | 59 | `is_valid_lap` | `int32` | `0x580` | A/B — lap validity/history and track-limit warning live-confirmed; transition/stickiness regression tests | C — 1→0 at 143.47 s after user-confirmed track-limit violation | Strong semantic/offset correlation; preserve initial-false and sticky-invalid semantics |
@@ -151,13 +152,27 @@ Offsets are hexadecimal byte offsets. Types are the candidate v1.8.12 transcript
 - The candidate uses 2-byte UTF-16 code units for the fixed-width strings and 4-byte scalar alignment. Confirm against the target v1.9 ABI before production use.
 - Previous decoder output names sometimes differ from specification names (for example `current_sector_index` → `sector`, `i_current_time` → `current_time_ms`, `fuel_x_lap` → `fuel_per_lap`). The audit records both where useful.
 
-## Next validation actions — offline first
+## Offline inspection results — 2026-11-09 recording
 
-1. Use the existing 18,000-sample recording to extract candidate fields at `0x0F8`, `0x0A8`, `0x08C`, `0x090`, `0x094`, `0x52C`, `0x550`, `0x574`, and the car-array ranges. Compare against existing CSV timestamps and known lap/sector boundaries. Do not require another live capture for this pass.
-2. Inspect all bytes from candidate structure end `0x634` (1,588 decimal) through the 4,096-byte mapping allocation separately. Do not label them structure fields without independent evidence.
-3. Verify candidate field ordering/types against independent Shared Memory 1.9 evidence if obtainable. The current third-party references are v1.8.12-derived and cannot alone sign off v1.9.
-4. Add offset/size regression tests only after the layout has been independently justified. Preserve the complete 4,096-byte raw page and unknown bytes in the acquisition/recording design.
-5. For fields not recoverable from this recording, request only targeted short captures when a specific controlled game event is necessary (for example, pit-box true, flag changes, MFD changes, multi-car position/coordinates). Do not repeat the already-confirmed lap/sector/validity tests.
+The offline inspector was run against the existing 18,000-sample, 180-second full-page recording. No new live capture was required for these findings.
+
+- `normalized_car_position` (`0x0F8`, `float32`): 9,740 unique values, range 0–1. Samples progress around the normalized lap coordinate and wrap near the completed-lap transition: sample 12,000 = 0.928863; sample 13,000 = 0.030613; `completed_laps` increments at sample 12,734. At sample 0 = 0.960547 and sample 1,000 = 0.030043, the capture also spans a pause-to-live transition, so the first wrap may reflect resume/startup behaviour.
+- `last_sector_time_ms` (`0x0A8`, `int32`) changed at samples 711, 4502, 8797, 12730, and 16759. These transitions coincide with the observed sector-index transitions. Values include 37,895 and 80,850; transition correlation is strong, but the numeric meaning/units are not signed off.
+- `car_coordinates` (`0x100`): only float slots 0, 1, and 2 changed (about 10,631 changed samples each); their ranges were X −398.624 to 858.446, Y −13.487 to −0.707, Z −1,124.324 to 1,042.786. `active_cars` remained 1. This is consistent with a changing XYZ triple in the first coordinate entry, but player-car association and the full array ordering remain unverified.
+- `car_id` (`0x3D0`): all 60 candidate slots were zero initially and no slot changed. With `active_cars=1`, this recording does not validate car-ID population or mapping.
+- `used_fuel` (`0x52C`): 10,634 unique float values, range 2.6816–6.9732. Dynamic behaviour observed; semantics/units need comparison with ACC fuel display or a controlled fuel-use measurement.
+- `i_delta_lap_time` (`0x550`): 1,892 unique values, range −1,042 to 2,518; dynamic signed integer observed, but displayed-delta correlation remains outstanding.
+- `i_estimated_lap_time` (`0x574`): 1,893 unique values; finite range 119,140–122,583 with `2147483647` appearing as an unavailable sentinel candidate. Compare with ACC's estimate before semantic sign-off.
+- Trailing bytes `0x634`–`0xFFF`: all 2,508 bytes were zero in every one of the 18,000 samples; no trailing-byte changes were observed. This supports the candidate boundary but does not prove exact logical structure size.
+
+## Next validation actions
+
+1. If the numeric timing fields remain a priority, correlate `0x08C`, `0x090`, `0x094`, `0x550`, and `0x574` against a visible HUD capture or manually noted HUD values from a short controlled session. Existing numeric observations alone do not prove units/semantics.
+2. Validate the coordinate and ID arrays with a session containing at least two active cars, and correlate `player_car_id` against populated `car_id` entries and moving coordinate triples.
+3. Correlate `used_fuel` and `fuel_estimated_laps` against ACC's displayed fuel values over a controlled interval.
+4. Verify candidate field ordering/types against independent Shared Memory 1.9 evidence if obtainable. Current third-party references are v1.8.12-derived and cannot alone sign off v1.9.
+5. Add offset/size regression tests only after the layout has been independently justified. Preserve the complete 4,096-byte raw page and unknown bytes in the acquisition/recording design.
+6. For other fields, request only targeted short captures when a specific controlled game event is necessary (for example, pit-box true, flag changes, MFD changes). Do not repeat the already-confirmed lap/sector/validity tests.
 
 ## ABI sign-off status
 
