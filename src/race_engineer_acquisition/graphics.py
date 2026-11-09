@@ -53,7 +53,8 @@ class GraphicsSnapshot:
     # Set only by the downstream recorder; acquisition snapshots leave this None.
     persistence_timestamp_ns: int | None = None
 
-    @property(self) -> int:
+    @property
+    def acquisition_duration_ns(self) -> int:
         return self.read_complete_ns - self.read_start_ns
 
 
