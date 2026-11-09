@@ -751,7 +751,7 @@ def decode(page,f):
     if k=="u16str":
         units=struct.unpack_from("<"+"H"*n,page,o)
         raw=bytes().join(struct.pack("<H",u) for u in units)
-        return raw.decode("utf-16-le",errors="replace").split("\\x00",1)[0]
+        return raw.decode("utf-16-le",errors="replace").split("\x00",1)[0]
     if k=="u16array": return list(struct.unpack_from("<"+"H"*n,page,o))
     if k=="i32array": return list(struct.unpack_from("<"+"i"*n,page,o))
     if k=="f32array": return list(struct.unpack_from("<"+"f"*n,page,o))
@@ -804,7 +804,7 @@ def main():
         report_fields[name]=item
     # Crash-oriented coarse event index: samples where any field in the selected
     # timing/flag/position/penalty/pit group changes. It is correlation, not proof of collision.
-    watch=["normalized_car_position","distance_traveled","position","flag","penalty","penalty_time",
+    watch=["position","flag","penalty","penalty_time",
            "global_yellow","global_yellow_1","global_yellow_2","global_yellow_3","global_red",
            "is_in_pit","is_in_pit_lane","completed_laps","current_sector_index","is_valid_lap"]
     event_samples=set()
@@ -833,7 +833,7 @@ def main():
                      "Event index correlates state changes only; it cannot prove a collision or damage.",
                      "The complete raw mapping is preserved; bytes beyond candidate offset 1588 remain opaque."]}
     a.json_out.parent.mkdir(parents=True,exist_ok=True)
-    a.json_out.write_text(json.dumps(report,indent=2,allow_nan=False)+"\\n",encoding="utf-8")
+    a.json_out.write_text(json.dumps(report,indent=2,allow_nan=False)+"\n",encoding="utf-8")
     print("ACC GRAPHICS COMPLETE CANDIDATE FIELD AUDIT")
     print(f"Samples: {len(pages):,} | page: {page_size:,} bytes | candidate: 1,588 bytes | duration: {report['duration_seconds']:.1f}s")
     print(f"Fields: {len(FIELDS)} | scalar: {sum(x['kind'] in ('i32','f32') for x in FIELDS)} | arrays: {sum('array' in x['kind'] for x in FIELDS)} | strings: {sum(x['kind']=='u16str' for x in FIELDS)}")
