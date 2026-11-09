@@ -17,6 +17,7 @@ from threading import Event
 from typing import Iterable, Protocol
 
 from .ring_buffer import AcquisitionRingBuffer
+from .health import AcquisitionHealth
 
 GRAPHICS_MAP = r"Local\acpmf_graphics"
 MIN_GRAPHICS_MAPPING_SIZE = 4
@@ -91,13 +92,21 @@ class GraphicsAcquirer:
         self._max_attempts = max_consistency_attempts
         self._clock_ns = clock_ns
         self.metrics = GraphicsAcquisitionMetrics()
+        self.health = AcquisitionHealth()
         self._next_sequence = 1
 
     def capture_once(self) -> GraphicsSnapshot | None:
         for attempt in range(self._max_attempts):
             read_start_ns = self._clock_ns()
-            raw = self._source.read_graphics()
+            try:
+                raw = self._source.read_graphics()
+            except Exception as exc:
+                self.health.record_read_failure(exc)
+                raise
             read_complete_ns = self._clock_ns()
+            self.health.record_read_success(
+                read_complete_ns, read_complete_ns - read_start_ns
+            )
             self.metrics.read_attempt_count += 1
             if raw.is_consistent:
                 break
@@ -134,6 +143,7 @@ class GraphicsAcquirer:
         )
         if not self._buffer.try_put(snapshot):
             self.metrics.buffer_rejection_count += 1
+            self.health.record_buffer_rejection()
         return snapshot
 
     def run(self, stop_event: Event, *, poll_interval_ns: int = 10_000_000) -> None:
