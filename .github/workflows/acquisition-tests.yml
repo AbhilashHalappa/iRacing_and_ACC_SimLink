@@ -7,6 +7,7 @@ on:
       - "tests/acquisition/**"
       - "scripts/record_acc_physics.py"
       - "scripts/probe_acc_graphics.py"
+      - "scripts/record_acc_graphics.py"
       - "scripts/recover_acc_recording.py"
       - ".github/workflows/acquisition-tests.yml"
   pull_request:
