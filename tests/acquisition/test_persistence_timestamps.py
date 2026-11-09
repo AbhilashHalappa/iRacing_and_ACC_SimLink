@@ -11,7 +11,7 @@ from race_engineer_acquisition.graphics import (
     _decode_graphics_block,
     recover_graphics_recording,
 )
-from race_engineer_acquisition.inspection import read_raw_payloads
+from race_engineer_acquisition.inspection import inspect_recording, read_raw_payloads
 from race_engineer_acquisition.models import PhysicsSnapshot
 from race_engineer_acquisition.recorder import (
     RawPhysicsRecordingWriter,
@@ -47,12 +47,12 @@ class PersistenceTimestampTests(unittest.TestCase):
             ticks = iter((100, 200))
             snapshots = [
                 PhysicsSnapshot(i, 100 + i, i * 10, i * 10 + 1,
-                                i * 10 + 1, bytes([i]) * 8)
+                                i * 10 + 1, bytes([i]) * PHYSICS_SIZE)
                 for i in (1, 2, 3)
             ]
             self.assertIsNone(snapshots[0].persistence_timestamp_ns)
             with RawPhysicsRecordingWriter(
-                path, payload_size=8, created_utc_ns=1, clock_ns=lambda: next(ticks)
+                path, payload_size=PHYSICS_SIZE, created_utc_ns=1, clock_ns=lambda: next(ticks)
             ) as writer:
                 writer.write_batch(snapshots[:2])
                 writer.write_batch(snapshots[2:])
@@ -76,7 +76,12 @@ class PersistenceTimestampTests(unittest.TestCase):
                 decoded.extend(records)
                 offset = start + payload_size
             self.assertEqual([item.capture_sequence for item in decoded], [1, 2, 3])
+            self.assertEqual([item.capture_timestamp_ns for item in decoded], [11, 21, 31])
             self.assertEqual(recover_recording(path).recovered_snapshot_count, 3)
+            size, samples = read_raw_payloads(path)
+            self.assertEqual(size, PHYSICS_SIZE)
+            self.assertEqual([sequence for sequence, _ in samples], [1, 2, 3])
+            self.assertEqual(inspect_recording(path)["format_version"], 2)
 
     def test_graphics_writer_assigns_one_monotonic_timestamp_per_batch(self):
         with tempfile.TemporaryDirectory() as directory:
