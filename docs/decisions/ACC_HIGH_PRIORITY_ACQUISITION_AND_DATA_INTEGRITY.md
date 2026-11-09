@@ -97,7 +97,8 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 - [x] Packet-ID gap accounting.
 - [x] Deterministic unit tests using a fake source and clock.
 - [x] Implement the Windows ACC Shared Memory Physics adapter using the corrected 800-byte ACC Physics page layout.
-- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the corrected 800-byte page; the earlier 784-byte adapter layout is superseded.\n- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
+- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the corrected 800-byte page; the earlier 784-byte adapter layout is superseded.
+- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
 
 ### Stage 2 — Acquisition measurement
 
