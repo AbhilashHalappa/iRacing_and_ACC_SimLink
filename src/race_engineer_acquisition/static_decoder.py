@@ -54,7 +54,7 @@ def _read_string(page: bytes, offset: int, code_units: int) -> str:
     raw = page[offset:end]
     # ACC strings are fixed-width UTF-16LE; stop at the first NUL code unit.
     terminator = next(
-        (index for index in range(0, len(raw), 2) if raw[index:index + 2] == b"\\x00\\x00"),
+        (index for index in range(0, len(raw), 2) if raw[index:index + 2] == b"\x00\x00"),
         len(raw),
     )
     return raw[:terminator].decode("utf-16-le", errors="strict")
