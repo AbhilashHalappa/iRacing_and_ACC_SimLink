@@ -80,3 +80,12 @@ The terminal output is limited to the requested electronics and display controls
 ## Current status
 
 The two source layouts have been transcribed into separate decoder maps. The raw recordings have not yet been decoded by this new comparison script in the user's local environment. Therefore, no empirical winner is declared at this stage.
+
+
+## Subsequent full-page capture and candidate audit — 9 November 2026
+
+The separate raw-only Graphics recorder was subsequently validated on the target PC with a six-minute dry-session recording: 36,001 samples, 4,096 bytes per sample, zero acquisition/queue rejects, zero write failures, zero pending records and zero reconciliation delta. CRC, record-sequence and packet-ID checks passed.
+
+The new offline utility `scripts/audit_acc_graphics_all_fields.py` decoded the complete Pro Engineer 87-member / 1,588-byte candidate against that existing recording. The full scalar summaries, per-slot array summaries, UTF-16 strings and event index are documented in [ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md).
+
+This does not retroactively mean the separate RaceIQ-vs-Pro Engineer comparison utility was run against that six-minute file. Source agreement remains corroboration only; the candidate is not an official Kunos Shared Memory 1.9 ABI sign-off. In particular, the Engine Map UI/value mismatch remains unresolved.
