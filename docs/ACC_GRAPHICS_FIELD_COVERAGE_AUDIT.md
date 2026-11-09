@@ -107,9 +107,9 @@ Offsets are hexadecimal byte offsets. Types are the candidate v1.8.12 transcript
 | 51 | `session_index` | `int32` | `0x528` | B — decoded | D | Compare session progression/index |
 | 52 | `used_fuel` | `float32` | `0x52C` | B — decoded as `used_fuel_l`; previous log documents live fuel projection | D | Previous app feature use; raw offset still needs value correlation |
 | 53 | `delta_lap_time` | `uint16[15]` | `0x530` | R — candidate layout member not projected by previous decoder | D | Retain for layout; compare with numeric delta field |
-| 54 | `i_delta_lap_time` | `int32` | `0x560` | B — decoded as `delta_lap_time_ms` | D | Compare sign/magnitude against reference delta |
-| 55 | `estimated_lap_time` | `uint16[15]` | `0x564` | R — candidate layout member not projected by previous decoder | D | Retain; compare with numeric estimate if needed |
-| 56 | `i_estimated_lap_time` | `int32` | `0x594` | B — decoded as `estimated_lap_time_ms` | D | Compare against ACC estimated lap |
+| 54 | `i_delta_lap_time` | `int32` | `0x550` | B — decoded as `delta_lap_time_ms` | D | Compare sign/magnitude against reference delta |
+| 55 | `estimated_lap_time` | `uint16[15]` | `0x554` | R — candidate layout member not projected by previous decoder | D | Retain; compare with numeric estimate if needed |
+| 56 | `i_estimated_lap_time` | `int32` | `0x574` | B — decoded as `estimated_lap_time_ms` | D | Compare against ACC estimated lap |
 | 57 | `is_delta_positive` | `int32` | `0x578` | B — decoded as `delta_positive` | O — 0→1 at sample 14,620; no user-confirmed delta sign at that moment | Candidate offset observed; semantic correlation still needed |
 | 58 | `i_split` | `int32` | `0x57C` | B — decoded as `split_ms` | D | Correlate against split display |
 | 59 | `is_valid_lap` | `int32` | `0x580` | A/B — lap validity/history and track-limit warning live-confirmed; transition/stickiness regression tests | C — 1→0 at 143.47 s after user-confirmed track-limit violation | Strong semantic/offset correlation; preserve initial-false and sticky-invalid semantics |
