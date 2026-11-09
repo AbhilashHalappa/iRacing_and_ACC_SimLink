@@ -205,4 +205,4 @@ The raw-only Graphics acquisition and recording path now has dedicated automated
 
 The raw acquirer deliberately preserves every consistent poll, including repeated packet IDs. It counts repeated IDs as an observation metric but does not deduplicate them, because a same-ID page could still contain changed bytes. The capture remains a latest-state polling interface, not an ACC event queue; source-level updates between polls can still be missed.
 
-Target-PC validation of the new production-style runner remains pending. The earlier 18,000-sample diagnostic capture is existing evidence, not a substitute for validating this new acquisition/recording pipeline.
+Target-PC validation of the new standalone runner remains pending; it is not yet wired into normal application startup. The earlier 18,000-sample diagnostic capture is existing evidence, not a substitute for validating this new acquisition/recording pipeline.
