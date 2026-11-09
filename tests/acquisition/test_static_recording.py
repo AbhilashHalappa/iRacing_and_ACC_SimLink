@@ -59,7 +59,9 @@ class StaticRecordingTests(unittest.TestCase):
             queue.try_put(sample(1, b"12345678"))
             queue.try_put(sample(2, b"abcdefgh"))
             worker = StaticRecorderWorker(queue, path, page_size=8, batch_size=2)
-            worker.run(Event())
+            stop_event = Event()
+            stop_event.set()
+            worker.run(stop_event)
             self.assertIsNone(worker.error)
             self.assertEqual(worker.metrics.persisted_snapshot_count, 2)
             self.assertEqual(queue.size, 0)
@@ -73,7 +75,9 @@ class StaticRecordingTests(unittest.TestCase):
             self.assertFalse(queue.try_put(sample(2, b"abcdefgh")))
             self.assertEqual(queue.total_rejection_count, 1)
             worker = StaticRecorderWorker(queue, path, page_size=8)
-            worker.run(Event())
+            stop_event = Event()
+            stop_event.set()
+            worker.run(stop_event)
             self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
             self.assertEqual(recover_static_recording(path).recovered_snapshot_count, 1)
 
@@ -87,7 +91,9 @@ class StaticRecordingTests(unittest.TestCase):
                 queue, path, page_size=8, batch_size=1,
                 simulated_write_failure_after_batches=1,
             )
-            worker.run(Event())
+            stop_event = Event()
+            stop_event.set()
+            worker.run(stop_event)
             self.assertIsNotNone(worker.error)
             self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
             self.assertEqual(worker.metrics.failed_snapshot_count, 1)
