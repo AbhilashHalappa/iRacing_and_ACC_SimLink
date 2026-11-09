@@ -120,5 +120,76 @@ class SupervisorTests(unittest.TestCase):
             AcquisitionSupervisor([stream, stream])
 
 
+    def test_timer_resolution_spans_worker_lifetime_and_releases_once(self):
+        class FakeTimer:
+            active = False
+            enters = 0
+            exits = 0
+            def __enter__(self):
+                self.enters += 1
+                self.active = True
+                return self
+            def __exit__(self, *_):
+                self.exits += 1
+                self.active = False
+                return False
+
+        entered = threading.Event()
+        release = threading.Event()
+        timer = FakeTimer()
+
+        def worker(_stop):
+            entered.set()
+            release.wait(2)
+
+        supervisor = AcquisitionSupervisor(
+            [AcquisitionStream("physics", worker, lambda: None)],
+            timer_resolution=timer,
+        )
+        supervisor.start()
+        self.assertTrue(entered.wait(1))
+        self.assertTrue(timer.active)
+        self.assertEqual(timer.enters, 1)
+        self.assertEqual(supervisor.stop(timeout=0.01), ("physics",))
+        self.assertTrue(timer.active, "timer request must remain active while a worker is alive")
+        release.set()
+        self.assertEqual(supervisor.join(timeout=1), ())
+        self.assertFalse(timer.active)
+        self.assertEqual(timer.exits, 1)
+        supervisor.stop(timeout=1)
+        self.assertEqual(timer.exits, 1)
+
+    def test_timer_resolution_is_released_after_startup_rollback(self):
+        class FakeTimer:
+            active = False
+            exits = 0
+            def __enter__(self):
+                self.active = True
+                return self
+            def __exit__(self, *_):
+                self.active = False
+                self.exits += 1
+                return False
+
+        timer = FakeTimer()
+        class ThreadFactory:
+            def __call__(self, **kwargs):
+                class FailedThread:
+                    ident = None
+                    def start(self):
+                        raise RuntimeError("thread start failed")
+                return FailedThread()
+
+        supervisor = AcquisitionSupervisor(
+            [AcquisitionStream("physics", lambda _stop: None, lambda: None)],
+            thread_factory=ThreadFactory(),
+            timer_resolution=timer,
+        )
+        with self.assertRaises(AcquisitionStartupError):
+            supervisor.start()
+        self.assertFalse(timer.active)
+        self.assertEqual(timer.exits, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
