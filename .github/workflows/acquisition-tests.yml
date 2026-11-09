@@ -6,6 +6,7 @@ on:
       - "src/race_engineer_acquisition/**"
       - "tests/acquisition/**"
       - "scripts/record_acc_physics.py"
+      - "scripts/probe_acc_graphics.py"
       - "scripts/recover_acc_recording.py"
       - ".github/workflows/acquisition-tests.yml"
   pull_request:
@@ -26,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile acquisition package and operational scripts
-        run: python -m compileall -q src/race_engineer_acquisition scripts/record_acc_physics.py scripts/recover_acc_recording.py
+        run: python -m compileall -q src/race_engineer_acquisition scripts/record_acc_physics.py scripts/recover_acc_recording.py scripts/probe_acc_graphics.py
       - name: Run acquisition core tests
         env:
           PYTHONPATH: src
