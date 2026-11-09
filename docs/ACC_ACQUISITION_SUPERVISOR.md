@@ -79,10 +79,29 @@ With ACC running, execute:
 python scripts/validate_acc_acquisition_supervisor.py --seconds 30
 ```
 
-The script opens all three independent mappings through their worker threads,
-then requests shutdown. It reports each stream's state, capture count, pending
-buffer entries, buffer rejections and source-close errors. It performs no disk
-writes and does not repeat Physics/Graphics field recordings.
+The script opens all three independent mappings through their worker threads
+and drains each SPSC queue on a separate validation thread. It requests a 1 ms
+timer resolution by default, measures actual successful-read rates, reconciles
+all captured records against drained/rejected/pending records, and checks clean
+shutdown. Acceptance requires at least 95% of the configured 480 Hz Physics
+and 100 Hz Graphics read rates, zero source read failures, zero buffer rejects,
+zero reconciliation delta, empty queues and released timer resolution. It
+performs no disk writes and does not repeat Physics/Graphics field recordings.
+
+Run the full 120-second validation (matching the original benchmark duration)
+with:
+
+```powershell
+python scripts/validate_acc_acquisition_supervisor.py --seconds 120 --minimum-rate-ratio 0.95
+```
+
+A `PASSED` result is now performance-gated; merely observing one or more reads
+is insufficient. Compare the Physics read rate with the original measured
+479.672 Hz benchmark. Compare Physics unique capture rate separately: ACC does
+not publish a new packet on every poll, so the historical 388.50 unique
+snapshots/s is not the polling-rate acceptance target. CPU percentage is not
+currently measured by this supervisor validator and must not be inferred from
+its read-duration counters.
 
 
 ## Common per-stream health
