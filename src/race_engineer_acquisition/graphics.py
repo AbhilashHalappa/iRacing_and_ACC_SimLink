@@ -22,11 +22,12 @@ from .health import AcquisitionHealth
 GRAPHICS_MAP = r"Local\acpmf_graphics"
 MIN_GRAPHICS_MAPPING_SIZE = 4
 _FILE_MAGIC = b"ACCGFX01"
-_FILE_VERSION = 1
+_FILE_VERSION = 2
 _FILE_HEADER = struct.Struct("<8sIIQI")
 _BLOCK_MAGIC = b"GFXB"
 _BLOCK_HEADER = struct.Struct("<4sQIII")
-_RECORD_HEADER = struct.Struct("<QQQQQI")
+_RECORD_HEADER_V1 = struct.Struct("<QQQQQI")
+_RECORD_HEADER_V2 = struct.Struct("<QQQQQQI")
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,9 +50,10 @@ class GraphicsSnapshot:
     read_complete_ns: int
     capture_timestamp_ns: int
     payload: bytes
+    # Set only by the downstream recorder; acquisition snapshots leave this None.
+    persistence_timestamp_ns: int | None = None
 
-    @property
-    def acquisition_duration_ns(self) -> int:
+    @property(self) -> int:
         return self.read_complete_ns - self.read_start_ns
 
 
@@ -327,30 +329,40 @@ class GraphicsRecorderMetrics:
     max_block_write_duration_ns: int = 0
 
 
-def _encode_graphics_snapshot(snapshot: GraphicsSnapshot) -> bytes:
+def _encode_graphics_snapshot(
+    snapshot: GraphicsSnapshot, persistence_timestamp_ns: int
+) -> bytes:
     payload = bytes(snapshot.payload)
-    return _RECORD_HEADER.pack(
+    return _RECORD_HEADER_V2.pack(
         snapshot.capture_sequence, snapshot.acc_graphics_packet_id,
         snapshot.read_start_ns, snapshot.read_complete_ns,
-        snapshot.capture_timestamp_ns, len(payload),
+        snapshot.capture_timestamp_ns, persistence_timestamp_ns, len(payload),
     ) + payload
 
 
-def _decode_graphics_block(payload: bytes, record_count: int) -> list[GraphicsSnapshot]:
+def _decode_graphics_block(
+    payload: bytes, record_count: int, *, format_version: int = 2
+) -> list[GraphicsSnapshot]:
+    if format_version not in (1, 2):
+        raise ValueError(f"Unsupported Graphics recording format version: {format_version}")
+    record_header = _RECORD_HEADER_V1 if format_version == 1 else _RECORD_HEADER_V2
     records = []
     offset = 0
     for _ in range(record_count):
-        if len(payload) - offset < _RECORD_HEADER.size:
+        if len(payload) - offset < record_header.size:
             raise ValueError("Truncated Graphics record header")
-        seq, packet, started, completed, captured, size = (
-            _RECORD_HEADER.unpack_from(payload, offset)
-        )
-        offset += _RECORD_HEADER.size
+        values = record_header.unpack_from(payload, offset)
+        if format_version == 1:
+            seq, packet, started, completed, captured, size = values
+            persisted_at = None
+        else:
+            seq, packet, started, completed, captured, persisted_at, size = values
+        offset += record_header.size
         end = offset + size
         if end > len(payload):
             raise ValueError("Truncated Graphics record payload")
         records.append(GraphicsSnapshot(
-            seq, packet, started, completed, captured, payload[offset:end]
+            seq, packet, started, completed, captured, payload[offset:end], persisted_at
         ))
         offset = end
     if offset != len(payload):
@@ -362,13 +374,16 @@ class RawGraphicsRecordingWriter:
     """Append-only CRC-protected recording of complete Graphics mapping pages."""
 
     def __init__(
-        self, path: str | Path, *, page_size: int, created_utc_ns: int | None = None
+        self, path: str | Path, *, page_size: int, created_utc_ns: int | None = None,
+        clock_ns=time.perf_counter_ns,
     ) -> None:
         if page_size < MIN_GRAPHICS_MAPPING_SIZE:
             raise ValueError("page_size is too small")
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.page_size = page_size
+        self._clock_ns = clock_ns
+        self._last_persistence_timestamp_ns: int | None = None
         created = time.time_ns() if created_utc_ns is None else created_utc_ns
         self._stream = self.path.open("xb")
         prefix = struct.pack("<8sIIQ", _FILE_MAGIC, _FILE_VERSION, page_size, created)
@@ -385,7 +400,6 @@ class RawGraphicsRecordingWriter:
         items = list(snapshots)
         if not items:
             return 0
-        encoded = bytearray()
         previous = self._last_capture_sequence
         for item in items:
             if previous is not None and item.capture_sequence <= previous:
@@ -394,8 +408,19 @@ class RawGraphicsRecordingWriter:
                 raise ValueError(
                     f"Graphics payload must be {self.page_size} bytes; got {len(item.payload)}"
                 )
-            encoded.extend(_encode_graphics_snapshot(item))
             previous = item.capture_sequence
+
+        # One recorder-boundary timestamp is shared by every sample in this
+        # batch. It is sampled after batch assembly and before block I/O.
+        persistence_timestamp_ns = self._clock_ns()
+        if (
+            self._last_persistence_timestamp_ns is not None
+            and persistence_timestamp_ns < self._last_persistence_timestamp_ns
+        ):
+            raise RuntimeError("Monotonic persistence clock moved backwards")
+        encoded = bytearray()
+        for item in items:
+            encoded.extend(_encode_graphics_snapshot(item, persistence_timestamp_ns))
         block = bytes(encoded)
         header = _BLOCK_HEADER.pack(
             _BLOCK_MAGIC, self._next_block_sequence, len(items),
@@ -408,6 +433,7 @@ class RawGraphicsRecordingWriter:
         os.fsync(self._stream.fileno())
         self._next_block_sequence += 1
         self._last_capture_sequence = previous
+        self._last_persistence_timestamp_ns = persistence_timestamp_ns
         return time.perf_counter_ns() - started
 
     def close(self) -> None:
@@ -436,7 +462,7 @@ def recover_graphics_recording(
         if len(header) != _FILE_HEADER.size:
             raise ValueError("Graphics recording header is incomplete")
         magic, version, page_size, _created, checksum = _FILE_HEADER.unpack(header)
-        if magic != _FILE_MAGIC or version != _FILE_VERSION:
+        if magic != _FILE_MAGIC or version not in (1, 2):
             raise ValueError("Unsupported raw Graphics recording format")
         if zlib.crc32(header[:-4]) != checksum:
             raise ValueError("Graphics recording header checksum mismatch")
@@ -445,6 +471,7 @@ def recover_graphics_recording(
         valid_end = _FILE_HEADER.size
         block_count = snapshot_count = last_block = 0
         last_sequence = None
+        last_persistence_timestamp_ns = None
         while True:
             raw_header = stream.read(_BLOCK_HEADER.size)
             if not raw_header:
@@ -458,7 +485,9 @@ def recover_graphics_recording(
             if len(block) != payload_len or zlib.crc32(block) != crc:
                 break
             try:
-                records = _decode_graphics_block(block, count)
+                records = _decode_graphics_block(
+                    block, count, format_version=version
+                )
             except ValueError:
                 break
             if any(len(item.payload) != page_size for item in records):
@@ -468,6 +497,15 @@ def recover_graphics_recording(
             if any(records[i].capture_sequence <= records[i - 1].capture_sequence
                    for i in range(1, len(records))):
                 break
+            if version == 2:
+                timestamps = [item.persistence_timestamp_ns for item in records]
+                if any(value is None for value in timestamps):
+                    break
+                if timestamps[0] < (last_persistence_timestamp_ns or 0):
+                    break
+                if any(timestamps[i] < timestamps[i - 1] for i in range(1, len(timestamps))):
+                    break
+                last_persistence_timestamp_ns = timestamps[-1]
             last_sequence = records[-1].capture_sequence
             snapshot_count += count
             block_count += 1
