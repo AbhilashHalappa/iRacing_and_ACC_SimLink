@@ -62,4 +62,4 @@ Static persistence has been approved separately in [ACC Static Acquisition](ACC_
 
 ## Acquisition performance boundary
 
-Persistence timestamps are generated only in the recorder writer after batch assembly. The acquisition snapshot constructors and hot loops do not call the persistence clock or perform additional serialization, queueing, or disk operations. Existing acquisition payloads, polling cadence, packet consistency checks, and capture timestamps are unchanged.
+Persistence timestamps are generated only in the recorder writer after batch assembly and stored in separate decoded-record types. The live PhysicsSnapshot and GraphicsSnapshot acquisition objects do not gain a persistence field or extra per-sample slot. Acquisition hot loops do not call the persistence clock or perform additional serialization, queueing, or disk operations. Existing acquisition payloads, polling cadence, packet consistency checks, and capture timestamps are unchanged.
