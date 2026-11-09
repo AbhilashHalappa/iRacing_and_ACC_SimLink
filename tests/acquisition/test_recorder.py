@@ -33,14 +33,32 @@ class RecorderTests(unittest.TestCase):
             report = inspect_recording(path)
             self.assertEqual(report["layout"], "current-800-byte")
 
-    def test_inspector_rejects_non_800_byte_recording(self):
+    def test_default_worker_records_800_byte_acquisition_snapshots(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "unsupported.accraw"
-            item = PhysicsSnapshot(1, 101, 10, 11, 11, bytes(784))
-            with RawPhysicsRecordingWriter(path, payload_size=784) as writer:
-                writer.write_batch([item])
-            with self.assertRaisesRegex(ValueError, "expected 800"):
-                inspect_recording(path)
+            path = Path(directory) / "acquisition.accraw"
+            queue = AcquisitionRingBuffer[PhysicsSnapshot](4)
+            for sequence in range(1, 4):
+                item = PhysicsSnapshot(
+                    sequence, 100 + sequence, sequence * 10, sequence * 10 + 1,
+                    sequence * 10 + 1, bytes([sequence]) * PHYSICS_SIZE,
+                )
+                self.assertEqual(len(item.payload), 800)
+                self.assertTrue(queue.try_put(item))
+
+            worker = PhysicsRecorderWorker(queue, path, batch_size=2)
+            stop = Event()
+            stop.set()
+            worker.run(stop)
+
+            self.assertIsNone(worker.error)
+            self.assertEqual(worker.payload_size, 800)
+            self.assertEqual(worker.metrics.persisted_snapshot_count, 3)
+            self.assertEqual(queue.size, 0)
+            recovered = recover_recording(path)
+            self.assertEqual(recovered.recovered_snapshot_count, 3)
+            report = inspect_recording(path)
+            self.assertEqual(report["layout"], "current-800-byte")
+
     def test_writer_persists_multiple_checksummed_blocks_and_recovers(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "session.accraw"
