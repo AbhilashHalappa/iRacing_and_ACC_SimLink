@@ -37,6 +37,7 @@ RACEIQ_FIELDS: dict[str, tuple[int, str]] = {
     "last_sector_time_ms": (168, "i"),
     "normalized_car_position": (248, "f"),
     "active_cars": (252, "i"),
+    "main_display_index_dash": (1260, "i"),
     "tc": (1268, "i"),
     "tc_cut": (1272, "i"),
     "engine_map": (1276, "i"),
@@ -129,6 +130,7 @@ RACEIQ_COMMENTED_FIELDS: dict[str, tuple[int, str]] = {
     "lights_stage": (1296, "i"),
     "exhaust_temperature": (1300, "f"),
     "wiper_stage": (1304, "i"),
+    "secondary_display_index_racelogic": (1264, "i"),
 }
 
 
@@ -262,7 +264,13 @@ def main() -> int:
         print(f"\n{report['recording']}")
         print(f"Samples: {report['sample_count']:,} | mapping: {report['page_size_bytes']:,} bytes")
         print("\nFIELD                         RACEIQ (last / range)          PRO ENGINEER (last / range)")
-        names = sorted(set(report["raceiq"]) | set(report["pro_engineer"]) | set(report["raceiq_comment_only"]))
+        target_names = [
+            "tc", "tc_cut", "engine_map", "abs", "rain_lights",
+            "flashing_lights", "lights_stage", "wiper_stage",
+            "direction_lights_left", "direction_lights_right",
+            "main_display_index_dash", "secondary_display_index_racelogic",
+        ]
+        names = target_names
         for name in names:
             a = report["raceiq"].get(name) or report["raceiq_comment_only"].get(name)
             b = report["pro_engineer"].get(name)
