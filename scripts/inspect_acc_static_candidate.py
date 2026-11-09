@@ -21,7 +21,7 @@ def u16_string(data: bytes, offset: int, count: int) -> str:
     if len(raw) != count * 2:
         return "<out-of-range>"
     try:
-        return raw.decode("utf-16-le", errors="replace").split("\\0", 1)[0]
+        return raw.decode("utf-16-le", errors="replace").split(chr(0), 1)[0]
     except Exception as exc:
         return f"<decode-error:{type(exc).__name__}>"
 
