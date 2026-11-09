@@ -330,6 +330,15 @@ class PhysicsRecorderWorker:
         except Exception as exc:
             self.error = f"{type(exc).__name__}: {exc}"
             self.metrics.write_failure_count += 1
+            mark_failed = getattr(self.buffer, "mark_failed", None)
+            if callable(mark_failed):
+                mark_failed(self.error)
+
+    def _acknowledge_batch(self, batch: list[PhysicsSnapshot], *, success: bool) -> None:
+        acknowledge = getattr(self.buffer, "acknowledge", None)
+        if callable(acknowledge):
+            for snapshot in batch:
+                acknowledge(snapshot, success=success)
 
     def _persist(self, writer: RawPhysicsRecordingWriter, batch: list[PhysicsSnapshot]) -> None:
         # Publish the current batch to the checkpoint observer before disk I/O.
@@ -358,6 +367,7 @@ class PhysicsRecorderWorker:
             if self.metrics.first_failed_sequence is None:
                 self.metrics.first_failed_sequence = batch[0].capture_sequence
             self.metrics.last_failed_sequence = batch[-1].capture_sequence
+            self._acknowledge_batch(batch, success=False)
             raise
         else:
             # write_batch returns only after flush/fsync has completed.
@@ -369,6 +379,7 @@ class PhysicsRecorderWorker:
             self.metrics.max_block_write_duration_ns = max(
                 self.metrics.max_block_write_duration_ns, duration
             )
+            self._acknowledge_batch(batch, success=True)
         finally:
             persist_duration = time.perf_counter_ns() - persist_started_ns
             self.metrics.last_persist_duration_ns = persist_duration
