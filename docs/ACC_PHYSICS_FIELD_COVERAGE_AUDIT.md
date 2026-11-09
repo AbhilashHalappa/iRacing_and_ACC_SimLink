@@ -1,9 +1,9 @@
 # ACC Physics Page — Field Coverage Audit
 
-**Status:** 784-byte ACC Physics layout strongly corroborated by the ACC v1.8.12 reference transcription and controlled live captures; exact Kunos v1.9 ABI/header confirmation remains unavailable.  
-**Page size:** 784 bytes  
+**Status:** 800-byte ACC Physics layout strongly corroborated by the ACC v1.8.12 reference transcription and controlled live captures; exact Kunos v1.9 ABI/header confirmation remains unavailable.  
+**Page size:** 800 bytes  
 **Layout:** Little-endian, `_pack_ = 4`  
-**Primary layout baseline:** `SolusDev-sys/CppAccSharedMemory`, `C++AccSharedMemory.cpp` on `main`, which its README identifies as based on the ACC Shared Memory v1.8.12 documentation attributed to KS Dev Team. This third-party transcription uses 4-byte packing and the same 784-byte Physics field sequence as this adapter.  
+**Primary layout baseline:** `SolusDev-sys/CppAccSharedMemory`, `C++AccSharedMemory.cpp` on `main`, which its README identifies as based on the ACC Shared Memory v1.8.12 documentation attributed to KS Dev Team. This third-party transcription uses 4-byte packing and the same 800-byte Physics field sequence as this adapter.  
 **Secondary decoder reference:** `AbhilashHalappa/Race-Engineer-ACC`, branch `diagnostic/high-res-capture-2026-11-07`, `src/acc_shared_memory_extended.py`, blob `e9a54bda008cb6ff1797dfdc14b07b297a461ab9`.
 
 ## Architecture boundary
@@ -11,7 +11,7 @@
 This is an audit only. It does not add a decoder or change the acquisition pipeline.
 
 - The high-priority Physics acquisition thread remains raw-only.
-- It copies the complete 784-byte page and timestamps/sequences the observation.
+- It copies the complete 800-byte page and timestamps/sequences the observation.
 - The independent recorder preserves the complete raw payload.
 - Decoding will be a later, separate stage. A future live decoder may receive copied observations through its own independent handoff buffer; it must not consume the recorder's SPSC queue or block acquisition.
 - No Graphics or Static adapters are being added as part of this audit.
@@ -25,6 +25,8 @@ This is an audit only. It does not add a decoder or change the acquisition pipel
 - **Observed:** a field changed in a live capture, but controlled causality, axis/sign calibration or semantic confirmation is missing.
 - **Unresolved:** latest evidence is contradictory or implausible; do not use the declared interpretation.
 - **Reference unused:** this reflects the cited third-party reference, not an official Kunos guarantee.
+
+| `tail_reserved` | `c_ubyte[16]` | 784 | 16 | Yes | No | Opaque/reserved bytes | Preserved raw; semantics intentionally not assigned |
 
 ## Complete field inventory
 
@@ -94,32 +96,29 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 | `local_velocity` | `c_float[3]` | 568 | 12 | Yes | Yes | Not marked unused | Observed — varies; axes/sign calibration pending |
 | `p2p_activation_unused` | `c_int32` | 580 | 4 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
 | `p2p_status_unused` | `c_int32` | 584 | 4 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
-| `current_max_rpm_unused` | `c_float` | 588 | 4 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
-| `fx_unused` | `c_float[4]` | 592 | 16 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
-| `fy_unused` | `c_float[4]` | 608 | 16 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
-| `slip_ratio` | `c_float[4]` | 624 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled event pending |
-| `slip_angle` | `c_float[4]` | 640 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled cornering correlation pending |
-| `tc_in_action_unused` | `c_int32` | 656 | 4 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
-| `abs_in_action_unused` | `c_int32` | 660 | 4 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
-| `suspension_damage_unused` | `c_float[4]` | 664 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
-| `tyre_temp_unused` | `c_float[4]` | 680 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
-| `water_temp_c` | `c_float` | 696 | 4 | Yes | Yes | Not marked unused | Unresolved — latest capture aliases tyre_core_temp_c[0] statistics |
-| `brake_pressure` | `c_float[4]` | 700 | 16 | Yes | Yes | Not marked unused | Unresolved — latest capture overlaps tyre-core-temperature statistics |
-| `front_brake_compound` | `c_int32` | 716 | 4 | Yes | Yes | Not marked unused | Unresolved — int32 value 1.06183e9 is not a credible compound ID |
-| `rear_brake_compound` | `c_int32` | 720 | 4 | Yes | Yes | Not marked unused | Unresolved — int32 value 1.06183e9 is not a credible compound ID |
-| `pad_life` | `c_float[4]` | 724 | 16 | Yes | Yes | Not marked unused | Unresolved — rear components show 1.4013e-45 subnormal values |
-| `disc_life` | `c_float[4]` | 740 | 16 | Yes | Yes | Not marked unused | Unresolved — changing values; units/meaning not established |
-| `ignition_on` | `c_int32` | 756 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
-| `starter_engine_on` | `c_int32` | 760 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
-| `engine_running` | `c_int32` | 764 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
-| `kerb_vibration` | `c_float` | 768 | 4 | Yes | Yes | Not marked unused | Unresolved — tail type/value interpretation not validated |
-| `slip_vibration` | `c_float` | 772 | 4 | Yes | Yes | Not marked unused | Unresolved — tail type/value interpretation not validated |
-| `g_vibration` | `c_float` | 776 | 4 | Yes | Yes | Not marked unused | Unresolved — tail type/value interpretation not validated |
-| `abs_vibration` | `c_float` | 780 | 4 | Yes | Yes | Not marked unused | Unresolved — tail type/value interpretation not validated |
+| `current_max_rpm` | `c_int32` | 588 | 4 | Yes | No | Not marked unused | Observed — integer field at the corrected offset; controlled limiter-range validation pending |
+| `mz_unused` | `c_float[4]` | 592 | 16 | Yes | No | Unverified/reserved in current reference comparison | Not a target field; retained for ABI alignment |
+| `fx_unused` | `c_float[4]` | 608 | 16 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
+| `fy_unused` | `c_float[4]` | 624 | 16 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
+| `slip_ratio` | `c_float[4]` | 640 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled event pending |
+| `slip_angle` | `c_float[4]` | 656 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled cornering correlation pending |
+| `tc_in_action_unused` | `c_int32` | 672 | 4 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
+| `abs_in_action_unused` | `c_int32` | 676 | 4 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
+| `suspension_damage_unused` | `c_float[4]` | 680 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
+| `tyre_temp_unused` | `c_float[4]` | 696 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
+| `water_temp_c` | `c_float` | 712 | 4 | Yes | Yes | Not marked unused | Unresolved — latest capture aliases tyre_core_temp_c[0] statistics |
+| `brake_pressure` | `c_float[4]` | 716 | 16 | Yes | Yes | Not marked unused | Unresolved — latest capture overlaps tyre-core-temperature statistics |
+| `front_brake_compound` | `c_int32` | 732 | 4 | Yes | Yes | Not marked unused | Unresolved — int32 value 1.06183e9 is not a credible compound ID |
+| `rear_brake_compound` | `c_int32` | 736 | 4 | Yes | Yes | Not marked unused | Unresolved — int32 value 1.06183e9 is not a credible compound ID |
+| `pad_life` | `c_float[4]` | 740 | 16 | Yes | Yes | Not marked unused | Unresolved — rear components show 1.4013e-45 subnormal values |
+| `disc_life` | `c_float[4]` | 756 | 16 | Yes | Yes | Not marked unused | Unresolved — changing values; units/meaning not established |
+| `ignition_on` | `c_int32` | 772 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
+| `starter_engine_on` | `c_int32` | 776 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
+| `engine_running` | `c_int32` | 780 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
 
 ## Layout regression tests
 
-The automated test module, `tests/acquisition/test_physics_layout.py`, locks all 84 field names, ctypes scalar types, array lengths, byte offsets and sizes, plus the 784-byte total and contiguous layout. This is a regression guard against accidental edits to the current transcription; it does not independently prove the transcription matches Kunos' authoritative specification. The inspection tests also verify that RPM is reported as `int32` at offset 20 and that capped unique-value counts are explicitly identified.
+The automated test module, `tests/acquisition/test_physics_layout.py`, locks all 82 field names, ctypes scalar types, array lengths, byte offsets and sizes, plus the 800-byte total and contiguous layout. This is a regression guard against accidental edits to the current transcription; it does not independently prove the transcription matches Kunos' authoritative specification. The inspection tests also verify that RPM is reported as `int32` at offset 20 and that capped unique-value counts are explicitly identified.
 
 ## Offline raw inspection utility
 
@@ -142,14 +141,14 @@ ACC game build observed during these captures: **1.10.4**. Shared-memory identif
 
 | Capture | Controlled activity | Evidence |
 |---|---|---|
-| Stationary baseline — `acc_physics_20261108T163710_467685Z.accraw` | Stationary baseline | 10,662 snapshots; complete 784-byte payloads; 109 of 196 inspected components varied |
+| Stationary baseline — `acc_physics_20261108T163710_467685Z.accraw` | Stationary baseline | 10,662 snapshots; complete 800-byte payloads; 109 of 196 inspected components varied |
 | Input test — `acc_physics_20261108T164030_324828Z.accraw` | Throttle, brake, steering and gear inputs | 22,519 snapshots; throttle, brake, RPM, steering and other expected driving signals varied |
 | Engine OFF — `acc_physics_20261108T170533_325744Z.accraw` | Engine switched off | 6,019 snapshots; RPM remained zero while stationary |
 | Engine ON — `acc_physics_20261108T170557_631094Z.accraw` | Engine switched on | 5,780 snapshots; RPM rose to approximately 1,712 during the controlled test |
 | Candidate-prefix stationary — `acc_physics_20261108T173458_003331Z.accraw` | Stationary input sequence | 22,171 snapshots; candidate offsets for throttle, brake, RPM, steering and speed behaved plausibly |
 | Candidate-prefix drive — `acc_physics_20261108T173813_569096Z.accraw` | 120-second drive | 46,878 snapshots; throttle, brake, RPM, steering, speed and clutch varied; clutch at offset 364 varied from 0 to 1 |
 | D-BOX-enabled drive — `acc_physics_20261108T174852_787372Z.accraw` | 120-second drive with D-BOX motion enabled | 46,897 snapshots; all 45,223 blocks and all records passed CRC/structure checks |
-| D-BOX tail-field inspection — same capture | Driving; tail decoded using current 784-byte offsets | `slip_ratio` -0.9862..0.1719; `slip_angle` -0.1479..0.1600; `water_temp` 0..88.5092; brake pressure 0..0.7900; compounds 0/1; pad life 0..28.9669; disc life 0..31.9822; ignition and engine-running flags both 0/1 |
+| D-BOX tail-field inspection — same capture | Driving; tail decoded using current 800-byte offsets | `slip_ratio` -0.9862..0.1719; `slip_angle` -0.1479..0.1600; `water_temp` 0..88.5092; brake pressure 0..0.7900; compounds 0/1; pad life 0..28.9669; disc life 0..31.9822; ignition and engine-running flags both 0/1 |
 
 ### Fields observed varying in driving captures
 
@@ -183,11 +182,11 @@ The repository inspector reads RPM through the declared `ctypes.c_int32` field. 
 
 The D-BOX-enabled capture recorded 46,897 acquired and persisted snapshots, zero rejects, zero recorder write failures, zero pending records and reconciliation delta zero. Its offline prefix parser validated 45,223 blocks and 46,897 records with no invalid blocks or records.
 
-### Layout cross-check — 420-byte prefix versus 784-byte ACC layout
+### Layout cross-check — 420-byte prefix versus 800-byte ACC layout
 
-The 420-byte boundary is the end of the prefix through `is_ai_controlled`; it is not the end of the Physics page. The ACC v1.8.12 reference transcription continues with tyre contact vectors, brake bias, local velocity, slip ratio/angle, water temperature, brake pressure, compounds, pad/disc life and engine/vibration state, matching the field order and 784-byte size in this adapter. The latest live capture independently supports many of those tail fields at the adapter's declared offsets. Therefore, the 420-byte candidate is rejected as a complete Physics layout; it remains only a useful prefix boundary.
+The 420-byte boundary is the end of the prefix through `is_ai_controlled`; it is not the end of the Physics page. The ACC v1.8.12 reference transcription continues with tyre contact vectors, brake bias, local velocity, slip ratio/angle, water temperature, brake pressure, compounds, pad/disc life and engine/vibration state, matching the field order and 800-byte size in this adapter. The latest live capture independently supports many of those tail fields at the adapter's declared offsets. Therefore, the 420-byte candidate is rejected as a complete Physics layout; it remains only a useful prefix boundary.
 
-A separate C# implementation (`heikowulf/ACCsharedmemory/Physics.cs`) has additional `mz[4]` before `fx[4]` and version comments for later fields. That produces a different tail layout and is not consistent with the ACC v1.8.12 784-byte transcription used here. It is treated as a different/version-expanded layout, not silently merged into this ACC 1.10.4 adapter. We have not found a Kunos-published v1.9 header that conclusively settles this variant question, so the exact v1.9 ABI claim remains open.
+A separate C# implementation (`heikowulf/ACCsharedmemory/Physics.cs`) has additional `mz[4]` before `fx[4]` and version comments for later fields. That produces a different tail layout and is not consistent with the ACC v1.8.12 800-byte transcription used here. It is treated as a different/version-expanded layout, not silently merged into this ACC 1.10.4 adapter. We have not found a Kunos-published v1.9 header that conclusively settles this variant question, so the exact v1.9 ABI claim remains open.
 
 
 ## Five-minute pit-service capture — 2026-11-09
@@ -217,13 +216,13 @@ This establishes a clean recording, not correctness of every decoded field. The 
 
 ### Tail-field caution
 
-These anomalies do **not** prove that the entire 784-byte structure is wrong. They establish that the current declared interpretation of some members from offset 696 onward is not sufficiently trustworthy. The exact equality between `water_temp_c` and `tyre_core_temp_c[0]` summary statistics, and the corresponding overlap between brake-pressure and tyre-core-temperature components, must be checked against raw payload bytes and field types. The ctypes regression test proves internal consistency of the declaration, not conformance to the live Kunos ABI.
+These anomalies do **not** prove that the entire 800-byte structure is wrong. They establish that the current declared interpretation of some members from offset 696 onward is not sufficiently trustworthy. The exact equality between `water_temp_c` and `tyre_core_temp_c[0]` summary statistics, and the corresponding overlap between brake-pressure and tyre-core-temperature components, must be checked against raw payload bytes and field types. The ctypes regression test proves internal consistency of the declaration, not conformance to the live Kunos ABI.
 
 The pad-life value `1.401298464e-45` is the smallest positive IEEE-754 float32 subnormal. It is not a credible brake-life reading for validation purposes.
 
 ### Remaining Physics work
 
-1. Resolve raw-byte and type interpretation for offsets 696–783 without modifying the production acquisition path.
+1. Keep the corrected 800-byte ABI stable; investigate individual unresolved field semantics only when a required feature needs them.
 2. Verify all four `pad_life` components and establish units/direction.
 3. Establish the meaning and units of all four `disc_life` components.
 4. Validate brake-pressure channels using controlled brake application and raw bytes at offsets 700, 704, 708 and 712.
@@ -244,15 +243,15 @@ The pad-life value `1.401298464e-45` is the smallest positive IEEE-754 float32 s
 
 ## Important limitations
 
-The inventory describes the ACC v1.8.12-derived 784-byte reference transcription and the current adapter. It does not prove that every member is actively populated by ACC 1.10.4. Some are explicitly named unused/deprecated; others may be reserved, constant or conditionally populated.
+The inventory describes the ACC v1.8.12-derived 800-byte reference transcription and the current adapter. It does not prove that every member is actively populated by ACC 1.10.4. Some are explicitly named unused/deprecated; others may be reserved, constant or conditionally populated.
 
-The offset inventory is calculated from the ctypes declaration using little-endian scalar widths and 4-byte packing. The matching ACC-specific v1.8.12 field sequence, 784-byte size and live tail-field behaviour provide strong corroboration. The remaining uncertainty is whether Kunos changed any member in the observed Shared Memory v1.9 build; the official version-matched header was not located.
+The offset inventory is calculated from the ctypes declaration using little-endian scalar widths and 4-byte packing. The matching ACC-specific v1.8.12 field sequence, 800-byte size and live tail-field behaviour provide strong corroboration. The remaining uncertainty is whether Kunos changed any member in the observed Shared Memory v1.9 build; the official version-matched header was not located.
 
 ## Remaining Physics work and next page
 
 The Physics audit is now sufficiently documented to proceed to Graphics-page discovery and raw collection. This is **not Physics sign-off**: unresolved Physics fields remain tracked below and can be revisited without changing the acquisition/recorder path.
 
-- [x] Cross-check the 784-byte field sequence against the third-party transcription of ACC Shared Memory v1.8.12 documentation and the controlled live tail-field capture.
+- [x] Cross-check the 800-byte field sequence against the third-party transcription of ACC Shared Memory v1.8.12 documentation and the controlled live tail-field capture.
 - [ ] Obtain/verify a Kunos-published Shared Memory v1.9 header or equivalent authoritative version-matched ABI evidence.
 - [x] Add automated layout regression tests for field offsets, sizes, alignment and total page size.
 - [x] Add an offline raw-record inspection/validation tool; keep it outside acquisition.
@@ -262,8 +261,8 @@ The Physics audit is now sufficiently documented to proceed to Graphics-page dis
 - [ ] Validate all four pad-life and disc-life components and establish their units/direction.
 - [x] Record ACC game build and Shared Memory identifiers for the current validation set.
 - [x] Reject the 420-byte prefix as a complete Physics layout; retain it only as the prefix ending at `is_ai_controlled`.
-- [ ] Resolve the separate C# `mz[4]` layout variant against a Kunos-published v1.9 ABI source.
-- [x] Add a current per-field status to the complete 84-member inventory; unresolved and untested fields remain individually identified.
+- [ ] Retain `mz[4]` at offset 592 as part of the corroborated 800-byte ABI.
+- [x] Add a current per-field status to the complete 82-member inventory; unresolved and untested fields remain individually identified.
 - [ ] Complete conditional-field tests and obtain authoritative Kunos v1.9 ABI evidence; Physics remains provisionally open.
 - [ ] Graphics page is the next acquisition investigation. Static page remains out of scope until separately planned.
 
