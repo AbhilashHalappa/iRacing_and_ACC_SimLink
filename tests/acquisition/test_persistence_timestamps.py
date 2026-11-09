@@ -100,7 +100,7 @@ class PersistenceTimestampTests(unittest.TestCase):
             for block_index, (expected_timestamp, expected_count) in enumerate(((300, 2), (400, 1)), start=1):
                 block_magic, block_seq, count, payload_size, crc = _BLOCK_HEADER.unpack_from(data, offset)
                 self.assertEqual(block_magic, b"GFXB")
-                self.assertEqual(block_seq, len(decoded) + 1)
+                self.assertEqual(block_seq, block_index)
                 self.assertEqual(count, expected_count)
                 start = offset + _BLOCK_HEADER.size
                 payload = data[start:start + payload_size]
