@@ -91,6 +91,29 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(close_counts, {"first": 1, "second": 1})
         self.assertEqual(supervisor.status["second"]["state"], "failed")
 
+
+    def test_shutdown_timeout_does_not_close_source_until_worker_exits(self):
+        entered = threading.Event()
+        release = threading.Event()
+        closed = []
+
+        def run(_stop):
+            entered.set()
+            release.wait(2)
+
+        supervisor = AcquisitionSupervisor([
+            AcquisitionStream("blocked", run, lambda: closed.append("closed"))
+        ])
+        supervisor.start()
+        self.assertTrue(entered.wait(1))
+        self.assertEqual(supervisor.stop(timeout=0.01), ("blocked",))
+        self.assertEqual(closed, [])
+        release.set()
+        self.assertEqual(supervisor.join(timeout=1), ())
+        self.assertEqual(closed, ["closed"])
+        self.assertEqual(supervisor.stop(timeout=1), ())
+        self.assertEqual(closed, ["closed"])
+
     def test_rejects_duplicate_stream_names(self):
         stream = AcquisitionStream("same", lambda _stop: None, lambda: None)
         with self.assertRaises(ValueError):
