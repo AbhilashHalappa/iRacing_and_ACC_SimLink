@@ -8,6 +8,7 @@ from unittest.mock import patch
 from race_engineer_acquisition.acc_windows import PHYSICS_SIZE
 from race_engineer_acquisition.inspection import inspect_recording
 from race_engineer_acquisition.models import PhysicsSnapshot
+from race_engineer_acquisition.fanout import FanOutDispatcher
 from race_engineer_acquisition.recorder import (
     PhysicsRecorderWorker,
     RawPhysicsRecordingWriter,
@@ -292,6 +293,64 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(worker.metrics.in_flight_snapshot_count, 0)
             self.assertEqual(worker.metrics.last_persisted_capture_sequence, 1)
             self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
+
+    def test_fanout_recorder_acknowledges_only_successfully_persisted_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = AcquisitionRingBuffer[PhysicsSnapshot](4)
+            dispatcher = FanOutDispatcher(source)
+            recorder_queue = dispatcher.register("recorder", 4, required=True)
+            for sequence in range(1, 4):
+                self.assertTrue(source.try_put(snapshot(sequence)))
+            dispatch_stop = Event()
+            dispatch_stop.set()
+            dispatcher.run(dispatch_stop)
+
+            worker = PhysicsRecorderWorker(
+                recorder_queue, Path(directory) / "fanout.accraw",
+                payload_size=8, batch_size=2,
+            )
+            recorder_stop = Event()
+            recorder_stop.set()
+            worker.run(recorder_stop)
+
+            metrics = recorder_queue.metrics
+            self.assertIsNone(worker.error)
+            self.assertEqual(metrics.offered_count, 3)
+            self.assertEqual(metrics.dispatched_count, 3)
+            self.assertEqual(metrics.processed_count, 3)
+            self.assertEqual(metrics.failed_count, 0)
+            self.assertEqual(metrics.pending_count, 0)
+            self.assertEqual(recover_recording(worker.path).recovered_snapshot_count, 3)
+
+    def test_fanout_recorder_write_failure_marks_batch_failed_and_drains_queue_accountably(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = AcquisitionRingBuffer[PhysicsSnapshot](4)
+            dispatcher = FanOutDispatcher(source)
+            recorder_queue = dispatcher.register("recorder", 4, required=True)
+            for sequence in range(1, 4):
+                self.assertTrue(source.try_put(snapshot(sequence)))
+            dispatch_stop = Event()
+            dispatch_stop.set()
+            dispatcher.run(dispatch_stop)
+
+            worker = PhysicsRecorderWorker(
+                recorder_queue, Path(directory) / "fanout_failure.accraw",
+                payload_size=8, batch_size=2, simulated_disk_full_after_batches=1,
+            )
+            recorder_stop = Event()
+            recorder_stop.set()
+            worker.run(recorder_stop)
+
+            metrics = recorder_queue.metrics
+            self.assertIn("No space left on device (simulated)", worker.error)
+            self.assertEqual(metrics.offered_count, 3)
+            self.assertEqual(metrics.dispatched_count, 3)
+            self.assertEqual(metrics.processed_count, 2)
+            self.assertEqual(metrics.failed_count, 1)
+            self.assertEqual(metrics.pending_count, 0)
+            self.assertEqual(metrics.dispatched_count, metrics.processed_count + metrics.failed_count + metrics.pending_count)
+            self.assertEqual(recover_recording(worker.path).recovered_snapshot_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
