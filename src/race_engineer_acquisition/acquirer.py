@@ -8,6 +8,7 @@ from threading import Event
 from typing import Callable, Protocol
 
 from .models import PhysicsSnapshot, RawPhysicsRead
+from .health import AcquisitionHealth
 from .ring_buffer import AcquisitionRingBuffer
 
 
@@ -66,6 +67,7 @@ class PhysicsAcquirer:
         self._max_attempts = max_consistency_attempts
         self._clock_ns = clock_ns
         self.metrics = AcquisitionMetrics()
+        self.health = AcquisitionHealth()
         self._next_sequence = 1
 
     def capture_once(self) -> PhysicsSnapshot | None:
@@ -87,8 +89,15 @@ class PhysicsAcquirer:
 
         for attempt in range(self._max_attempts):
             read_start_ns = self._clock_ns()
-            raw: RawPhysicsRead = self._source.read_physics()
+            try:
+                raw: RawPhysicsRead = self._source.read_physics()
+            except Exception as exc:
+                self.health.record_read_failure(exc)
+                raise
             read_complete_ns = self._clock_ns()
+            self.health.record_read_success(
+                read_complete_ns, read_complete_ns - read_start_ns
+            )
             read_duration = read_complete_ns - read_start_ns
             self.metrics.read_attempt_count += 1
             self.metrics.total_read_attempt_duration_ns += read_duration
@@ -136,6 +145,7 @@ class PhysicsAcquirer:
         )
         if not self._buffer.try_put(snapshot):
             self.metrics.buffer_rejection_count += 1
+            self.health.record_buffer_rejection()
         return snapshot
 
     def run(self, stop_event: Event, *, poll_interval_ns: int = 0) -> None:
