@@ -28,22 +28,29 @@ class StaticRecordingTests(unittest.TestCase):
             with RawStaticRecordingWriter(
                 path, page_size=8, created_utc_ns=1, clock_ns=lambda: next(ticks)
             ) as writer:
-                writer.write_batch([sample(1, b"12345678")])
-                writer.write_batch([sample(2, b"abcdefgh")])
+                writer.write_batch([sample(1, b"12345678"), sample(2, b"abcdefgh")])
+                writer.write_batch([sample(3, b"87654321")])
             data = path.read_bytes()
             offset = _FILE_HEADER.size
             decoded = []
-            for expected_timestamp in (100, 200):
+            for expected_timestamp, expected_count in ((100, 2), (200, 1)):
                 _, _, count, length, _ = _BLOCK_HEADER.unpack_from(data, offset)
+                self.assertEqual(count, expected_count)
                 block_start = offset + _BLOCK_HEADER.size
                 records = _decode_static_block(data[block_start:block_start + length], count)
-                self.assertEqual([r.persistence_timestamp_ns for r in records], [expected_timestamp])
+                self.assertEqual(
+                    [r.persistence_timestamp_ns for r in records],
+                    [expected_timestamp] * expected_count,
+                )
                 decoded.extend(records)
                 offset = block_start + length
-            self.assertEqual([r.capture_sequence for r in decoded], [1, 2])
-            self.assertEqual([r.payload for r in decoded], [b"12345678", b"abcdefgh"])
-            self.assertEqual([r.read_start_ns for r in decoded], [10, 20])
-            self.assertEqual(recover_static_recording(path).recovered_snapshot_count, 2)
+            self.assertEqual([r.capture_sequence for r in decoded], [1, 2, 3])
+            self.assertEqual(
+                [r.payload for r in decoded],
+                [b"12345678", b"abcdefgh", b"87654321"],
+            )
+            self.assertEqual([r.read_start_ns for r in decoded], [10, 20, 30])
+            self.assertEqual(recover_static_recording(path).recovered_snapshot_count, 3)
 
     def test_worker_drains_queue_and_accounts_persisted_samples(self):
         with tempfile.TemporaryDirectory() as directory:
