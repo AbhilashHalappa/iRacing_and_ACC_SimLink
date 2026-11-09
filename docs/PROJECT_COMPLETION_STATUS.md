@@ -178,7 +178,7 @@ Planned work:
 
 ## 3. ACC data coverage
 
-A structural inventory of all 82 named Physics fields, including byte offsets, C types, sizes, raw-preservation status, reference-decoder exposure and unused/deprecated naming, is maintained in [ACC Physics Field Coverage Audit](ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). The inventory confirms a 800-byte structure. Automated regression tests now lock all 82 named field names, types, array lengths, offsets and sizes, plus the total structure size and contiguous layout; CI execution for the new tests is pending. Individual field values have not yet been validated live, and the offsets still require an authoritative-specification cross-check. This audit does not add a decoder.
+A structural inventory of all 82 named Physics fields, including byte offsets, C types, sizes, raw-preservation status, reference-decoder exposure and unused/deprecated naming, is maintained in [ACC Physics Field Coverage Audit](ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). The inventory documents the corrected 800-byte structure. Automated regression tests now lock all 82 named field names, types, array lengths, offsets and sizes, plus the total structure size and contiguous layout; CI execution for the new tests is pending. Representative field values have been validated live; unresolved fields remain individually marked. The corrected offsets are regression-locked, with an official Kunos v1.9 header still unavailable. This audit does not add a decoder.
 
 
 | ACC shared-memory page | Current state |
