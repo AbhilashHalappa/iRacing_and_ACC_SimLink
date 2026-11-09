@@ -23,9 +23,6 @@ from race_engineer_acquisition.recorder import (
 _FILE_HEADER = struct.Struct("<8sIIQI")
 _BLOCK_HEADER = struct.Struct("<4sQIII")
 _PHYSICS_V1_RECORD = struct.Struct("<QQQQQI")
-_GRAPHICS_V1_RECORD = struct.Struct("<QQQQQI")
-_PHYSICS_V2_RECORD = struct.Struct("<QQQQQQI")
-_GRAPHICS_V2_RECORD = struct.Struct("<QQQQQQI")
 
 
 def _write_v1_recording(path: Path, *, magic: bytes, block_magic: bytes,
@@ -50,7 +47,7 @@ class PersistenceTimestampTests(unittest.TestCase):
                                 i * 10 + 1, bytes([i]) * PHYSICS_SIZE)
                 for i in (1, 2, 3)
             ]
-            self.assertIsNone(snapshots[0].persistence_timestamp_ns)
+            self.assertFalse(hasattr(snapshots[0], "persistence_timestamp_ns"))
             with RawPhysicsRecordingWriter(
                 path, payload_size=PHYSICS_SIZE, created_utc_ns=1, clock_ns=lambda: next(ticks)
             ) as writer:
