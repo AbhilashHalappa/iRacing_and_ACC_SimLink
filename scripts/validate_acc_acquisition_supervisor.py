@@ -21,7 +21,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=120.0)
     parser.add_argument("--stop-timeout", type=float, default=10.0)
-    parser.add_argument("--minimum-rate-ratio", type=float, default=0.95)
+    parser.add_argument("--minimum-rate-ratio", type=float, default=0.99)
     parser.add_argument("--timer-resolution-ms", type=int, default=1)
     args = parser.parse_args()
     if args.seconds <= 0 or args.stop_timeout <= 0:
