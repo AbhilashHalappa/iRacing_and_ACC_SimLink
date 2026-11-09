@@ -54,8 +54,9 @@ def main() -> int:
         thread.start()
 
     started = time.perf_counter()
-    runtime.supervisor.start()
+    cpu_started = time.process_time_ns()
     try:
+        runtime.supervisor.start()
         time.sleep(args.seconds)
     finally:
         still_running = runtime.supervisor.stop(timeout=args.stop_timeout)
@@ -64,7 +65,10 @@ def main() -> int:
             thread.join(timeout=5.0)
 
     elapsed = time.perf_counter() - started
+    cpu_elapsed = time.process_time_ns() - cpu_started
+    cpu_one_core_percent = cpu_elapsed / (elapsed * 1_000_000_000) * 100 if elapsed else 0.0
     print(f"elapsed_seconds={elapsed:.3f}")
+    print(f"process_cpu_one_core_percent={cpu_one_core_percent:.2f}")
     print(f"workers_still_running={list(still_running)}")
     failed = bool(still_running) or any(thread.is_alive() for thread in drain_threads)
     expected_rates = {"physics": 480.0, "graphics": 100.0}
@@ -87,6 +91,9 @@ def main() -> int:
             f"minimum_hz={minimum if minimum is not None else 'n/a'} "
             f"consumed={consumed[name]} read_failures={health.source_read_failures} "
             f"consecutive_failures={health.consecutive_failures} "
+            f"packet_gaps={getattr(metrics, 'source_packet_gap_count', 'n/a')} "
+            f"duplicate_observations={getattr(metrics, 'duplicate_packet_observation_count', 'n/a')} "
+            f"inconsistent_reads={getattr(metrics, 'inconsistent_snapshot_count', 'n/a')} "
             f"last_read_ns={health.last_read_duration_ns} "
             f"max_read_ns={health.max_read_duration_ns} "
             f"buffer_rejections={rejected} pending={buffer.size} "
