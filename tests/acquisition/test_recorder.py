@@ -33,17 +33,14 @@ class RecorderTests(unittest.TestCase):
             report = inspect_recording(path)
             self.assertEqual(report["layout"], "current-800-byte")
 
-    def test_legacy_784_byte_recording_remains_raw_readable(self):
+    def test_inspector_rejects_non_800_byte_recording(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "legacy.accraw"
+            path = Path(directory) / "unsupported.accraw"
             item = PhysicsSnapshot(1, 101, 10, 11, 11, bytes(784))
             with RawPhysicsRecordingWriter(path, payload_size=784) as writer:
                 writer.write_batch([item])
-            self.assertEqual(recover_recording(path).recovered_snapshot_count, 1)
-            report = inspect_recording(path)
-            self.assertEqual(report["layout"], "legacy-784-byte")
-            self.assertEqual(report["snapshot_count"], 1)
-            self.assertEqual(report["field_component_count"], 0)
+            with self.assertRaisesRegex(ValueError, "expected 800"):
+                inspect_recording(path)
     def test_writer_persists_multiple_checksummed_blocks_and_recovers(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "session.accraw"
