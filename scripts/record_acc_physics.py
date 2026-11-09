@@ -101,6 +101,7 @@ def main() -> int:
             except Exception as exc:
                 producer_errors.append(f"Source close {type(exc).__name__}: {exc}")
             # Source ownership ends here; dispatcher shutdown is signalled by main.
+            pass
 
     recorder_thread = threading.Thread(
         target=recorder.run, args=(recorder_stop,), name="ACC-Raw-Recorder", daemon=True
