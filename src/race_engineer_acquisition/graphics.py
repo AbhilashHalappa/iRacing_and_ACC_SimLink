@@ -69,6 +69,11 @@ class GraphicsAcquisitionMetrics:
     last_capture_sequence: int = 0
     last_acquisition_duration_ns: int = 0
     max_acquisition_duration_ns: int = 0
+    poll_interval_count: int = 0
+    total_poll_interval_ns: int = 0
+    min_poll_interval_ns: int = 0
+    max_poll_interval_ns: int = 0
+    _previous_poll_start_ns: int | None = None
 
 
 class GraphicsSource(Protocol):
@@ -96,6 +101,21 @@ class GraphicsAcquirer:
         self._next_sequence = 1
 
     def capture_once(self) -> GraphicsSnapshot | None:
+        poll_start_ns = self._clock_ns()
+        previous_start = self.metrics._previous_poll_start_ns
+        if previous_start is not None:
+            interval = poll_start_ns - previous_start
+            self.metrics.poll_interval_count += 1
+            self.metrics.total_poll_interval_ns += interval
+            self.metrics.min_poll_interval_ns = (
+                interval if self.metrics.min_poll_interval_ns == 0
+                else min(self.metrics.min_poll_interval_ns, interval)
+            )
+            self.metrics.max_poll_interval_ns = max(
+                self.metrics.max_poll_interval_ns, interval
+            )
+        self.metrics._previous_poll_start_ns = poll_start_ns
+
         for attempt in range(self._max_attempts):
             read_start_ns = self._clock_ns()
             try:
