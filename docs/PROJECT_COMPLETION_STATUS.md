@@ -3,7 +3,7 @@
 **Last updated:** 9 November 2026  
 **Branch:** `feature/acquisition-foundation`  
 **Project phase:** Greenfield acquisition foundation  
-**Status:** Physics raw acquisition and recording foundation implemented. Stage 3 normal recording, forced-termination recovery, checkpoint-assisted recovery, live slow-storage simulation and bounded simulated-ENOSPC fault handling have been exercised. The target-PC slow-storage run persisted 11,800/11,800 samples with zero rejects; the target-PC simulated-ENOSPC run preserved three complete blocks and accounted for 11,780 unpersisted queued samples. Physical disk-full testing was intentionally skipped. The Physics adapter now uses the corroborated 800-byte layout: `current_max_rpm` is int32 at offset 588, `mz[4]` is at offset 592, and later fields use corrected offsets. The final 16 bytes are opaque. Only the 800-byte Physics recording layout is supported; historical 784-byte recordings are not supported by the inspector. No decoder, Graphics adapter or Static adapter has been added.
+**Status:** Physics acquisition and raw-recording layer closed for the current scope. The 800-byte layout is strongly corroborated; live 120-second acquisition/recording, CRC inspection and independent raw-byte cross-check passed. Field-by-field semantic validation remains explicitly qualified. Stage 3 normal recording, forced-termination recovery, checkpoint-assisted recovery, live slow-storage simulation and bounded simulated-ENOSPC fault handling have been exercised. The target-PC slow-storage run persisted 11,800/11,800 samples with zero rejects; the target-PC simulated-ENOSPC run preserved three complete blocks and accounted for 11,780 unpersisted queued samples. Physical disk-full testing was intentionally skipped. The Physics adapter now uses the corroborated 800-byte layout: `current_max_rpm` is int32 at offset 588, `mz[4]` is at offset 592, and later fields use corrected offsets. The final 16 bytes are opaque. Only the 800-byte Physics recording layout is supported; historical 784-byte recordings are not supported by the inspector. No decoder, Graphics adapter or Static adapter has been added.
 
 This is the project-level status record. Update it whenever a stage reaches a new evidence-backed state. Keep implementation, automated tests, live validation and release readiness as separate claims.
 
@@ -276,3 +276,32 @@ For each update:
 7. Update the README's current status/next gate if the project phase materially changes.
 
 Never mark a stage complete solely because its code has been written.
+
+
+## Physics acquisition layer closure — 9 November 2026
+
+**Status: CLOSED for the defined Physics acquisition and raw-recording scope.**
+
+The target-PC 120-second recording at requested 480 Hz completed with an 800-byte payload and the following final accounting:
+
+| Metric | Result |
+|---|---:|
+| Acquired snapshots | 46,717 |
+| Persisted snapshots | 46,717 |
+| Acquisition rejects | 0 |
+| Recorder queue rejects | 0 |
+| Recorder write failures | 0 |
+| Pending records | 0 |
+| Reconciliation delta | 0 |
+| Checkpoint writes / failures | 121 / 0 |
+| Recorder queue high-water | 2 |
+| Maximum persist/block-write duration | 3.9 ms |
+| CPU (one core) | 13.84% |
+
+Offline inspection covered all 46,717 snapshots (212 components: 135 varying, 77 constant). An independent parser checked recording block CRCs and decoded 16 selected fields directly from raw bytes using explicit offsets/types. All 16 raw min/max results matched the inspector CSV; 45,253 valid blocks were checked. This validates recording integrity and the selected raw-to-inspector comparisons, not the complete semantic meaning of all 82 fields.
+
+Physics offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not selected setup levels. They remained zero in this capture.
+
+**Closure limits:** no claim that every Physics field has fully validated semantics or calibrated units; no claim of official Kunos header confirmation; no source-level zero-loss guarantee. The 800-byte Physics layout is the only supported recording layout.
+
+**Scope freeze:** Physics remains a standalone page and layer. Do not add Graphics or Static fields/readers, do not merge page structures, and do not change the Physics layout as part of subsequent Graphics work. Graphics and Static acquisition remain unimplemented and outside this closure.
