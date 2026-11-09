@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from threading import Event, Lock, Thread
 from typing import Callable, Iterable
 
+from .health import AcquisitionHealth
+
 
 RunWorker = Callable[[Event], None]
 CloseSource = Callable[[], None]
@@ -22,6 +24,7 @@ class AcquisitionStream:
     name: str
     run: RunWorker
     close: CloseSource
+    health: AcquisitionHealth | None = None
 
 
 @dataclass(slots=True)
@@ -116,6 +119,8 @@ class AcquisitionSupervisor:
                     with self._lock:
                         runtime.state = "failed"
                         runtime.error = f"{type(exc).__name__}: {exc}"
+                if runtime.spec.health is not None:
+                    runtime.spec.health.set_lifecycle("failed")
                     alive = self._rollback_startup()
                     suffix = f" Workers still running: {', '.join(alive)}." if alive else " All started workers stopped."
                     raise AcquisitionStartupError(
@@ -128,6 +133,8 @@ class AcquisitionSupervisor:
         with self._lock:
             if runtime.state == "starting":
                 runtime.state = "running"
+            if runtime.spec.health is not None:
+                runtime.spec.health.set_lifecycle("running")
         failed = False
         try:
             runtime.spec.run(runtime.stop_event)
@@ -143,6 +150,8 @@ class AcquisitionSupervisor:
                     runtime.state = "failed"
                 elif not failed and runtime.state != "failed":
                     runtime.state = "stopped"
+                    if runtime.spec.health is not None:
+                        runtime.spec.health.set_lifecycle("stopped")
 
     def _close_once(self, runtime: _StreamRuntime) -> None:
         assert runtime.close_lock is not None
@@ -272,6 +281,7 @@ def create_acc_acquisition_runtime(
                 stop, poll_interval_ns=max(1, round(1_000_000_000 / physics_poll_hz))
             ),
             physics_source.close,
+            acquirers["physics"].health,
         ),
         AcquisitionStream(
             "graphics",
@@ -279,6 +289,7 @@ def create_acc_acquisition_runtime(
                 stop, poll_interval_ns=max(1, round(1_000_000_000 / graphics_poll_hz))
             ),
             graphics_source.close,
+            acquirers["graphics"].health,
         ),
         AcquisitionStream(
             "static",
@@ -286,6 +297,7 @@ def create_acc_acquisition_runtime(
                 stop, refresh_interval_ns=max(1, round(static_refresh_seconds * 1_000_000_000))
             ),
             static_source.close,
+            acquirers["static"].health,
         ),
     )
     return ACCAcquisitionRuntime(
