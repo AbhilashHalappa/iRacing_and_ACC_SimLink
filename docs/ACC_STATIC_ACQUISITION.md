@@ -2,7 +2,7 @@
 
 **Updated:** 9 November 2026  
 **Branch:** `feature/acquisition-foundation`  
-**Status:** Raw-only adapter and change-detected acquisition implemented; automated tests added; target-PC 90-second stable-page acquisition check passed. Candidate field-layout audit is documented separately; live value qualification remains pending.
+**Status:** Raw-only adapter and change-detected acquisition implemented; target-PC stable-page acquisition check passed. Live ACC 1.9 values strongly favor candidate layout B. A conservative candidate-B decoder and regression tests have been added; local execution of the expanded test set is pending.
 
 ## Scope
 
@@ -42,6 +42,8 @@ The first successful read is always emitted. Later reads are emitted only when t
   - No field decoder and no guessed packet ID/timestamp.
 - `scripts/validate_acc_static_live.py` — focused 90-second live check; prints mapping size, raw-page hashes, per-capture local read timestamps, unchanged-read counts and rejection counts without dumping the page.
 - `scripts/inspect_acc_static_candidate.py` — read-only compact inspector for the common-prefix candidate and both 15-/33-character TrackConfiguration tail layouts.
+- `src/race_engineer_acquisition/static_decoder.py` — conservative decoder for fields supported by the live-qualified candidate-B offsets. Unresolved fields remain raw-only.
+- `tests/acquisition/test_static_decoder.py` — decoder tests for candidate-B offsets, short pages and invalid boolean encodings.
 - `docs/ACC_STATIC_FIELD_LAYOUT_AUDIT.md` — candidate offsets, competing layouts, semantic disposition and evidence gates.
 - `tests/acquisition/test_static.py`
   - Initial/unchanged/changed-page behavior.
@@ -51,7 +53,7 @@ The first successful read is always emitted. Later reads are emitted only when t
 
 ## ABI and validation limitations
 
-The implementation deliberately does not declare a production `SPageFileStatic` layout or field decoder. The target PC confirmed a 4,096-byte mapping allocation, but public candidate references disagree on whether `TrackConfiguration` is 15 or 33 UTF-16 code units. That difference changes the candidate logical structure size from 784 to 820 bytes and shifts every subsequent field. The 4,096-byte allocation does not resolve this ABI discrepancy. See `docs/ACC_STATIC_FIELD_LAYOUT_AUDIT.md`.
+The implementation does not claim official Kunos ABI certification. Target-PC inspection on ACC Shared Memory 1.9 strongly favors candidate B: common-prefix car/track/session values match, and CarSkin plus dry/wet tyre names decode coherently at candidate-B offsets while candidate-A offsets are empty. The conservative decoder exposes only selected fields from candidate B. Pit-window values/units, deprecated members, ambiguous fields and unsupported semantics remain raw-only. The 4,096-byte allocation is not treated as the logical structure size. See `docs/ACC_STATIC_FIELD_LAYOUT_AUDIT.md`.
 
 Automated tests are not a substitute for a live ACC read. The raw acquisition smoke test passed on the target PC (90 reads, one initial snapshot, 89 unchanged reads, zero buffer rejections). This validates stable-page acquisition only. Before Static field decoding can be marked validated:
 1. Run `python scripts/inspect_acc_static_candidate.py` on the target Windows PC with ACC active.
