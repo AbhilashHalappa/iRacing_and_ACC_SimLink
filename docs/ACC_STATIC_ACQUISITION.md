@@ -2,7 +2,7 @@
 
 **Updated:** 9 November 2026  
 **Branch:** `feature/acquisition-foundation`  
-**Status:** Raw-only change-detected acquisition is implemented and runs as an independently supervised worker. Focused worker lifecycle/failure tests and a supervised live ACC smoke test are documented below. Candidate-B decoder status and ABI limitations remain unchanged.
+**Status:** Raw-only change-detected acquisition and versioned off-thread Static recording are implemented. Live recording validation remains outstanding. Candidate-B decoder status and ABI limitations remain unchanged.
 
 ## Scope
 
@@ -50,6 +50,12 @@ The first successful read is always emitted. Later reads are emitted only when t
   - Explicit absent source packet ID and source timestamp.
   - Local monotonic timestamp preservation.
   - Full mapping copy and clean close through an injected mapping.
+- `src/race_engineer_acquisition/static_recording.py`
+  - Version-2 append-only writer with CRC-protected blocks and a per-batch monotonic persistence timestamp.
+  - Complete raw mapping pages plus original capture sequence and local read/capture timestamps.
+  - Bounded off-thread recorder worker, explicit write-failure accounting, drain-on-stop, and recovery/truncation.
+- `scripts/record_acc_static.py` — live acquisition-to-disk validation; only changed pages are transferred and persisted.
+- `tests/acquisition/test_static_recording.py` — writer/recovery, metadata provenance, queue rejection, drain and injected write-failure coverage.
 
 ## Static persistence policy (Issue #5)
 
@@ -76,11 +82,32 @@ The persistence contract is:
 - A Static persistence failure must be visible as an incomplete/failed Static
   recording outcome; it must not be represented as successful persistence.
 
-The recording implementation is deliberately deferred until the common
-per-sample persistence timestamp and versioned recording-format contract in
-Issue #4 is established. This avoids introducing a separate Static format
-that would immediately need migration. Issue #5 is therefore decision-approved
-but remains open for implementation and validation after Issue #4.
+The common version-2 recording contract from Issue #4 is now established, and
+Static persistence is implemented in `static_recording.py`. Static uses the
+same file-header and block-framing conventions with its own `ACCSTA01` file
+magic and `STBK` block magic. Its record layout intentionally omits source
+packet ID because the ACC Static layout defines none. Every record preserves
+capture sequence, read-start/read-complete/capture timestamps, a downstream
+persistence timestamp, and the complete raw page. The writer samples one
+monotonic timestamp per batch immediately before encoding; a batch is counted
+persisted only after write, flush, and `fsync` succeed.
+
+Run a live recording on Windows with ACC active:
+
+```powershell
+$env:PYTHONPATH = "src"
+python scripts/record_acc_static.py --duration-seconds 120 --refresh-seconds 1
+```
+
+The script writes `user_data/raw_recordings/acc_static_*.straw` and a JSON
+report. It uses separate acquisition and recorder queues with a dispatcher;
+the Static acquisition worker never waits for the recorder or performs disk
+I/O. On shutdown, the dispatcher drains the acquisition queue, then the
+recorder drains its queue before closing the file. The script verifies the
+recording through the recovery reader and reports acquired/persisted pages,
+unchanged reads, both queue-rejection counts, write failures, pending/in-flight
+work, and the reconciliation delta. A non-zero loss/failure or incomplete
+recovery makes the validation fail.
 
 ## Supervised worker lifecycle
 
@@ -102,7 +129,7 @@ Worker contract:
 - On worker exit, the supervisor closes the Static source/mapping exactly
   once. A timed-out live worker retains mapping ownership until it exits.
 - Static remains independent: no source packet ID or source timestamp is
-  added, and no decoding or persistence occurs in the worker.
+  added, and no decoding or persistence occurs in the acquisition worker.
 
 Focused tests:
 
@@ -112,10 +139,12 @@ python -m unittest tests.acquisition.test_static -v
 python -m unittest discover -s tests/acquisition -v
 ```
 
-The focused Static tests cover initial/unchanged/changed observations,
+The focused acquisition tests cover initial/unchanged/changed observations,
 buffer-rejection retry, full mapping copy, supervised worker startup and
 shutdown, exactly-once source close, common health lifecycle, and source
-failure propagation/counting.
+failure propagation/counting. The Static recording tests cover complete-page
+round trips, timestamp and sequence preservation, bounded queue rejection,
+worker drain, write-failure accounting, and recovery of the valid prefix.
 
 ### Existing supervised live ACC evidence
 
