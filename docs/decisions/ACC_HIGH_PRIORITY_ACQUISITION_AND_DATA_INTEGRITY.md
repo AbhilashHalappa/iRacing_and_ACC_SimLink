@@ -168,3 +168,26 @@ This closes the Physics acquisition and raw-recording foundation for the current
 The fields at Physics offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not selected setup levels. No Graphics fields are part of this decision.
 
 **Boundary:** keep Physics standalone. Do not merge Graphics or Static structures into the Physics page or change the completed Physics ABI as part of future page work. Graphics/Static acquisition is a separate future scope.
+
+
+## 10. Evidence-first validation and no-repeat policy — 9 November 2026
+
+The acquisition project must build on existing recordings and completed tests rather than repeatedly asking the user to reproduce already observed behaviour.
+
+Before requesting any new live ACC test:
+
+1. Search the existing raw Physics and Graphics recordings and their JSON/CSV inspection reports.
+2. Check the corresponding field-coverage audit and pinned reference layouts.
+3. State the exact unresolved question and why existing evidence cannot answer it.
+4. Request only the minimum controlled action needed to close that specific gap.
+5. Record the result, evidence file, integrity outcome and confidence/status in the relevant page-specific audit.
+
+A new capture must not be requested merely to reconfirm a field already observed or validated. Do not combine Physics and Graphics evidence or modify one page's ABI while investigating another.
+
+Current examples of existing evidence that must be reused:
+- Physics `car_damage[5]` at offset 224: live damage response was observed; a prior controlled pit-service test showed values returning to zero after requested repair. This is already recorded in `docs/ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md`.
+- Physics tyre pressure and core temperature: four live channels each were observed in the existing five-minute pit-service recording.
+- Graphics `tyre_compound` at candidate offset 176: `dry_compound` was observed throughout the six-minute dry-condition capture. A compound transition has not been observed, but that gap does not justify repeating unrelated Physics or Graphics tests.
+- Graphics complete candidate inventory: all 87 candidate members were audited offline against the existing six-minute, 36,001-sample raw recording. Review its saved JSON report before requesting any additional capture.
+
+This policy changes test planning, not the acquisition architecture or ABI. Raw recordings remain the primary evidence; summaries are derived artefacts.
