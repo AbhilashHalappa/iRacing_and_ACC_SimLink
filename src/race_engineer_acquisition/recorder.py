@@ -16,6 +16,7 @@ from pathlib import Path
 from threading import Event
 from typing import Iterable
 
+from .acc_windows import PHYSICS_SIZE
 from .models import PhysicsSnapshot
 from .ring_buffer import AcquisitionRingBuffer
 
@@ -92,7 +93,7 @@ def _decode_block_payload(payload: bytes, record_count: int) -> list[PhysicsSnap
 class RawPhysicsRecordingWriter:
     """Single-writer append-only file with CRC-protected blocks."""
 
-    def __init__(self, path: str | Path, *, payload_size: int = 784, created_utc_ns: int | None = None) -> None:
+    def __init__(self, path: str | Path, *, payload_size: int = PHYSICS_SIZE, created_utc_ns: int | None = None) -> None:
         if payload_size <= 0:
             raise ValueError("payload_size must be positive")
         self.path = Path(path)
