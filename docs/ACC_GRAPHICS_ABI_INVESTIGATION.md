@@ -176,6 +176,18 @@ Offsets are zero-based byte offsets. Scalar types use 4 bytes; UTF-16 strings us
 - No decoding, lap classification, state-machine logic, UI, JSON/DB writes or disk I/O in the acquisition hot path.
 - Offline inspector will inventory every candidate field and preserve unknown/reserved bytes.
 
+## First live mapping probe
+
+A read-only diagnostic script has been added:
+
+```powershell
+python scripts/probe_acc_graphics.py --duration-seconds 5 --sample-interval-ms 10
+```
+
+It opens `Local\\acpmf_graphics` with read/query access only, samples the leading packet ID, queries the section allocation size, and saves one complete copy of the mapped section to a `.graphics-page.bin` file plus a JSON report under `user_data/raw_recordings`.
+
+The mapping allocation size is intentionally reported separately from the 1,588-byte candidate structure size. A page-rounded allocation (for example 4,096 bytes) is not evidence that all bytes belong to the logical Graphics structure. The raw file lets us inspect the complete mapped region without committing to field offsets. This is a one-shot diagnostic probe, not the production acquisition/recorder.
+
 ## ABI verification gates before production layout lock
 
 1. Read the live `Local\\acpmf_graphics` mapping read-only while ACC 1.10.4 is running.
