@@ -14,9 +14,9 @@ from .models import RawPhysicsRead
 
 PHYSICS_MAP = r"Local\acpmf_physics"
 
-# Layout provenance: AbhilashHalappa/Race-Engineer-ACC,
-# branch diagnostic/high-res-capture-2026-11-07,
-# src/acc_shared_memory_extended.py, blob e9a54bda008cb6ff1797dfdc14b07b297a461ab9.
+# Layout evidence: three independent ACC readers include currentMaxRpm + mz[4];
+# the live read-only probe confirmed access through byte 799. The final 16 bytes
+# remain opaque because their semantics are not required by acquisition.
 
 class _Physics(ctypes.LittleEndianStructure):
     _pack_ = 4
