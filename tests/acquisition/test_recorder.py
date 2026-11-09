@@ -5,6 +5,8 @@ from pathlib import Path
 from threading import Event, Thread
 from unittest.mock import patch
 
+from race_engineer_acquisition.acc_windows import PHYSICS_SIZE
+from race_engineer_acquisition.inspection import inspect_recording
 from race_engineer_acquisition.models import PhysicsSnapshot
 from race_engineer_acquisition.recorder import (
     PhysicsRecorderWorker,
@@ -20,6 +22,28 @@ def snapshot(sequence: int, payload_size: int = 8) -> PhysicsSnapshot:
 
 
 class RecorderTests(unittest.TestCase):
+    def test_default_writer_uses_current_800_byte_physics_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "current.accraw"
+            item = PhysicsSnapshot(1, 101, 10, 11, 11, bytes(PHYSICS_SIZE))
+            with RawPhysicsRecordingWriter(path) as writer:
+                self.assertEqual(writer.payload_size, 800)
+                writer.write_batch([item])
+            self.assertEqual(recover_recording(path).recovered_snapshot_count, 1)
+            report = inspect_recording(path)
+            self.assertEqual(report["layout"], "current-800-byte")
+
+    def test_legacy_784_byte_recording_remains_raw_readable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy.accraw"
+            item = PhysicsSnapshot(1, 101, 10, 11, 11, bytes(784))
+            with RawPhysicsRecordingWriter(path, payload_size=784) as writer:
+                writer.write_batch([item])
+            self.assertEqual(recover_recording(path).recovered_snapshot_count, 1)
+            report = inspect_recording(path)
+            self.assertEqual(report["layout"], "legacy-784-byte")
+            self.assertEqual(report["snapshot_count"], 1)
+            self.assertEqual(report["field_component_count"], 0)
     def test_writer_persists_multiple_checksummed_blocks_and_recovers(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "session.accraw"
