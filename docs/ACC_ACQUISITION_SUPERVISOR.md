@@ -28,7 +28,13 @@ if still_running:
 The runtime creates independent Windows source adapters, acquirers and bounded
 SPSC buffers. Mapping handles are opened lazily on the corresponding worker
 thread. Default cadence is Physics 480 Hz, Graphics 100 Hz and Static 1 Hz;
-each can be configured independently. The returned buffers are not a
+each can be configured independently. On Windows, the supervisor requests a
+balanced 1 ms WinMM timer resolution before starting workers and holds that
+request until every worker has exited. If shutdown times out, the request stays
+active until the final worker exits; it is never released while acquisition is
+still running. Set `timer_resolution_ms=0` only for a controlled diagnostic
+comparison, not normal operation. Timer resolution improves wait granularity
+but cannot guarantee scheduler wake-up timing. The returned buffers are not a
 multi-consumer broadcast mechanism and are not connected to persistence.
 
 ## Lifecycle contract
@@ -83,7 +89,7 @@ The script opens all three independent mappings through their worker threads
 and drains each SPSC queue on a separate validation thread. It requests a 1 ms
 timer resolution by default, measures actual successful-read rates, reconciles
 all captured records against drained/rejected/pending records, and checks clean
-shutdown. Acceptance requires at least 95% of the configured 480 Hz Physics
+shutdown. Acceptance requires at least 99% of the configured 480 Hz Physics
 and 100 Hz Graphics read rates, zero source read failures, zero buffer rejects,
 zero reconciliation delta, empty queues and released timer resolution. It
 performs no disk writes and does not repeat Physics/Graphics field recordings.
@@ -92,16 +98,16 @@ Run the full 120-second validation (matching the original benchmark duration)
 with:
 
 ```powershell
-python scripts/validate_acc_acquisition_supervisor.py --seconds 120 --minimum-rate-ratio 0.95
+python scripts/validate_acc_acquisition_supervisor.py --seconds 120 --minimum-rate-ratio 0.99
 ```
 
 A `PASSED` result is now performance-gated; merely observing one or more reads
 is insufficient. Compare the Physics read rate with the original measured
 479.672 Hz benchmark. Compare Physics unique capture rate separately: ACC does
 not publish a new packet on every poll, so the historical 388.50 unique
-snapshots/s is not the polling-rate acceptance target. CPU percentage is not
-currently measured by this supervisor validator and must not be inferred from
-its read-duration counters.
+snapshots/s is not the polling-rate acceptance target. The validator also reports total process CPU as a percentage of one core;
+compare it with the original Physics-only benchmark cautiously because this
+runtime additionally polls Graphics and Static and drains three queues.
 
 
 ## Common per-stream health
