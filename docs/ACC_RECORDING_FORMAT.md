@@ -87,3 +87,13 @@ worker drains a bounded recorder queue on stop and reports failed batches.
 ## Acquisition performance boundary
 
 Persistence timestamps are generated only in the recorder writer after batch assembly and stored in separate decoded-record types. The live PhysicsSnapshot and GraphicsSnapshot acquisition objects do not gain a persistence field or extra per-sample slot. Acquisition hot loops do not call the persistence clock or perform additional serialization, queueing, or disk operations. Existing acquisition payloads, polling cadence, packet consistency checks, and capture timestamps are unchanged.
+
+
+## Downstream consumer fan-out
+
+Physics acquisition remains SPSC. Independent bounded consumer queues and the
+out-of-loop dispatcher are specified in
+[ACC Downstream Fan-out Queues](ACC_DOWNSTREAM_FANOUT.md). The Physics recorder
+acknowledges samples only after successful batch write, flush, and fsync; queue
+rejections and processing failures remain explicit and prevent a successful
+recording validation result.
