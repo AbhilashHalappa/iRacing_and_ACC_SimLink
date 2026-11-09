@@ -69,3 +69,17 @@ rollback and duplicate stream-name rejection.
 A Windows ACC smoke test is still required to validate all three live mapping
 opens and clean shutdown together. This lifecycle change does not require
 repeating Physics or Graphics field recordings.
+
+
+## Live Windows smoke test
+
+With ACC running, execute:
+
+```powershell
+python scripts/validate_acc_acquisition_supervisor.py --seconds 30
+```
+
+The script opens all three independent mappings through their worker threads,
+then requests shutdown. It reports each stream's state, capture count, pending
+buffer entries, buffer rejections and source-close errors. It performs no disk
+writes and does not repeat Physics/Graphics field recordings.
