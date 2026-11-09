@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import threading
 import unittest
+
+from race_engineer_acquisition.supervisor import AcquisitionStream, AcquisitionSupervisor
 
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 from race_engineer_acquisition.static import (
@@ -84,6 +87,105 @@ class StaticAcquisitionTests(unittest.TestCase):
         self.assertEqual(source.read_static().payload, b"12345678")
         source.close()
         self.assertTrue(mapping.closed)
+
+
+    def test_supervised_worker_emits_initial_and_changed_pages_then_closes_source(self):
+        stop_event = threading.Event()
+
+        class TickClock:
+            def __init__(self):
+                self.value = 0
+
+            def __call__(self):
+                value = self.value
+                self.value += 1
+                return value
+
+        class StopAfterThreeReads(FakeStaticSource):
+            def __init__(self):
+                super().__init__([b"first001", b"first001", b"second02"])
+                self.reads = 0
+                self.closed = 0
+
+            def read_static(self):
+                result = super().read_static()
+                self.reads += 1
+                if self.reads == 3:
+                    stop_event.set()
+                return result
+
+            def close(self):
+                self.closed += 1
+
+        source = StopAfterThreeReads()
+        buffer = AcquisitionRingBuffer[object](capacity=8)
+        acquirer = StaticAcquirer(source, buffer, clock_ns=TickClock())
+        supervisor = AcquisitionSupervisor([
+            AcquisitionStream(
+                "static",
+                lambda stop: acquirer.run(stop, refresh_interval_ns=1),
+                source.close,
+                acquirer.health,
+            )
+        ])
+
+        supervisor.start()
+        self.assertEqual(supervisor.join(timeout=1), ())
+
+        status = supervisor.status["static"]
+        health = status["health"]
+        self.assertEqual(status["state"], "stopped")
+        self.assertEqual(health.lifecycle_state, "stopped")
+        self.assertEqual(health.successful_reads, 3)
+        self.assertEqual(health.source_read_failures, 0)
+        self.assertEqual(source.closed, 1)
+        self.assertEqual(acquirer.metrics.capture_count, 2)
+        self.assertEqual(acquirer.metrics.unchanged_read_count, 1)
+        self.assertEqual(buffer.size, 2)
+        first = buffer.try_get()
+        changed = buffer.try_get()
+        self.assertEqual(first.capture_sequence, 1)
+        self.assertEqual(changed.capture_sequence, 2)
+        self.assertEqual(first.payload, b"first001")
+        self.assertEqual(changed.payload, b"second02")
+        self.assertIsNone(first.source_packet_id)
+        self.assertIsNone(first.source_timestamp_ns)
+
+    def test_supervised_static_read_failure_is_counted_and_closes_source(self):
+        class FailingSource(FakeStaticSource):
+            def __init__(self):
+                self.closed = 0
+
+            def read_static(self):
+                raise OSError("static mapping read failed")
+
+            def close(self):
+                self.closed += 1
+
+        source = FailingSource()
+        acquirer = StaticAcquirer(
+            source, AcquisitionRingBuffer[object](capacity=4)
+        )
+        supervisor = AcquisitionSupervisor([
+            AcquisitionStream(
+                "static",
+                lambda stop: acquirer.run(stop, refresh_interval_ns=1),
+                source.close,
+                acquirer.health,
+            )
+        ])
+
+        supervisor.start()
+        self.assertEqual(supervisor.join(timeout=1), ())
+
+        status = supervisor.status["static"]
+        health = status["health"]
+        self.assertEqual(status["state"], "failed")
+        self.assertEqual(health.lifecycle_state, "failed")
+        self.assertEqual(health.source_read_failures, 1)
+        self.assertEqual(health.consecutive_failures, 1)
+        self.assertIn("static mapping read failed", status["error"])
+        self.assertEqual(source.closed, 1)
 
 
 if __name__ == "__main__":
