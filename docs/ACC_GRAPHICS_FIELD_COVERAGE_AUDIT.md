@@ -177,3 +177,16 @@ The offline inspector was run against the existing 18,000-sample, 180-second ful
 ## ABI sign-off status
 
 **NOT SIGNED OFF.** The recording provides strong empirical correlations for several high-value fields, but the candidate structure is still derived from a v1.8.12 transcription while the target reports Shared Memory 1.9. This audit is a coverage/evidence map, not a declaration that the candidate 1,588-byte structure is the exact v1.9 ABI.
+
+
+## RaceIQ / Pro Engineer reference reconciliation — 9 November 2026
+
+The complete candidate inventory has been checked against two additional independent projects at pinned revisions:
+
+- [RaceIQ ACC structure definitions](https://github.com/SpeedHQ/RaceIQ/blob/64a34783f706722cf342e18ecb7fc06d29f30f8e/packages/capture-formats/src/acc/structs.ts)
+- [Pro Engineer complete ACC structures](https://github.com/Rgosh/ac-pro-engineer/blob/b33ab4b2c8dfcfeb1079cfb08197fe7e77127b26/core/src/games/assetto_corsa_competizione/structs.rs)
+- [Pro Engineer capture and validation notes](https://github.com/Rgosh/ac-pro-engineer/blob/b33ab4b2c8dfcfeb1079cfb08197fe7e77127b26/docs/plan-acc.md)
+
+**Results:** both references declare the Graphics mapping as 1,588 bytes. RaceIQ's 44 explicit offset descriptors align with the corresponding Pro Engineer offsets. RaceIQ's current offset map stops at `clock` (1488) and omits explicit descriptors for the final 96 bytes; Pro Engineer supplies the complete 87-member field sequence through `gap_behind` at 1584. RaceIQ's 1,320-byte minimum is a legacy parser-compatibility path, not the complete page, and is not suitable for new raw acquisition.
+
+The 87-field candidate inventory in this audit therefore uses Pro Engineer's complete sequence and RaceIQ's overlapping offsets as a cross-check. This is reference corroboration, not official Kunos Shared Memory 1.9 ABI confirmation. Preserve the complete 4,096-byte mapping capture; treat bytes 1,588–4,095 as opaque mapping tail based on the existing all-zero observation, not as additional declared fields.
