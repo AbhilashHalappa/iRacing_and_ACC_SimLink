@@ -231,3 +231,16 @@ The requested reference implementations have now been inspected directly, at pin
 Use the **complete 87-field Pro Engineer sequence** as the full candidate field inventory, with RaceIQ as an independent offset cross-check for the 44 descriptors it exposes. Keep the existing target-PC raw capture of the **entire 4,096-byte mapping allocation**; treat the first 1,588 bytes as the candidate logical Graphics structure and the remaining 2,508 bytes as opaque mapping tail unless new evidence proves otherwise. Do not truncate new raw captures to 1,320 bytes or to the subset of fields currently consumed by the application.
 
 This materially strengthens the 1,588-byte candidate but does **not** turn the v1.8.12-derived third-party layout into official Shared Memory 1.9 confirmation. The existing live target capture and trailing-zero observation remain separate evidence. No production Graphics structure or reader is authorized by this cross-check alone.
+
+
+## Raw-only Graphics acquisition implementation — 9 November 2026
+
+The reference cross-check has been followed by a separate raw-only implementation:
+
+- `src/race_engineer_acquisition/graphics.py` opens `Local\\acpmf_graphics` read-only and discovers the mapping allocation size at runtime.
+- The source copies the complete mapping allocation and brackets the copy with packet-ID reads (including the ID embedded in the copied payload).
+- The candidate 1,588-byte structure is not used as a copy limit and is not decoded in the acquisition path. With the current target allocation, all 4,096 bytes are retained.
+- Graphics has independent snapshot models, acquisition metrics, CRC-block recording/recovery, recorder queue and recording magic/schema. Only the generic bounded ring buffer and checkpoint worker are reused.
+- Runner: `scripts/record_acc_graphics.py`. Automated tests: `tests/acquisition/test_graphics_acquisition.py` and `tests/acquisition/test_graphics_recorder.py`.
+
+**Implementation is present; validation is pending.** The candidate Shared Memory 1.9 field layout remains unsigned-off. This implementation preserves raw bytes and does not depend on that layout sign-off. Physics remains unchanged.
