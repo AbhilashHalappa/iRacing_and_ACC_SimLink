@@ -17,7 +17,7 @@ from typing import Protocol
 
 from .ring_buffer import AcquisitionRingBuffer
 
-STATIC_MAP = r"Local\\acpmf_static"
+STATIC_MAP = r"Local\acpmf_static"
 MIN_STATIC_MAPPING_SIZE = 1
 
 
