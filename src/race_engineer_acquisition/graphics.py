@@ -353,7 +353,7 @@ def _encode_graphics_snapshot(
 
 def _decode_graphics_block(
     payload: bytes, record_count: int, *, format_version: int = 2
- ) -> list[GraphicsRecordingSample]:
+) -> list[GraphicsRecordingSample]:
     if format_version not in (1, 2):
         raise ValueError(f"Unsupported Graphics recording format version: {format_version}")
     record_header = _RECORD_HEADER_V1 if format_version == 1 else _RECORD_HEADER_V2
