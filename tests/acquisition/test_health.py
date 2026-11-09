@@ -103,7 +103,26 @@ class AcquisitionHealthTests(unittest.TestCase):
         self.assertEqual(acquirer.health.snapshot.buffer_rejections, 1)
         self.assertEqual(acquirer.metrics.buffer_rejection_count, 1)
 
-    def test_supervisor_exposes_running_failed_and_stopped_health(self):
+
+    def test_supervisor_health_transitions_from_idle_to_running_to_stopped(self):
+        entered = threading.Event()
+        health = AcquisitionHealth()
+
+        def worker(stop):
+            entered.set()
+            stop.wait(1)
+
+        supervisor = AcquisitionSupervisor([
+            AcquisitionStream("static", worker, lambda: None, health)
+        ])
+        self.assertEqual(health.snapshot.lifecycle_state, "idle")
+        supervisor.start()
+        self.assertTrue(entered.wait(1))
+        self.assertEqual(supervisor.status["static"]["health"].lifecycle_state, "running")
+        self.assertEqual(supervisor.stop(timeout=1), ())
+        self.assertEqual(supervisor.status["static"]["health"].lifecycle_state, "stopped")
+
+    def test_supervisor_exposes_running_and_failed_health(self):
         entered = threading.Event()
         release = threading.Event()
         health = AcquisitionHealth()
