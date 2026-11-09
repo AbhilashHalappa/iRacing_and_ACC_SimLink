@@ -58,6 +58,18 @@ class StaticRecordingTests(unittest.TestCase):
             self.assertEqual(queue.size, 0)
             self.assertEqual(recover_static_recording(path).recovered_snapshot_count, 2)
 
+    def test_bounded_recorder_queue_rejects_without_overwriting_and_persists_accepted_page(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "static.accraw"
+            queue = AcquisitionRingBuffer[StaticSnapshot](1)
+            self.assertTrue(queue.try_put(sample(1, b"12345678")))
+            self.assertFalse(queue.try_put(sample(2, b"abcdefgh")))
+            self.assertEqual(queue.total_rejection_count, 1)
+            worker = StaticRecorderWorker(queue, path, page_size=8)
+            worker.run(Event())
+            self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
+            self.assertEqual(recover_static_recording(path).recovered_snapshot_count, 1)
+
     def test_worker_reports_write_failure_and_recovery_keeps_valid_prefix(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "static.accraw"
