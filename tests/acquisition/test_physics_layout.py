@@ -98,7 +98,7 @@ EXPECTED_FIELDS = (
 
 
 class PhysicsLayoutRegressionTests(unittest.TestCase):
-    def test_total_structure_size_is_784_bytes(self):
+    def test_total_structure_size_is_800_bytes(self):
         self.assertEqual(ctypes.sizeof(_Physics), 800)
         self.assertEqual(PHYSICS_SIZE, 800)
 
