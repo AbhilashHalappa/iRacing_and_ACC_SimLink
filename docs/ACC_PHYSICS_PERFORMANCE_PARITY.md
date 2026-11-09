@@ -1,6 +1,6 @@
 # ACC Physics Acquisition Performance Parity
 
-**Status:** Methodology and benchmark harness prepared; supervised parity run pending.
+**Status:** Initial supervised parity run failed; targeted health-update optimization committed; post-optimization 600-second run pending.
 **Branch:** `feature/acquisition-foundation`
 **Purpose:** Verify that the supervised Physics acquisition path preserves the original Physics-only performance, without reducing the 480 Hz target or weakening acceptance thresholds.
 
@@ -47,6 +47,37 @@ python scripts/benchmark_acc_physics_supervised.py --seconds 600 --poll-hz 480 -
 ```
 
 The harness passes only if observed poll cadence is at least 99% of 480 Hz, there are zero source read failures, zero buffer rejections, zero pending records and zero reconciliation delta, the worker and consumer stop, and timer resolution is released without error. It does not lower the acquisition target.
+
+## Initial supervised result — failed
+
+The first 600-second supervised Physics-only run was completed on 2026-11-09
+with the same 480 Hz request, 1 ms timer request, one Physics stream and one
+drain thread. It did not meet the performance gate:
+
+- Average poll cadence: **472.63 Hz** (below the 475.2 Hz minimum).
+- Unique accepted snapshots: **372.45/s** (below the approximately 388.50/s reference).
+- Process CPU: **6.22% of one core** (above the 4.69% reference).
+- Source read failures, buffer rejections, pending records and reconciliation
+  delta: **all zero**.
+- Worker and drain shutdown: clean; timer resolution released; no errors.
+
+The report showed 284,869 read attempts, 223,473 accepted unique snapshots,
+1,291 inconsistent snapshots/retries, 60,105 duplicate packet observations,
+4,423 poll schedule overruns and a maximum poll lateness of 60.22 ms. These
+figures describe the run; they do not by themselves prove that health reporting
+caused the regression.
+
+A targeted optimization was then committed to common acquisition health:
+worker-owned counters are now updated in place rather than replacing an
+immutable dataclass on every successful read. Snapshot readers use a sequence
+counter to retain coherent immutable snapshots without adding a lock to the
+acquisition path. No source-read, consistency, packet-ID, timestamp, snapshot,
+buffer, retry, polling-target or acceptance behavior was intentionally changed.
+
+**The optimization is not yet performance-accepted.** Run the same 600-second
+benchmark again and compare all three performance metrics. If it still misses
+the reference, investigate the scheduling/read path; do not weaken thresholds
+or alter data-quality guarantees.
 
 ## Acceptance and interpretation
 
