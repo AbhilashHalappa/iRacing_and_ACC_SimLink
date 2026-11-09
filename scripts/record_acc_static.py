@@ -153,7 +153,14 @@ def main() -> int:
         "recorder_error": recorder.error,
     }
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(f"Status                  : {'completed' if not producer_errors and recorder.error is None else 'failed'}")
+    validation_passed = (
+        not producer_errors and recorder.error is None
+        and persisted == acquired and acquisition_rejected == 0
+        and recorder_rejected == 0 and pending == 0 and in_flight == 0
+        and delta == 0 and recovery.recovered_snapshot_count == persisted
+        and recovery.truncated_bytes == 0
+    )
+    print(f"Status                  : {'completed' if validation_passed else 'failed'}")
     print(f"Recording               : {recording_path}")
     print(f"Report                  : {report_path}")
     print(f"Mapping page size       : {page_size} bytes")
@@ -171,13 +178,7 @@ def main() -> int:
     print(f"Source timestamp        : None")
     print(f"Producer errors         : {producer_errors}")
     print(f"Recorder error          : {recorder.error}")
-    return 0 if (
-        not producer_errors and recorder.error is None
-        and persisted == acquired and acquisition_rejected == 0
-        and recorder_rejected == 0 and pending == 0 and in_flight == 0
-        and delta == 0 and recovery.recovered_snapshot_count == persisted
-        and recovery.truncated_bytes == 0
-    ) else 2
+    return 0 if validation_passed else 2
 
 
 if __name__ == "__main__":
