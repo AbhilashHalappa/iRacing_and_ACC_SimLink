@@ -299,6 +299,7 @@ def create_acc_acquisition_runtime(
     physics_buffer_capacity: int = 100_000,
     graphics_buffer_capacity: int = 10_000,
     static_buffer_capacity: int = 64,
+    timer_resolution_ms: int = 1,
 ) -> ACCAcquisitionRuntime:
     """Build the three independent Windows ACC acquisition workers.
 
@@ -313,6 +314,7 @@ def create_acc_acquisition_runtime(
     from .graphics import GraphicsAcquirer, WindowsACCGraphicsSource
     from .ring_buffer import AcquisitionRingBuffer
     from .static import StaticAcquirer, WindowsACCStaticSource
+    from .timing_windows import WindowsTimerResolution
 
     physics_source = WindowsACCPhysicsSource()
     graphics_source = WindowsACCGraphicsSource()
@@ -355,5 +357,7 @@ def create_acc_acquisition_runtime(
         ),
     )
     return ACCAcquisitionRuntime(
-        AcquisitionSupervisor(streams), buffers, acquirers
+        AcquisitionSupervisor(
+            streams, timer_resolution=WindowsTimerResolution(timer_resolution_ms)
+        ), buffers, acquirers
     )
