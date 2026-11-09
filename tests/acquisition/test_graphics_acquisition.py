@@ -55,20 +55,26 @@ class GraphicsAcquirerTests(unittest.TestCase):
         self.assertEqual(acquirer.metrics.consistency_retry_count, 1)
         self.assertEqual(acquirer.metrics.read_attempt_count, 2)
 
-    def test_duplicate_packet_observations_are_not_published_twice(self):
+    def test_duplicate_packet_id_observations_are_preserved(self):
         buffer = AcquisitionRingBuffer(4)
         acquirer = GraphicsAcquirer(
-            FakeSource([read(7, 7, 7), read(7, 7, 7), read(8, 8, 8)]),
+            FakeSource([
+                read(7, 7, 7, b"first"),
+                read(7, 7, 7, b"changed-with-same-id"),
+                read(8, 8, 8, b"next"),
+            ]),
             buffer, clock_ns=FakeClock(),
         )
         first = acquirer.capture_once()
-        duplicate = acquirer.capture_once()
+        same_id = acquirer.capture_once()
         next_page = acquirer.capture_once()
-        self.assertIsNotNone(first)
-        self.assertIsNone(duplicate)
-        self.assertEqual(next_page.capture_sequence, 2)
+        self.assertEqual(first.capture_sequence, 1)
+        self.assertEqual(same_id.capture_sequence, 2)
+        self.assertEqual(same_id.payload.endswith(b"changed-with-same-id"), True)
+        self.assertEqual(next_page.capture_sequence, 3)
         self.assertEqual(acquirer.metrics.duplicate_packet_observation_count, 1)
         self.assertEqual(buffer.try_get().acc_graphics_packet_id, 7)
+        self.assertEqual(buffer.try_get().payload.endswith(b"changed-with-same-id"), True)
         self.assertEqual(buffer.try_get().acc_graphics_packet_id, 8)
 
     def test_packet_gaps_and_regressions_are_accounted_separately(self):
