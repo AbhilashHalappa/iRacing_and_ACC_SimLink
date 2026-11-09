@@ -89,7 +89,7 @@ class PersistenceTimestampTests(unittest.TestCase):
                                  i * 10 + 1, bytes([i]) * 8)
                 for i in (1, 2, 3)
             ]
-            self.assertIsNone(snapshots[0].persistence_timestamp_ns)
+            self.assertFalse(hasattr(snapshots[0], "persistence_timestamp_ns"))
             with RawGraphicsRecordingWriter(
                 path, page_size=8, created_utc_ns=1, clock_ns=lambda: next(ticks)
             ) as writer:
