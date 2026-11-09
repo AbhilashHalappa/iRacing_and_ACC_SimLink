@@ -167,8 +167,8 @@ def main() -> int:
                 "last_persisted_capture_sequence": recorder.metrics.last_persisted_capture_sequence,
                 "write_failure_count": recorder.metrics.write_failure_count,
                 "failed_snapshot_count": failed_now,
-                "first_failed_sequence": recorder.metrics.first_failed_sequence,
-                "last_failed_sequence": recorder.metrics.last_failed_sequence,
+                "first_failed_sequence": consumer_now.first_failed_sequence,
+                "last_failed_sequence": consumer_now.last_failed_sequence,
                 "in_flight_snapshot_count": consumer_now.in_flight_count,
                 "in_flight_first_sequence": recorder.metrics.in_flight_first_sequence,
                 "in_flight_last_sequence": recorder.metrics.in_flight_last_sequence,
@@ -178,7 +178,8 @@ def main() -> int:
                 "persisted": persisted_now,
                 "acquisition_rejections": acquisition_rejected_now,
                 "recorder_queue_rejections": recorder_rejected_now,
-                "write_failed": failed_now,
+                "consumer_failed": failed_now,
+                "write_failure_count": recorder.metrics.write_failure_count,
                 "acquisition_queue_pending": acquisition_pending_now,
                 "recorder_queue_pending": recorder_pending_now,
                 "dispatcher_in_flight": dispatcher_in_flight,
@@ -331,7 +332,7 @@ def main() -> int:
             "persisted": persisted,
             "acquisition_buffer_rejections": acquisition_rejected,
             "recorder_buffer_rejections": recorder_rejected,
-            "recorder_write_failures": failed,
+            "recorder_failed_samples": failed,
             "pending_acquisition": pending_acquisition,
             "pending_recorder": pending_recorder,
             "accounted_total": accounted,
@@ -349,7 +350,8 @@ def main() -> int:
     print(f"Checkpoint error        : {checkpoint_worker.error}")
     print(f"Acquired                : {acquired}")
     print(f"Persisted               : {persisted}")
-    print(f"Recorder write failures : {failed}")
+    print(f"Recorder write failures : {recorder.metrics.write_failure_count}")
+    print(f"Recorder failed samples : {consumer_final.failed_count}")
     print(f"Acquisition rejects     : {acquisition_rejected}")
     print(f"Recorder queue rejects  : {recorder_rejected}")
     print(f"Recorder queue high-water: {consumer_final.high_water_mark}")
