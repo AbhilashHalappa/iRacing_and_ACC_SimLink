@@ -301,7 +301,7 @@ This establishes agreement between the raw recording bytes and the selected insp
 
 ### TC and ABS naming clarification
 
-The Physics fields at offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not the driver's selected TC and ABS setup levels. Both were zero in this capture. No Graphics data or selected setup levels are included in this Physics audit.
+The Physics fields at offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not the driver's selected TC and ABS setup levels. Both were zero in this capture. These are distinct from the earlier Physics fields named `tc` at offset 204 and `abs` at offset 252; those fields are preserved and observed, but this capture and cross-check do not establish that they represent the selected setup levels. No Graphics data or selected setup levels are included in this Physics audit.
 
 ### Scope and closure boundary
 
