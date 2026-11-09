@@ -51,6 +51,37 @@ The first successful read is always emitted. Later reads are emitted only when t
   - Local monotonic timestamp preservation.
   - Full mapping copy and clean close through an injected mapping.
 
+## Static persistence policy (Issue #5)
+
+**Decision: persist Static observations.** The initial raw page and each later
+changed raw page are required recording data. Retaining them supports
+reproducible decoder investigations, verification of car/track/session
+metadata, and post-session debugging. Static changes infrequently, and the
+existing byte-change detector suppresses unchanged polls, so recording only
+emitted observations keeps storage proportional to actual page changes.
+
+The persistence contract is:
+
+- Persist the complete raw mapping allocation for the initial observation and
+  every successfully acquired changed observation; do not decode, normalize,
+  truncate, or rewrite the page before persistence.
+- Preserve the Static capture sequence and local monotonic read/capture
+  timestamps exactly as acquired.
+- Keep `source_packet_id` and `source_timestamp_ns` absent/null. Never attach
+  Physics or Graphics metadata or imply cross-stream synchronization.
+- Do not persist unchanged refreshes.
+- Perform all queueing and disk I/O downstream of the Static acquisition
+  worker, through bounded off-thread persistence with explicit rejection,
+  write-failure, drain, and recovery accounting.
+- A Static persistence failure must be visible as an incomplete/failed Static
+  recording outcome; it must not be represented as successful persistence.
+
+The recording implementation is deliberately deferred until the common
+per-sample persistence timestamp and versioned recording-format contract in
+Issue #4 is established. This avoids introducing a separate Static format
+that would immediately need migration. Issue #5 is therefore decision-approved
+but remains open for implementation and validation after Issue #4.
+
 ## Supervised worker lifecycle
 
 The Static stream is part of the common acquisition supervisor and runs on its
