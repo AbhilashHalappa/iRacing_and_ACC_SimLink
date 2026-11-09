@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Raw Physics acquisition and recorder implemented; target-PC normal recording, forced termination, checkpoint-assisted recovery, slow-storage simulation and simulated-ENOSPC accounting exercised; physical disk-full testing intentionally skipped; 84-field Physics structural audit documented; live field validation and authoritative layout cross-check pending; decoder deferred; 480 Hz polling selected  
+**Status:** Raw Physics acquisition and recorder implemented; target-PC normal recording, forced termination, checkpoint-assisted recovery, slow-storage simulation and simulated-ENOSPC accounting exercised; physical disk-full testing intentionally skipped; corrected 800-byte Physics ABI documented; live field validation and authoritative layout cross-check pending; decoder deferred; 480 Hz polling selected  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -96,8 +96,8 @@ The raw Physics recording remains the source for later decoding and analysis. A 
 - [x] Bracketing packet-ID consistency contract and retry counters.
 - [x] Packet-ID gap accounting.
 - [x] Deterministic unit tests using a fake source and clock.
-- [x] Implement the Windows ACC Shared Memory Physics adapter using the audited ACC Physics page layout.
-- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the expected-size page (100 reads; 784 bytes expected and actual; 100 unique advancing packet IDs).\n- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
+- [x] Implement the Windows ACC Shared Memory Physics adapter using the corrected 800-byte ACC Physics page layout.
+- [x] Verify that the Windows adapter opens the live ACC Physics mapping and copies the expected-size page under the earlier 784-byte layout; the adapter is now corrected to 800 bytes and requires a fresh live validation.\n- [ ] Verify packet-ID read atomicity and snapshot consistency behaviour more thoroughly on Windows with ACC running. The smoke test observed one inconsistent bracketed read out of 100.
 
 ### Stage 2 — Acquisition measurement
 
@@ -136,7 +136,7 @@ Start with the narrow Python acquisition boundary and measure it. A native C++ o
 
 ## 9. Current implementation boundary
 
-The package under src/race_engineer_acquisition/ includes the source-independent acquisition core, Windows Physics adapter, and an independent raw recorder. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 784-byte page size and advancing packet IDs over 100 reads. Stage 2 also passed the user-reported 10-minute acquisition/buffer benchmark. The recorder code provides a separate bounded handoff, batched CRC-protected binary blocks, fsync and recovery. The 31-test suite passed on Windows and Ubuntu, and normal live persistence passed; actual abrupt termination and physical storage failure still require target-PC validation. No source-level completeness or persistence guarantee is claimed until those validation gates pass.
+The package under src/race_engineer_acquisition/ includes the source-independent acquisition core, Windows Physics adapter, and an independent raw recorder. The adapter performs packet-ID-before, page-copy, packet-ID-after reads. A live ACC smoke test confirmed successful mapping access, the expected 800-byte page size and advancing packet IDs over 100 reads. Stage 2 also passed the user-reported 10-minute acquisition/buffer benchmark. The recorder code provides a separate bounded handoff, batched CRC-protected binary blocks, fsync and recovery. The 31-test suite passed on Windows and Ubuntu, and normal live persistence passed; actual abrupt termination and physical storage failure still require target-PC validation. No source-level completeness or persistence guarantee is claimed until those validation gates pass.
 
 ## 10. Relationship to the Greenfield Architecture
 
@@ -149,3 +149,8 @@ The raw recording format is version 1. It begins with a fixed-size file header c
 The recorder worker batches records from its own bounded queue and flushes/fsyncs each completed block. The acquisition-to-recorder dispatcher is a separate thread. Queue rejections at both handoff boundaries are accounted independently. On finalization, the runner reconciles acquired snapshots against persisted snapshots, both queue rejection counts, recorder write-failure counts and pending queue contents. Recovery accepts only sequential, structurally valid, checksum-valid blocks and truncates the invalid trailing region when requested.
 
 The format and worker are implemented; the previous 31-test suite passed on Windows and Ubuntu, and a normal live Windows ACC recording completed with zero unexplained reconciliation delta. A real forced-process-termination test recovered 11,938 snapshots across 11,517 CRC-valid blocks with no invalid/trailing bytes and no truncation. Atomic progress checkpoints have since been implemented, with checkpoint checksum/replace and recorder in-flight tests passing on Windows and Ubuntu. The new sidecar still needs target-PC validation. Stage 3 is not yet signed off: physical storage-failure validation and checkpoint-based abnormal-shutdown loss review remain required.
+
+
+## 11. Physics ABI correction — 9 November 2026
+
+The Windows Physics ctypes structure now models an 800-byte page. `current_max_rpm` is an `int32` at byte 588; `mz[4]` occupies bytes 592–607; all subsequent named fields move 16 bytes later than the former 784-byte declaration. Bytes 784–799 are stored as an opaque 16-byte array with no semantic names. The recorder defaults to the current 800-byte payload size. The recording header continues to store the payload size, so legacy 784-byte recordings remain distinguishable; the offline inspector reads them as raw legacy snapshots and deliberately does not reinterpret them using the new offsets. Automated layout tests now lock the 800-byte size and field offsets. A fresh target-PC recording and cross-platform test run are the next acceptance checks.
