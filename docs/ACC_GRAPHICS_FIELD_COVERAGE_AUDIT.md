@@ -346,11 +346,11 @@ The six time-like arrays are fixed-width UTF-16 strings, not 15 independent nume
 
 - **Dry session:** `tyre_compound=dry_compound`, `track_status=FAST`, and all three rain-intensity fields were zero. This is consistent with the user's correction that this was a dry-condition session.
 - **Rain lights are not rain:** `rain_lights` changed 0→1; this is a light-control state, not evidence of wet weather.
-- **Setup controls:** TC, TC Cut, ABS and Engine Map changed. In the separate controlled setup capture, TC=4, TC Cut=8, ABS=6 agreed with the user's selected values, but Engine Map showed 8 at candidate offset `0x4FC` while the UI showed 9. Keep Engine Map unresolved.
+- **Setup controls:** TC, TC Cut, ABS and Engine Map changed in the six-minute capture. The user-confirmed Engine Map display rule is **UI value = raw Graphics `engine_map` value + 1**; this is a display transformation, not an offset/layout discrepancy. Do not reopen this item.
 - **Pit state:** both `is_in_pit` and `is_in_pit_lane` changed. They are separate candidate fields.
 - **Race control:** `flag`, `penalty`, global yellow, global green and global red changed. Their event/enum meanings need correlation; these are not damage values.
 - **Fuel and tyres:** `used_fuel`, `fuel_estimated_laps`, `fuel_x_lap`, MFD pressures and gap fields populated/changed. Their units, signs and calculations are not all independently validated.
-- **Coordinates/IDs:** `player_car_id=24`; the terminal summary alone is insufficient to establish which coordinate slot maps to the player. Review all 60 IDs and 60 XYZ triplets in the JSON before using player coordinates.
+- **Coordinates/IDs:** the subsequent per-slot review maps `player_car_id=24` to `car_id` slot 0, and therefore to coordinate triplet 0 (X/Y/Z). The six-minute capture contains 25 active IDs (0–24) in slots 0–24; the remaining 35 slots are zero. This establishes the player slot for this capture, not the universal ordering rule for every session.
 - **No Graphics damage channel:** none of the 87 candidate members is an explicitly named vehicle-damage field. Penalty, flags, coordinates and exhaust temperature must not be presented as damage measurements.
 
 ### Crash-context event index
@@ -361,11 +361,102 @@ The Physics audit already documents `car_damage[5]` at offset 224 and the prior 
 
 ### Updated next steps — reuse existing evidence first
 
-1. Inspect the JSON per-slot summaries for all 60 car IDs and all 60 XYZ triplets; resolve player-slot mapping from existing data.
-2. Review the existing 46 event-index rows around the reported incident; do not request another capture for this first review.
-3. Investigate the Engine Map 9-versus-8 discrepancy using existing controlled capture evidence.
-4. Preserve the 2,508-byte post-candidate region as opaque; its all-zero state in this capture does not establish permanent absence.
-5. Only request a new targeted capture if one named question cannot be answered from existing recordings. A tyre-compound transition is not validated by this dry-only recording, but that gap does not justify repeating unrelated tests.
-6. Keep Graphics raw acquisition and offline candidate decoding separate; do not modify Physics as part of this Graphics audit.
+1. Preserve the 2,508-byte post-candidate region as opaque; its all-zero state in this capture does not establish permanent absence.
+2. Retain the unresolved semantic items listed below: enum meanings, gap units/sign, coordinate axis convention, and fields that did not change or were not independently correlated in this dry session.
+3. Only request a new targeted capture if one named question cannot be answered from existing recordings. A tyre-compound transition is not validated by this dry-only recording, but that gap does not justify repeating unrelated tests.
+4. Keep Graphics raw acquisition and offline candidate decoding separate; do not modify Physics as part of this Graphics audit.
 
 **Current conclusion:** the raw-only Graphics recorder has now passed a six-minute target-PC capture with complete accounting and integrity checks. The 87-field candidate audit provides a field inventory and live observations. The candidate layout remains provisional for ACC Shared Memory 1.9; field semantics are individually qualified above.
+
+
+## Full 87-field output and array interpretation review — 9 November 2026
+
+The existing `acc_graphics_complete_audit.json` was reviewed using the compact summary of all 87 named candidate fields and a focused extraction of the eight arrays. This was an offline review of the existing 36,001-sample recording; no new capture or test was performed.
+
+### Scope and interpretation boundary
+
+- All **77 scalar members** were reviewed using first/last values, min/max, unique-value counts and sample-to-sample transition counts.
+- All **8 array members** were checked for their recorded dimensions. The six time-like arrays were decoded as fixed-width UTF-16 character sequences; the 60-entry car-ID array was inspected; the player coordinate triplet was extracted from the mapped slot.
+- The two UTF-16 strings, `tyre_compound` and `track_status`, were already represented in the scalar summary as observed strings.
+- These are observations from this one dry-condition session. A field that remained constant is classified as **not exercised in this recording**, not as universally constant or invalid.
+- Transition counts describe changes between adjacent samples. They do not establish why a field changed.
+
+### Six time-like arrays and integer companions
+
+| Array field | First decoded string | Last decoded string | Integer companion | Cross-check |
+|---|---|---|---|---|
+| `current_time` | `-:--:---` | `2:39:162` | `i_current_time`: 0 → 159162 | Final value agrees with 159,162 ms |
+| `last_time` | `35791:23:647` | `2:34:825` | `i_last_time`: 2147483647 → 154825 | Final value agrees with 154,825 ms; initial value is an unavailable/uninitialized-looking representation |
+| `best_time` | `35791:23:647` | `35791:23:647` | `i_best_time`: 2147483647 throughout | No valid best-lap value was established in this capture |
+| `split` | `0:16:303` | `0:56:407` | `i_split`: 16,303 → 56,407 | First and last values agree with milliseconds |
+| `delta_lap_time` | `-:--:---` | `-:--:---` | `i_delta_lap_time`: 0 throughout | No usable delta was observed |
+| `estimated_lap_time` | `35791:23:647` | `35791:23:647` | `i_estimated_lap_time`: 2147483647 throughout | No usable estimate was established |
+
+The final current-time, last-time and split string/integer pairs provide direct cross-field consistency evidence for millisecond interpretation. The repeated `35791:23:647` representation accompanies `2147483647` in the corresponding integer fields and should be treated as an unavailable/sentinel-like representation, **not** as a real lap time. The exact encoding/sentinel contract remains subject to ABI qualification.
+
+### Car ID and coordinate arrays
+
+| Item | Result |
+|---|---|
+| `car_id` shape | 60 `int32` entries |
+| `car_coordinates` shape | 180 `float32` entries = 60 XYZ triplets |
+| `active_cars` | 25 throughout |
+| `player_car_id` | 24 throughout |
+| Matching player ID slot | Slot 0 |
+| Player coordinate triplet | Coordinate slot 0: X/Y/Z |
+
+The first 25 ID slots contain the IDs 24, 0, 3, 2, 5, 9, 4, 8, 21, 6, 17, 7, 13, 14, 10, 15, 11, 18, 23, 1, 19, 12, 20, 16, 22. Slots 25–59 contain zero. Because ID 0 is present as an active entry, **zero must not be treated as an empty-slot marker**. The 25 populated entries correspond to the observed `active_cars=25`.
+
+The player ID 24 occurs at slot 0, so the player coordinate triple in this recording is the first XYZ triplet:
+
+| Axis | First | Last | Minimum | Maximum | Unique values |
+|---|---:|---:|---:|---:|---:|
+| X | -138.203522 | 553.081909 | -395.023682 | 857.976990 | 19,863 |
+| Y | -11.752962 | -4.996140 | -13.556785 | -0.718725 | 20,199 |
+| Z | 712.673035 | -624.293030 | -1,124.397583 | 1,041.982178 | 20,002 |
+
+This confirms the player ID-to-coordinate-slot association for this recording and confirms that the selected XYZ values vary during the session. It does not establish the coordinate frame, handedness, axis orientation, units, or that slot ordering is invariant across all sessions. The other 59 coordinate triplets remain available in the JSON report; this review did not assign world-coordinate semantics to every car.
+
+### Scalar observations that materially affect interpretation
+
+- **Setup controls:** `tc`, `tc_cut`, `engine_map` and `abs` each changed once. Raw Engine Map was 7 → 6 in this capture. The user-confirmed UI rule is **displayed Engine Map = raw value + 1**. This is resolved display behaviour and is not an outstanding ABI offset issue.
+- **Lap validity:** `is_valid_lap` remained 1 for all 36,001 samples. This capture did not exercise invalidation. Earlier user-confirmed track-limit/validity evidence remains separate and must not be overwritten by this constant observation.
+- **Race control:** `flag` ranged 0–8 and changed 15 times; `penalty` ranged 0–1 and changed twice; `global_yellow` changed 13 times; `global_yellow_1` four times; `global_yellow_2` nine times; `global_green` 14 times; `global_red` changed once from 1 to 0. `global_yellow_3`, `global_white` and `global_chequered` did not change. Raw numeric ranges do not identify enum labels or prove which race-control event caused each transition.
+- **Pit states:** `is_in_pit` ranged 0–1 and changed four times; `is_in_pit_lane` ranged 0–1 and changed twice. They remain distinct fields and must not be merged.
+- **Fuel:** `used_fuel` changed from 0 to 4.974590 and had 19,668 transitions; `fuel_estimated_laps` ranged 15.997464–19.443092; `fuel_x_lap` changed from 3.660000 to 3.011387. These observations establish dynamic/populated values, not exact units or formula correctness.
+- **Driver stint timers:** `driver_stint_total_time_left` remained -1000; `driver_stint_time_left` ranged -320040 to -1000. Preserve the raw signed values and do not assume the sign/sentinel convention is understood.
+- **Gaps:** `gap_ahead` ranged 0–163; `gap_behind` ranged -141422–0. The sign difference is observed, but units, sign convention and conversion to displayed time remain unverified.
+- **Flags and damage:** flag/penalty/global-flag transitions are race-control data, not collision or vehicle-damage measurements. No explicitly named vehicle-damage member exists in this 87-field Graphics candidate. The user's reported crash/damage incident must be analysed through the separate Physics damage fields, not inferred from Graphics flags.
+- **Weather and lighting:** `tyre_compound=dry_compound`, `track_status=FAST`, and all three rain-intensity fields remained zero. `rain_lights` changed 0→1 and is a lighting control, not a rain measurement. `surface_grip` remained zero in this capture; that does not validate its meaning or prove zero physical grip.
+- **MFD pressures:** all four pressure fields changed three times, with observed ranges LF/RF 25.3–28.2, LR 24.5–27.5, RR 24.5–27.6. The numeric values are populated; pressure units and exact relation to the displayed MFD remain to be qualified.
+- **Static-in-capture fields:** unchanged fields include `status`, `session`, `number_of_laps`, `active_cars`, `player_car_id`, `ideal_line_on`, `mandatory_pit_done`, `is_setup_menu_visible`, `main_display_index`, `secondary_display_index`, `rain_tyres`, `session_index`, `track_grip_status`, the rain forecast fields, tyre-set selections and several MFD values. This list means only that they did not change in this capture.
+
+### Revised field qualification
+
+**Supported by this recording and cross-field checks**
+- Candidate field count and source-derived offsets/types were exercised by the offline audit.
+- Six time-like arrays are fixed-width UTF-16 strings; three final string/integer pairs agree at millisecond precision.
+- `car_id` has 60 entries; `car_coordinates` has 60 XYZ triplets.
+- `player_car_id=24` maps to ID slot 0 and coordinate triplet 0 in this capture.
+- Engine Map's UI +1 transformation is user-confirmed and resolved.
+- Pit-in and pit-lane fields are distinct; rain-light control and rain-intensity fields are distinct.
+
+**Observed but not semantically signed off**
+- `flag`, `penalty`, global-flag enum meanings and event associations.
+- `gap_ahead` / `gap_behind` units and sign convention.
+- Coordinate frame, axes, units and cross-session slot-order invariance.
+- `driver_stint_total_time_left` / `driver_stint_time_left` sentinel and sign conventions.
+- Fuel units/formula, pressure units, wind units, surface-grip meaning and track-grip enum.
+- Exact semantics of `last_sector_time`, `i_delta_lap_time`, `i_estimated_lap_time` and the delta sign flag beyond the direct string/integer matches described above.
+
+**Not exercised or not established by this recording**
+- Invalid-lap transition (the field remained 1); mandatory pit transitions; wet-weather/compound transitions; chequered/white/global-yellow-3 events; pit-box state; MFD navigation changes; non-default rain/forecast values; valid best-lap and estimated-lap values.
+- The complete official ACC Shared Memory 1.9 ABI. Third-party references corroborate the 1,588-byte candidate structure but are not an authoritative Kunos ABI declaration.
+
+### Remaining work — no repeat capture by default
+
+1. Keep the official Shared Memory 1.9 ABI qualification open; do not describe the candidate layout as Kunos-confirmed.
+2. Do not repeat lap validity, Engine Map, player-slot, time-string or pit-lane checks already supported by evidence.
+3. Keep gap units/sign, race-control enums, coordinate frame, stint timer conventions and remaining unexercised states explicitly unresolved.
+4. Use existing event-index rows and raw JSON for any further offline correlation before asking for a targeted capture.
+5. Do not change Physics acquisition or its completed validation as part of this Graphics documentation update.
