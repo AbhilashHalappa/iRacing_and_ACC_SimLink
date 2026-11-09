@@ -95,14 +95,14 @@ class AcquisitionSupervisor:
         for name, runtime in self._runtimes.items():
             with self._lock:
                 runtime.state = "starting"
-            thread = self._thread_factory(
-                target=self._run_stream,
-                args=(name,),
-                name=f"ACC-{name}-Acquisition",
-                daemon=True,
-            )
-            runtime.thread = thread
             try:
+                thread = self._thread_factory(
+                    target=self._run_stream,
+                    args=(name,),
+                    name=f"ACC-{name}-Acquisition",
+                    daemon=True,
+                )
+                runtime.thread = thread
                 thread.start()
             except BaseException as exc:
                 with self._lock:
@@ -131,10 +131,10 @@ class AcquisitionSupervisor:
         finally:
             self._close_once(runtime)
             with self._lock:
-                if not failed and runtime.state != "failed":
-                    runtime.state = "stopped"
-                elif runtime.close_error and runtime.state != "failed":
+                if runtime.close_error:
                     runtime.state = "failed"
+                elif not failed and runtime.state != "failed":
+                    runtime.state = "stopped"
 
     def _close_once(self, runtime: _StreamRuntime) -> None:
         assert runtime.close_lock is not None
