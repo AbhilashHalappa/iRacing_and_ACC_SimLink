@@ -2,7 +2,7 @@
 
 **Project:** Race Engineer ACC New  
 **Decision date:** 7 November 2026  
-**Status:** Raw Physics acquisition and recorder implemented; target-PC normal recording, forced termination, checkpoint-assisted recovery, slow-storage simulation and simulated-ENOSPC accounting exercised; physical disk-full testing intentionally skipped; corrected 800-byte Physics ABI documented; live field validation and authoritative layout cross-check pending; decoder deferred; 480 Hz polling selected  
+**Status:** Physics acquisition and raw recorder validated and closed for the current scope; corrected 800-byte layout strongly corroborated; target-PC live recording, CRC inspection and independent raw-byte cross-check passed on 9 November 2026; full field semantics and official Kunos header confirmation remain qualified; decoder deferred; Graphics and Static remain separate and unimplemented  
 **Priority:** Highest — no UI, coaching or lap-processing work precedes acquisition validation
 
 ## 1. Objective and source limitation
@@ -155,3 +155,16 @@ The format and worker are implemented; the previous 31-test suite passed on Wind
 ## 11. Physics ABI correction — 9 November 2026
 
 The Windows Physics ctypes structure now models an 800-byte page. `current_max_rpm` is an `int32` at byte 588; `mz[4]` occupies bytes 592–607; all subsequent named fields move 16 bytes later than the former 784-byte declaration. Bytes 784–799 are stored as an opaque 16-byte array with no semantic names. The recorder defaults to the current 800-byte payload size. The recording header stores the payload size, and the offline inspector accepts only the authoritative 800-byte layout. Historical 784-byte recordings are outside the supported format and are rejected rather than interpreted. Automated layout tests now lock the 800-byte size and field offsets. A fresh target-PC 800-byte recording and cross-platform test run are the next acceptance checks.
+
+
+## 12. Physics acquisition closure — 9 November 2026
+
+The target-PC 120-second live run at requested 480 Hz acquired and persisted 46,717 snapshots with 800-byte payloads. Acquisition rejects, recorder queue rejects, write failures and pending records were all zero; final reconciliation delta was zero. There were 121 successful checkpoint writes, queue high-water 2, and maximum persist/block-write duration 3.9 ms.
+
+The offline inspector processed all 46,717 snapshots. A separate raw-byte cross-check independently parsed the recording container, validated 45,253 block CRCs, decoded 16 selected fields using explicit offsets/types and compared raw minima/maxima with the inspection CSV. All 16 matched.
+
+This closes the Physics acquisition and raw-recording foundation for the current scope. It does not establish complete semantics for every Physics field, calibrated engineering units, official Kunos header confirmation, or zero loss of every ACC publication.
+
+The fields at Physics offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not selected setup levels. No Graphics fields are part of this decision.
+
+**Boundary:** keep Physics standalone. Do not merge Graphics or Static structures into the Physics page or change the completed Physics ABI as part of future page work. Graphics/Static acquisition is a separate future scope.
