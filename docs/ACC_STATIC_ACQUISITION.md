@@ -40,7 +40,7 @@ The first successful read is always emitted. Later reads are emitted only when t
   - Initial plus changed-page acquisition.
   - Separate Static snapshot and metrics types.
   - No field decoder and no guessed packet ID/timestamp.
-- `tests/acquisition/test_static.py`
+- `scripts/validate_acc_static_live.py` — focused 90-second live check; prints mapping size, raw-page hashes, per-capture local read timestamps, unchanged-read counts and rejection counts without dumping the page.\n- `tests/acquisition/test_static.py`
   - Initial/unchanged/changed-page behavior.
   - Explicit absent source packet ID and source timestamp.
   - Local monotonic timestamp preservation.
@@ -51,7 +51,7 @@ The first successful read is always emitted. Later reads are emitted only when t
 The implementation deliberately does not declare a ctypes `SPageFileStatic` layout or field offsets. Third-party ACC Shared Memory references identify the mapping name and describe Static as session/car metadata initialized at session start, but the target project's exact ACC v1.9 layout, mapping size, field offsets, string encoding, and semantics still require provenance review and target-PC evidence. The raw adapter is independent of those candidate layouts.
 
 Automated tests are not a substitute for a live ACC read. Before Static acquisition can be marked validated:
-1. Run the adapter on the target Windows PC with ACC active.
+1. Run `python scripts/validate_acc_static_live.py` on the target Windows PC with ACC active.
 2. Record the observed mapping size and verify repeated complete-page copies.
 3. Confirm the first snapshot is emitted and unchanged reads are suppressed.
 4. Trigger or observe a genuine Static-page change (for example, a session/car/track change) and verify a new snapshot is emitted.
