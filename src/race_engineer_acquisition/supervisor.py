@@ -82,7 +82,7 @@ class AcquisitionSupervisor:
 
     @property
     def status(self) -> dict[str, dict[str, object | None]]:
-        """Return a detached status snapshot; common health metrics are separate."""
+        """Return detached lifecycle status and the latest common health snapshots."""
         with self._lock:
             return {
                 name: {
@@ -146,6 +146,8 @@ class AcquisitionSupervisor:
             with self._lock:
                 runtime.state = "failed"
                 runtime.error = f"{type(exc).__name__}: {exc}"
+            if runtime.spec.health is not None:
+                runtime.spec.health.set_lifecycle("failed")
         finally:
             self._close_once(runtime)
             with self._lock:
