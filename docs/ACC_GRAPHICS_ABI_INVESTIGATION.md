@@ -243,4 +243,4 @@ The reference cross-check has been followed by a separate raw-only implementatio
 - Graphics has independent snapshot models, acquisition metrics, CRC-block recording/recovery, recorder queue and recording magic/schema. Only the generic bounded ring buffer and checkpoint worker are reused.
 - Runner: `scripts/record_acc_graphics.py`. Automated tests: `tests/acquisition/test_graphics_acquisition.py` and `tests/acquisition/test_graphics_recorder.py`.
 
-**Implementation is present; validation is pending.** The candidate Shared Memory 1.9 field layout remains unsigned-off. This implementation preserves raw bytes and does not depend on that layout sign-off. Physics remains unchanged.
+**Implementation is present; automated CI passed; target-PC validation is pending.** The candidate Shared Memory 1.9 field layout remains not signed off. This implementation preserves raw bytes and does not depend on that layout sign-off. Physics remains unchanged.
