@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Offline inspector for ACC Graphics full-page recordings.
 
-This tool reads the diagnostic format emitted by probe_acc_graphics.py:
-  file header: <8sII  (magic, schema version, page size)
-  each sample: <Qiii  (monotonic_ns, packet_id_before, packet_id_copy,
-                       packet_id_after), followed by one complete page.
-
-It does not connect to ACC, decode application state, or modify the recording.
-All offsets are candidate offsets and remain subject to ABI sign-off.
+Supports the CRC-block .gfxraw format from record_acc_graphics.py and the
+older diagnostic format from probe_acc_graphics.py. It never connects to ACC
+or modifies the source recording. All decoded offsets remain candidate
+mappings and are not ABI sign-off.
 """
 from __future__ import annotations
 
@@ -15,6 +12,7 @@ import argparse
 import json
 import math
 import struct
+import zlib
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -114,7 +112,7 @@ def read_raw_gfxraw(data: bytes) -> tuple[int, list[bytes], list[dict[str, int]]
     magic, version, page_size, _created_ns, header_crc = RAW_HEADER.unpack_from(data)
     if magic != RAW_MAGIC or version != 1:
         raise SystemExit("Unsupported .gfxraw recording header.")
-    if __import__("zlib").crc32(data[:RAW_HEADER.size - 4]) != header_crc:
+    if zlib.crc32(data[:RAW_HEADER.size - 4]) != header_crc:
         raise SystemExit("Graphics raw recording header CRC mismatch.")
     if page_size < CANDIDATE_STRUCT_SIZE:
         raise SystemExit(f"Page size {page_size} is smaller than candidate structure.")
@@ -124,7 +122,6 @@ def read_raw_gfxraw(data: bytes) -> tuple[int, list[bytes], list[dict[str, int]]
     cursor = RAW_HEADER.size
     expected_block = 1
     previous_capture = 0
-    import zlib
     while cursor < len(data):
         if len(data) - cursor < RAW_BLOCK.size:
             raise SystemExit("Truncated Graphics block header.")
@@ -171,7 +168,7 @@ def read_raw_gfxraw(data: bytes) -> tuple[int, list[bytes], list[dict[str, int]]
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("recording", type=Path, help="*.graphics-recording.bin file")
+    parser.add_argument("recording", type=Path, help="*.gfxraw or legacy *.graphics-recording.bin file")
     parser.add_argument("--json-out", type=Path, help="optional JSON report path")
     parser.add_argument("--max-transitions", type=int, default=30)
     args = parser.parse_args()
