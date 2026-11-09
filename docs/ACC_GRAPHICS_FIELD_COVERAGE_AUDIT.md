@@ -460,3 +460,78 @@ This confirms the player ID-to-coordinate-slot association for this recording an
 3. Keep gap units/sign, race-control enums, coordinate frame, stint timer conventions and remaining unexercised states explicitly unresolved.
 4. Use existing event-index rows and raw JSON for any further offline correlation before asking for a targeted capture.
 5. Do not change Physics acquisition or its completed validation as part of this Graphics documentation update.
+
+
+## Ten-minute Graphics control, pit, weather and strategy validation — 9 November 2026
+
+**Status: Target-PC raw acquisition and the planned live field-transition evidence pass completed.** This addendum supersedes the earlier six-minute-only scalar observations where the two recordings differ. It supplements, rather than replaces, the 87-field candidate inventory and its ABI caveats.
+
+**Final recording:** `user_data/raw_recordings/acc_graphics_20261109T124256_127746Z.gfxraw`  
+**Audit report:** `user_data/raw_recordings/acc_graphics_final_audit.json`  
+**Comparison:** final ten-minute recording against `acc_graphics_complete_audit.json`, the earlier six-minute recording.
+
+### Final capture integrity
+
+| Measure | Result |
+|---|---:|
+| Duration | 599.991 s |
+| Samples acquired / persisted | 60,000 / 60,000 |
+| Polling rate | 100 Hz |
+| Mapping bytes copied per sample | 4,096 |
+| Acquisition rejects | 0 |
+| Recorder queue rejects | 0 |
+| Write failures | 0 |
+| Pending at shutdown | 0 |
+| Reconciliation delta | 0 |
+| Recovery validation | Passed |
+| Checkpoint validation | Passed |
+| CPU | 8.50% |
+
+This validates the target-PC raw-only Graphics acquisition/recording path for this run. It does not prove that every ACC publication was observed or that every candidate field's ABI/semantics are officially confirmed.
+
+### Controlled/live state transitions observed
+
+| Field(s) | Final recording evidence | Assessment |
+|---|---|---|
+| `tc` | 8→7→6→5→6→7→8; observed range 5–8 | Setting field changed in both directions |
+| `tc_cut` | 7→6→7→8→9; range 6–9 | Setting field changed |
+| `engine_map` | 7→6→5→6→7→8; range 5–8 | Setting field changed; user-confirmed UI presentation is raw value + 1 |
+| `abs` | Range 5–8; seven transitions | Setting field changed in both directions |
+| `rain_lights` | 0→1→0 | Control switched on and off; distinct from weather rain intensity |
+| `lights_stage` | 0→1→2 | Two stage transitions |
+| `wiper_stage` | 0→1→2 | Two stage transitions |
+| `mfd_tyre_set`, `current_tyre_set`, `strategy_tyre_set` | At 567.781 s, respectively 0→1, 0→1 and 0→2 | All changed at the same observed sample; exact numeric meanings are not established |
+| `main_display_index` | 1→2 | Display selection changed |
+| `is_in_pit` | Two separate active periods; four transitions total | Distinct pit-state signal exercised |
+| `is_in_pit_lane` | 0→1 at 447.460 s, 1→0 at 579.811 s | Pit-lane signal exercised separately from `is_in_pit` |
+| `track_grip_status` | 5→4 at 114.671 s | Dynamic enum observed; labels for 4/5 not established |
+| `rain_intensity` | Constant 2 | Non-zero value observed; no transition |
+| `rain_intensity_in_10min` | 2→1 at 272.351 s | Forecast field changed |
+| `rain_intensity_in_30min` | Constant 1 | Non-zero value observed; no transition |
+| `global_yellow`, `global_yellow_2` | Both activated and cleared | Race-control flags exercised |
+| `global_green`, `global_red` | Green and red values transitioned | Race-control flags exercised |
+| `flag` | Values 0, 4 and 7 observed | Multiple raw enum values observed; mapping not established |
+| `fuel_x_lap` | Four values, range 2.7642–3.6600 | Dynamic field observed |
+| `used_fuel` | Range 0–9.0782 | Dynamic field observed |
+| `fuel_estimated_laps` | Range 16.0850–21.2977 | Dynamic field observed |
+| `wind_speed`, `wind_direction` | Both changed continuously; direction around −43.16° to −43.03° | Dynamic fields observed; units/reference convention not established |
+| `gap_ahead`, `gap_behind` | Both changed; `gap_behind` includes negative values | Dynamic fields observed; units/sign convention not established |
+
+The earlier six-minute capture independently showed changes in all four MFD tyre-pressure fields (LF/RF 25.3–28.2; LR 24.5–27.5/27.6). In the final ten-minute capture those four fields remained constant at LF/RF 26.1 and LR/RR 25.4. Together, the recordings establish that the pressure fields can vary, but do not provide a controlled before/after mapping of each tyre service action to each pressure value.
+
+### Fields not exercised or still semantically unresolved
+
+- `flashing_lights`, `secondary_display_index`, `is_setup_menu_visible`, `mfd_fuel_to_add`, `surface_grip`, `driver_stint_total_time_left`, `penalty_time`, `global_yellow_1`, `global_yellow_3`, `global_white` and `global_chequered` did not change in the final capture. This is not evidence that they are invalid.
+- `driver_stint_time_left` changed continuously but remained negative (−403,460 to −1,000); units and sentinel/availability semantics remain unresolved.
+- `surface_grip` remained zero while `track_grip_status` changed. They must not be conflated.
+- `penalty` did not change in the final recording; it did change 0→1→0 in the earlier recording. `penalty_time` remained zero in both.
+- `is_valid_lap` remained 1 throughout both recordings. Its invalidation behaviour is covered by the separate user-confirmed track-limit capture and existing lap-validity evidence; these two service/control recordings do not add a new invalid-lap transition.
+- Numeric mappings for `flag`, `track_grip_status`, rain intensity, tyre-set identifiers and MFD display indices remain unqualified. Fuel, wind, gap and pressure units/formulas also remain unqualified where no independent display/value correlation exists.
+- The recording includes user-reported pit tyre change, damage repair, brake pad/disc changes and other setup/control actions. This is capture context, not proof that every action has a corresponding Graphics field. The candidate Graphics structure contains no named vehicle-damage field; damage and brake telemetry must be validated against the Physics page, not inferred from Graphics.
+- The candidate 1,588-byte/87-field layout remains a third-party reference-derived candidate. These recordings validate raw observations at candidate offsets; they do not constitute official Kunos Shared Memory 1.9 ABI sign-off.
+
+### Graphics evidence disposition
+
+The target-PC raw-only acquisition and recording path is **validated for the tested 4,096-byte mapping and the two live runs** (six minutes and ten minutes), with zero application-level recording loss/reconciliation delta in both. The planned live field-transition pass is complete: control settings, lights/wipers, tyre-set identifiers, pit states, weather/track-state fields, fuel estimates, wind, gaps and race-control flags now have live observations as detailed above.
+
+The **Graphics field-coverage audit is complete as an evidence inventory**, but it is not an official ABI or full semantic sign-off. Remaining work is limited to authoritative enum/unit/offset confirmation and the explicitly unexercised fields above; no further broad recording is justified by the current evidence. Do not repeat the completed capture or transition checks unless a specific, named unresolved field requires a targeted experiment.
