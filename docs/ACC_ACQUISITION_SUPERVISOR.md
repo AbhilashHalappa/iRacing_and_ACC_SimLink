@@ -107,10 +107,11 @@ or change the existing fail-fast worker policy. A caller using `capture_once()`
 directly can catch an exception and retry; the next successful read resets the
 consecutive-failure count.
 
-The health accumulator is single-writer: only the corresponding acquisition
-worker updates its tracker. It publishes a frozen snapshot by replacing one
-reference; readers do not acquire a lock. Health reads are therefore detached
-and non-blocking. The supervisor owns lifecycle-state updates. Existing
+Health ownership is split by field: the supervisor alone writes lifecycle
+state, while the corresponding acquisition worker alone writes read and buffer
+counters. These fields are stored independently so concurrent updates cannot
+overwrite each other. Readers obtain a frozen snapshot without acquiring a
+lock. Health reads are therefore detached and non-blocking. Existing
 stream-specific metrics remain on `acquirer.metrics` (Physics packet gaps,
 consistency retries and timing; Graphics packet observations and consistency;
 Static unchanged-read counts). Common health does not replace those metrics.
