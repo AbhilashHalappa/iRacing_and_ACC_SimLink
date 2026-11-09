@@ -254,10 +254,10 @@ class FanOutDispatcher(Generic[T]):
         with self._lock:
             if self._started:
                 raise RuntimeError("fan-out dispatcher can only be run once")
-            self._started = True
             consumers = tuple(self._consumers.values())
-        if not consumers:
-            raise RuntimeError("at least one downstream consumer must be registered")
+            if not consumers:
+                raise RuntimeError("at least one downstream consumer must be registered")
+            self._started = True
 
         try:
             while not stop_event.is_set() or self.source.size > 0:
