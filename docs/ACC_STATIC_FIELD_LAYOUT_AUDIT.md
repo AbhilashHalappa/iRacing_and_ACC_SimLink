@@ -2,7 +2,7 @@
 
 **Updated:** 9 November 2026  
 **Branch:** `feature/acquisition-foundation`  
-**Status:** Candidate field inventory and offset comparison completed. Production decoding is deliberately blocked pending a target-page value check and resolution of the documented 15-vs-33 character TrackConfiguration discrepancy.
+**Status:** Target-PC candidate inspection strongly favors Variant B (33 UTF-16 code units for TrackConfiguration). Common-prefix values match the active ACC car/track and several Variant B tail strings are coherent. Variant A is rejected for this observed page. Pit-window values/units and several field semantics remain unqualified; this is not official Kunos ABI sign-off.
 
 ## 1. Live acquisition evidence
 
@@ -22,6 +22,49 @@ The target-PC 90-second Static acquisition run reported:
 
 This proves repeated full-allocation reads and unchanged-page suppression for a stable page. It does not prove field offsets or changed-page behavior. The 4,096-byte Windows allocation is not, by itself, proof that the logical C structure is 4,096 bytes.
 
+
+## 2A. Target-PC candidate inspection — 9 November 2026
+
+The user ran `python scripts/inspect_acc_static_candidate.py` with ACC active. The script's automated test suite also passed locally: **3 passed in 0.06s**.
+
+Observed common-prefix values:
+
+| Field | Offset | Observed | Assessment |
+|---|---:|---|---|
+| SMVersion | 0 | `1.9` | Matches installed ACC shared-memory version |
+| ACVersion | 30 | `1.7` | Plausible game version string |
+| CarModel | 68 | `porsche_992_gt3_r` | Matches active car |
+| Track | 134 | `monza` | Matches active track |
+| PlayerName | 200 | `Abhi` | Plausible active profile value |
+| PlayerSurname | 266 | `H` | Plausible active profile value |
+| PlayerNick | 332 | empty | Plausible optional nickname |
+| NumberOfSessions | 60 | 0 | Semantics not confirmed; raw-only |
+| NumCars | 64 | 25 | Plausible session entry count |
+| SectorCount | 400 | 3 | Matches Monza's three sectors |
+| MaxRPM | 412 | 9250 | Plausible Porsche 992 GT3 R metadata |
+| MaxFuel | 416 | 120 | Plausible vehicle fuel capacity |
+| PenaltiesEnabled | 464 | 1 | Boolean-like enabled value |
+| AidFuelRate / AidTireRate / AidMechanicalDamage | 468/472/476 | 1 / 1 / 1 | Plausible neutral multipliers |
+| AidAutoClutch / AidAutoBlip | 488/492 | 1 / 1 | Boolean-like enabled values |
+
+Variant B tail observations:
+
+| Field | Offset | Observed | Assessment |
+|---|---:|---|---|
+| TrackConfiguration | 524 | `track config` | String fits both candidates; does not independently distinguish length |
+| ERSMaxJ | 592 | 0 | Plausible unused/zero value; raw-only |
+| IsTimedRace | 596 | 0 | Plausible boolean-like value |
+| HasExtraLap | 600 | 0 | Plausible boolean-like value |
+| CarSkin | 604 | `skin` | Coherent string at Variant B offset; Variant A offset is empty |
+| ReversedGridPositions | 672 | 0 | Plausible default |
+| PitWindowStart / PitWindowEnd | 676/680 | 600500 / 599500 | Values are plausible integers but start exceeds end by 1,000; units/semantics unresolved; raw-only |
+| IsOnline | 684 | 0 | Plausible offline boolean-like value |
+| DryTyresName / WetTyresName | 688/754 | `DHE` / `WH` | Coherent tyre-name strings at Variant B offsets; Variant A offsets are empty |
+
+At the corresponding Variant A offsets, `CarSkin`, dry tyre name and wet tyre name all decode as empty strings, while Variant B yields coherent values. Together with the matching car/track prefix, three-sector count, plausible vehicle limits and session settings, this is strong live evidence for Variant B's tail offsets on ACC Shared Memory 1.9. The `TrackConfiguration` string itself is shorter than both candidate capacities, so its content alone cannot distinguish 15 from 33; the shifted tail fields provide the discriminating evidence.
+
+**Disposition:** use Variant B as the leading candidate for subsequent implementation and testing. Do not claim official ABI certification. Keep pit-window values and fields with unconfirmed type/unit semantics raw-only. Do not expose `NumberOfSessions`, `ERSMaxJ`, deprecated members or fields merely because they decode to plausible numbers.
+
 ## 2. Candidate source comparison
 
 The following public references describe the ACC Static page:
@@ -32,7 +75,7 @@ The following public references describe the ACC Static page:
 4. The `MorGuux/AssettoCorsaCompetizioneSharedMemory` C# `StaticInfo` struct declares `TrackConfiguration` as 15 UTF-16 code units and uses Pack=4, which yields a 784-byte structure with the remaining fields. [Source](https://github.com/MorGuux/AssettoCorsaCompetizioneSharedMemory/blob/59b65ac875ae956e2218808d86e0ec0ea0e8cfb3/StaticInfo.cs)
 5. The ACC v1.8 field listing and related references describe the rest of the Static members, including 4-element suspension travel and tyre radius arrays. [Reference](https://www.scribd.com/document/1043572003/ACCSharedMemoryDocumentationV1-8)
 
-**Conclusion:** the sources agree on the common prefix and most field order/types, but disagree on the TrackConfiguration string length and consequently the total logical structure size. A 784-byte candidate corresponds to 15 UTF-16 code units; an 820-byte candidate corresponds to 33. Neither is yet certified for the user's installed ACC build. The live 4,096-byte allocation is compatible with either logical structure plus unused allocation tail.
+**Conclusion:** public references disagree on TrackConfiguration length, but the target-PC values strongly favor the 33-code-unit Variant B tail: CarSkin and dry/wet tyre names are coherent at B offsets and empty at A offsets. The 4,096-byte allocation itself does not resolve the logical structure size. Variant B is the evidence-backed candidate for the observed ACC 1.9 page, not official Kunos ABI certification.
 
 ## 3. Common-prefix candidate offsets
 
@@ -120,7 +163,7 @@ Offsets below are byte offsets from the beginning of the Static mapping. UTF-16 
 ## 5. Semantic disposition
 
 - **Car identity:** `CarModel` is the primary car identifier. `CarSkin` is a candidate skin identifier, but is in the unresolved tail.
-- **Track identity:** `Track` is the primary track identifier. `TrackConfiguration` is the layout identifier, but its length/offset impact is unresolved.
+- **Track identity:** `Track` is the primary track identifier. `TrackConfiguration` decodes as `track config`; its actual string capacity cannot be inferred from this value alone. Variant B tail offsets are strongly favored by the car-skin and tyre-name strings.
 - **Session configuration:** `NumberOfSessions`, `NumCars`, `SectorCount`, `PenaltiesEnabled`, aid rates/toggles, `IsOnline`, and pit-window fields are candidate settings. Pit-window units/encoding and several setting semantics still need value-based confirmation.
 - **Vehicle metadata:** `MaxRPM`, `MaxFuel`, `MaxTurboBoost` are candidates for useful vehicle capability metadata. The torque/power/suspension/tyre-radius fields are marked unused/not shown by references and should remain raw-only until demonstrated.
 - **Tyre metadata:** dry/wet tyre names are candidate strings in the tail layout; their offsets depend on the TrackConfiguration variant.
@@ -129,7 +172,7 @@ Offsets below are byte offsets from the beginning of the Static mapping. UTF-16 
 
 ## 6. Next evidence step
 
-Run the focused candidate inspector:
+The focused candidate inspector has now been run on the target PC. Its observed values and interpretation are recorded above. No repeat run is needed for the common-prefix/tail comparison.
 
 ```powershell
 python scripts/inspect_acc_static_candidate.py
@@ -137,14 +180,14 @@ python scripts/inspect_acc_static_candidate.py
 
 It reads the current mapping once and prints a compact candidate decode for the common prefix plus both competing tail layouts. It does not write, alter, or dump the raw mapping. Compare the printed strings and numeric plausibility with the active car, track and session shown in ACC.
 
-This is a targeted field-layout check, not another recording. If the common-prefix values are plausible and one tail variant is coherent, record that evidence. Do not promote either layout into the production decoder solely because its strings look printable; require the installed shared-memory version and all key fields to agree.
+This was a targeted field-layout check, not another recording. Variant B is the leading candidate based on multiple coherent live values. The remaining implementation decision is to define a conservative typed decoder for only the qualified fields, while preserving raw bytes and leaving unresolved fields raw-only.
 
 ## 7. Acceptance gates
 
 - [x] Runtime allocation size discovered and full 4,096-byte page copied on target PC.
 - [x] Stable-page polling and unchanged-page suppression passed (90 reads, 89 unchanged, zero rejects).
-- [ ] Common-prefix candidate strings and numeric values match the active ACC car/track/session.
-- [ ] TrackConfiguration length (15 vs 33) resolved against live values and the installed shared-memory version.
-- [ ] Tail offsets (CarSkin, pit window, online flag, dry/wet tyre names) confirmed.
+- [x] Common-prefix candidate strings and representative numeric values match the active ACC car/track/session (user-confirmed output, 9 November 2026).
+- [x] Variant B (33-code-unit TrackConfiguration / shifted tail offsets) strongly favored by coherent CarSkin and dry/wet tyre-name strings; Variant A produces empty strings at those offsets.
+- [x] CarSkin, dry/wet tyre-name and candidate online-flag offsets have coherent Variant B values; pit-window integer offsets are observed but units/semantics remain unresolved.
 - [ ] Field types and units for aid/penalty/pit-window values confirmed or explicitly left raw-only.
 - [ ] Production decoder added only after the above evidence; all raw bytes remain preserved.
