@@ -32,6 +32,8 @@ class PhysicsSnapshot:
     read_complete_ns: int
     capture_timestamp_ns: int
     payload: bytes
+    # Set only by the downstream recorder; acquisition snapshots leave this None.
+    persistence_timestamp_ns: int | None = None
 
     @property
     def acquisition_duration_ns(self) -> int:
