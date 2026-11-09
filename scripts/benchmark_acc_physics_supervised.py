@@ -60,7 +60,10 @@ def main() -> int:
         while not drain_stop.is_set() or buffer.size:
             item = buffer.try_get()
             if item is None:
-                drain_stop.wait(0.0005)
+                # Match the original Physics benchmark's drain-thread idle wait.
+                # Keep the consumer workload identical when comparing the
+                # direct producer thread with the supervisor-managed worker.
+                time.sleep(0.0005)
                 continue
             seq = item.capture_sequence
             if previous is not None and seq > previous + 1:
