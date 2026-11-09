@@ -7,7 +7,7 @@ A worker failure is isolated to that stream and remains visible in status.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, current_thread
 from typing import Callable, Iterable
 
 from .health import AcquisitionHealth
@@ -58,6 +58,7 @@ class AcquisitionSupervisor:
         *,
         thread_factory=Thread,
         startup_rollback_timeout_seconds: float = 5.0,
+        timer_resolution=None,
     ) -> None:
         specs = tuple(streams)
         if not specs:
@@ -71,6 +72,11 @@ class AcquisitionSupervisor:
             raise ValueError("startup rollback timeout must be positive")
         self._thread_factory = thread_factory
         self._startup_rollback_timeout_seconds = startup_rollback_timeout_seconds
+        self._timer_resolution = timer_resolution
+        self._timer_entered = False
+        self._timer_released = False
+        self._timer_error: str | None = None
+        self._timer_lock = Lock()
         self._runtimes = {
             spec.name: _StreamRuntime(spec, Event(), close_lock=Lock())
             for spec in specs
@@ -90,6 +96,8 @@ class AcquisitionSupervisor:
                     "error": runtime.error,
                     "close_error": runtime.close_error,
                     "health": (runtime.spec.health.snapshot if runtime.spec.health is not None else None),
+                    "timer_resolution_error": self._timer_error,
+                    "timer_resolution_active": bool(getattr(self._timer_resolution, "active", False)),
                 }
                 for name, runtime in self._runtimes.items()
             }
@@ -103,6 +111,14 @@ class AcquisitionSupervisor:
                 if self._stop_requested:
                     raise RuntimeError("a stopped acquisition supervisor cannot be restarted")
                 self._started = True
+
+            if self._timer_resolution is not None:
+                try:
+                    self._timer_resolution.__enter__()
+                    self._timer_entered = True
+                except Exception as exc:
+                    self._timer_error = f"{type(exc).__name__}: {exc}"
+                    raise
 
             for name, runtime in self._runtimes.items():
                 with self._lock:
@@ -159,6 +175,27 @@ class AcquisitionSupervisor:
                     runtime.state = "stopped"
                     if runtime.spec.health is not None:
                         runtime.spec.health.set_lifecycle("stopped")
+            self._release_timer_if_stopped()
+
+    def _release_timer_if_stopped(self) -> None:
+        if self._timer_resolution is None or not self._timer_entered:
+            return
+        with self._timer_lock:
+            if self._timer_released:
+                return
+            current = current_thread()
+            for runtime in self._runtimes.values():
+                thread = runtime.thread
+                if runtime.state not in ("stopped", "failed"):
+                    return
+                if thread is not None and thread is not current and thread.is_alive():
+                    return
+            try:
+                self._timer_resolution.__exit__(None, None, None)
+            except Exception as exc:
+                self._timer_error = f"{type(exc).__name__}: {exc}"
+            finally:
+                self._timer_released = True
 
     def _close_once(self, runtime: _StreamRuntime) -> None:
         assert runtime.close_lock is not None
@@ -173,6 +210,8 @@ class AcquisitionSupervisor:
                     runtime.close_error = f"{type(exc).__name__}: {exc}"
 
     def _rollback_startup(self) -> tuple[str, ...]:
+        with self._lock:
+            self._stop_requested = True
         for runtime in self._runtimes.values():
             runtime.stop_event.set()
         import time
@@ -192,6 +231,8 @@ class AcquisitionSupervisor:
                         runtime.state = "stopped"
                         if runtime.spec.health is not None:
                             runtime.spec.health.set_lifecycle("stopped")
+        if not alive:
+            self._release_timer_if_stopped()
         return tuple(alive)
 
     def join(self, timeout: float | None = None) -> tuple[str, ...]:
@@ -236,6 +277,8 @@ class AcquisitionSupervisor:
                 thread.join(remaining)
                 if thread.is_alive():
                     alive.append(name)
+            if not alive:
+                self._release_timer_if_stopped()
             return tuple(alive)
 
 
