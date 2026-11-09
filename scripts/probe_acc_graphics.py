@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-GRAPHICS_MAP = r"Local\\acpmf_graphics"
+GRAPHICS_MAP = r"Local\acpmf_graphics"
 FILE_MAP_READ = 0x0004
 SECTION_QUERY = 0x0001
 CANDIDATE_V1812_SIZE = 1588
