@@ -110,8 +110,9 @@ class GraphicsAcquirer:
         packet_id = raw.packet_id_in_payload
         previous = self.metrics.last_packet_id
         if previous is not None and packet_id == previous:
+            # Keep the sample: the raw page may still contain changes even when
+            # the packet ID is unchanged. This is a raw capture, not a deduper.
             self.metrics.duplicate_packet_observation_count += 1
-            return None
         sequence = self._next_sequence
         self._next_sequence += 1
         if previous is not None and packet_id > previous + 1:
