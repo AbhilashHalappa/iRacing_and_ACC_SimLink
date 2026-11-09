@@ -88,6 +88,56 @@ class AcquisitionHealthTests(unittest.TestCase):
         self.assertEqual(health.successful_reads, 1)
         self.assertEqual(health.consecutive_failures, 0)
 
+    def test_worker_health_updates_reuse_state_without_losing_metrics(self):
+        health = AcquisitionHealth()
+        worker_state = health._read_health
+
+        health.record_read_success(100, 10)
+        health.record_read_failure(OSError("temporary"))
+        health.record_read_success(200, 20)
+        health.record_buffer_rejection()
+
+        snapshot = health.snapshot
+        self.assertIs(health._read_health, worker_state)
+        self.assertEqual(snapshot.successful_reads, 2)
+        self.assertEqual(snapshot.source_read_failures, 1)
+        self.assertEqual(snapshot.consecutive_failures, 0)
+        self.assertEqual(snapshot.last_successful_read_ns, 200)
+        self.assertEqual(snapshot.last_read_duration_ns, 20)
+        self.assertEqual(snapshot.max_read_duration_ns, 20)
+        self.assertEqual(snapshot.buffer_rejections, 1)
+        self.assertEqual(snapshot.last_error, "OSError: temporary")
+
+    def test_health_snapshot_is_coherent_during_worker_updates(self):
+        health = AcquisitionHealth()
+        finished = threading.Event()
+        errors = []
+
+        def writer():
+            for value in range(1, 5001):
+                health.record_read_success(value, value)
+            finished.set()
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        while not finished.is_set():
+            snapshot = health.snapshot
+            if snapshot.last_successful_read_ns is not None:
+                if not (
+                    snapshot.successful_reads == snapshot.last_successful_read_ns
+                    == snapshot.last_read_duration_ns
+                    == snapshot.max_read_duration_ns
+                ):
+                    errors.append(snapshot)
+                    break
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
+        final = health.snapshot
+        self.assertEqual(final.successful_reads, 5000)
+        self.assertEqual(final.last_successful_read_ns, 5000)
+        self.assertEqual(final.max_read_duration_ns, 5000)
+
     def test_buffer_rejection_is_in_common_health(self):
         class SequenceSource:
             def __init__(self):
