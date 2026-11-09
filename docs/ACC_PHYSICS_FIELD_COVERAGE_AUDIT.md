@@ -1,6 +1,6 @@
 # ACC Physics Page — Field Coverage Audit
 
-**Status:** 800-byte ACC Physics layout strongly corroborated by three independent reader implementations, corrected field offsets and live read-only 800-byte mapping probes; exact Kunos v1.9 ABI/header confirmation remains unavailable.  
+**Status:** Physics acquisition and raw recording validation closed for the current scope. The 800-byte layout is strongly corroborated by three independent reader implementations and live read-only mapping probes; exact Kunos v1.9 ABI/header confirmation remains unavailable. Live acquisition, persistence, recording integrity and independent raw-byte cross-check passed on 9 November 2026.  
 **Page size:** 800 bytes  
 **Layout:** Little-endian, `_pack_ = 4`  
 **Layout evidence:** three independent ACC readers include `mz[4]` after `currentMaxRpm`; the outlying 784-byte transcription omits this member. The live read-only probe confirmed readable data through byte 799. The final 16 bytes are preserved opaquely.  
@@ -100,8 +100,8 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 | `fy_unused` | `c_float[4]` | 624 | 16 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
 | `slip_ratio` | `c_float[4]` | 640 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled event pending |
 | `slip_angle` | `c_float[4]` | 656 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled cornering correlation pending |
-| `tc_in_action_unused` | `c_int32` | 672 | 4 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
-| `abs_in_action_unused` | `c_int32` | 676 | 4 | Yes | No | Marked unused/deprecated in reference naming | Stable zero in tested capture; reference marks unused/deprecated |
+| `tc_in_action` | `c_int32` | 672 | 4 | Yes | No | Intervention indicator; not a selected TC level | Stable zero in the 9 November capture; no intervention observed in sampled data |
+| `abs_in_action` | `c_int32` | 676 | 4 | Yes | No | Intervention indicator; not a selected ABS level | Stable zero in the 9 November capture; no intervention observed in sampled data |
 | `suspension_damage_unused` | `c_float[4]` | 680 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
 | `tyre_temp_unused` | `c_float[4]` | 696 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
 | `water_temp_c` | `c_float` | 712 | 4 | Yes | Yes | Not marked unused | Unresolved — latest capture aliases tyre_core_temp_c[0] statistics |
@@ -271,3 +271,44 @@ The Physics audit is now sufficiently documented to proceed to Graphics-page dis
 - No live decode consumer yet.
 - No Graphics or Static acquisition.
 - No changes to the proven Physics acquisition or recorder hot path.
+
+
+## Physics acquisition closure — 9 November 2026
+
+**Result: PASSED for the defined Physics acquisition and raw-recording scope.** This closes the Physics acquisition layer; it does not claim that every one of the 82 fields has fully validated semantics or calibrated units.
+
+### Live target-PC recording
+
+Recording: `user_data/raw_recordings/acc_physics_20261109T093514_229225Z.accraw`
+
+- Duration: 120 seconds; requested polling cadence: 480 Hz.
+- Payload size: 800 bytes per snapshot.
+- Acquired: 46,717; persisted: 46,717.
+- Recorder write failures: 0; acquisition rejects: 0; recorder queue rejects: 0.
+- Pending at completion: 0; reconciliation delta: 0.
+- Checkpoint writes: 121; checkpoint write failures: 0.
+- Recorder queue high-water mark: 2.
+- Maximum persist/block-write duration: 3.9 ms.
+- CPU: 13.84% of one core.
+
+### Offline inspection and independent cross-check
+
+The offline inspector examined all 46,717 snapshots: 212 field components, 135 varying and 77 constant. Variation is descriptive only.
+
+An independent raw-byte script separately parsed the recording container, checked block CRCs and decoded 16 selected fields using explicit offsets/types (not the production ctypes structure or inspector decoder). It compared recomputed minima/maxima against the inspection CSV. All 16 fields matched; result: **DIRECT RAW-BYTE CROSS-CHECK: PASSED**. The recording contained 45,253 valid CRC-checked blocks and 800-byte payloads.
+
+This establishes agreement between the raw recording bytes and the selected inspection outputs for those 16 fields. It does not independently establish the semantic meaning of every field. Semantic validation remains field-specific as shown in the inventory.
+
+### TC and ABS naming clarification
+
+The Physics fields at offsets 672 and 676 are intervention indicators (`tc_in_action` and `abs_in_action`), not the driver's selected TC and ABS setup levels. Both were zero in this capture. No Graphics data or selected setup levels are included in this Physics audit.
+
+### Scope and closure boundary
+
+- Physics mapping and 800-byte payload acquisition: validated.
+- Raw recording and normal final reconciliation: validated on the target PC.
+- Recording structure/CRC inspection: validated.
+- Independent raw-byte comparison for 16 selected fields: passed.
+- Full semantic validation of every field: not claimed; individual statuses remain in the inventory.
+- Graphics and Static acquisition: explicitly outside this closure and unchanged.
+- No Physics decoder, Graphics reader, or Graphics/Physics merge is introduced by this closure.
