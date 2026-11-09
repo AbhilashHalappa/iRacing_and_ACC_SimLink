@@ -325,11 +325,63 @@ def main() -> int:
     }
 
     rendered = json.dumps(report, indent=2, allow_nan=False)
-    print(rendered)
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(rendered + "\n", encoding="utf-8")
-        print(f"\nJSON report written to: {args.json_out}")
+
+    print("ACC GRAPHICS RECORDING INSPECTION")
+    print(f"Format: {recording_format}")
+    print(
+        f"Capture: {sample_count:,} samples | {page_size:,}-byte mapping | "
+        f"{report['duration_seconds_monotonic']:.1f}s"
+    )
+    print(
+        f"Packet IDs: {report['packet_id']['unique_count']:,} unique | "
+        f"{packet_changes:,} changes | "
+        f"{bracket_inconsistent:,} inconsistent brackets"
+    )
+    print("\nCANDIDATE SCALARS")
+    print(f"{'Field':<27} {'First':>12} {'Last':>12} {'Minimum':>12} {'Maximum':>12} {'Changes':>9}")
+    for name, values in scalars.items():
+        print(
+            f"{name:<27} {str(values.get('first')):>12} "
+            f"{str(values.get('last')):>12} {str(values.get('min')):>12} "
+            f"{str(values.get('max')):>12} {values['transitions_total']:>9,}"
+        )
+
+    changed_coords = [
+        slot for slot in coords["slots"] if slot["changed_samples"] > 0
+    ]
+    changed_ids = [
+        slot for slot in car_ids["slots"] if slot["changed_samples"] > 0
+    ]
+    print(f"\nCar coordinate slots changing: {len(changed_coords)}/180")
+    if changed_coords:
+        print("  " + ", ".join(
+            f"{slot['slot']} (range {slot['min']:.3g}..{slot['max']:.3g})"
+            for slot in changed_coords[:18]
+        ))
+        if len(changed_coords) > 18:
+            print(f"  ... {len(changed_coords) - 18} more; see JSON report")
+    print(f"Car ID slots changing: {len(changed_ids)}/60")
+    if changed_ids:
+        print("  " + ", ".join(
+            f"{slot['slot']} ({slot['first']} -> {slot['last']})"
+            for slot in changed_ids[:18]
+        ))
+        if len(changed_ids) > 18:
+            print(f"  ... {len(changed_ids) - 18} more; see JSON report")
+
+    tail = report["bytes_after_candidate_1588"]
+    print(
+        f"\nBytes after candidate 1,588: {tail['length_bytes']:,} bytes | "
+        f"{tail['samples_with_any_nonzero_byte']:,}/{sample_count:,} samples "
+        f"contain non-zero bytes | {tail['samples_different_from_previous']:,} "
+        "sample-to-sample changes"
+    )
+    print("\nNote: offsets and field names remain candidate mappings, not ABI sign-off.")
+    if args.json_out:
+        print(f"Detailed JSON saved: {args.json_out}")
     return 0
 
 def _nonzero_ranges(data: bytes) -> list[tuple[int, int]]:
