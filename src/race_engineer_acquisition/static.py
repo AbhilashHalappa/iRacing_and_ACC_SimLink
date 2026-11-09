@@ -16,6 +16,7 @@ from threading import Event
 from typing import Protocol
 
 from .ring_buffer import AcquisitionRingBuffer
+from .health import AcquisitionHealth
 
 STATIC_MAP = r"Local\acpmf_static"
 MIN_STATIC_MAPPING_SIZE = 1
@@ -75,11 +76,17 @@ class StaticAcquirer:
         self._previous_payload: bytes | None = None
         self._next_sequence = 1
         self.metrics = StaticAcquisitionMetrics()
+        self.health = AcquisitionHealth()
 
     def capture_once(self) -> StaticSnapshot | None:
         started = self._clock_ns()
-        raw = self._source.read_static()
+        try:
+            raw = self._source.read_static()
+        except Exception as exc:
+            self.health.record_read_failure(exc)
+            raise
         completed = self._clock_ns()
+        self.health.record_read_success(completed, completed - started)
         self.metrics.read_count += 1
         payload = bytes(raw.payload)
         if not payload:
@@ -110,6 +117,7 @@ class StaticAcquirer:
         )
         if not self._buffer.try_put(snapshot):
             self.metrics.buffer_rejection_count += 1
+            self.health.record_buffer_rejection()
         else:
             # Only suppress this payload after it has entered the queue. If the
             # bounded buffer rejects it, the next poll must retry the same page.
