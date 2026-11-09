@@ -1,7 +1,7 @@
 # ACC Raw Recording Format
 
 **Updated:** 9 November 2026  
-**Status:** Physics and Graphics writers emit format version 2. Readers and recovery accept versions 1 and 2. Static persistence is approved by policy but is deferred until its writer is implemented.
+**Status:** Physics, Graphics, and Static writers emit format version 2. Physics and Graphics readers/recovery accept versions 1 and 2; Static has its own version-2 reader/recovery.
 
 ## Scope and invariants
 
@@ -58,7 +58,31 @@ Physics uses the existing `ACCPHY01` file and `PHBK` block magic. Graphics uses 
 
 ## Static stream
 
-Static persistence has been approved separately in [ACC Static Acquisition](ACC_STATIC_ACQUISITION.md). Its writer is intentionally deferred until the common timestamped recording contract is established. Static remains independent and must retain its complete raw page and local capture metadata; source packet ID and source timestamp remain absent/null. No Physics/Graphics metadata may be attached to Static.
+Static persistence is implemented independently in `static_recording.py` and
+documented in [ACC Static Acquisition](ACC_STATIC_ACQUISITION.md). It uses the
+same version-2 file-header and block framing structures, with stream-specific
+magic values `ACCSTA01` and `STBK`. Its version-2 record header is:
+
+| Field | Type | Meaning |
+|---|---|---|
+| capture sequence | uint64 | Application-local Static observation sequence |
+| read start | uint64 | Local monotonic read-start time |
+| read complete | uint64 | Local monotonic read-complete time |
+| capture timestamp | uint64 | Existing local monotonic capture time |
+| persistence timestamp | uint64 | Recorder batch-boundary timestamp |
+| payload length | uint32 | Number of raw mapping bytes following the header |
+
+Static deliberately has no source packet ID field because the documented
+Static layout does not define one. Source packet ID and source timestamp remain
+absent; no Physics/Graphics metadata is attached. The complete mapping page is
+stored without decoding or truncation. Only the initial and byte-changed pages
+are recorded; unchanged refreshes are not queued or persisted.
+
+The Static writer timestamps each batch downstream of acquisition and counts
+the block persisted only after write, flush, and `fsync` succeed. Its recovery
+reader validates version, page size, block sequence, capture sequence,
+timestamp ordering, and CRC, and can truncate an invalid tail. The dedicated
+worker drains a bounded recorder queue on stop and reports failed batches.
 
 ## Acquisition performance boundary
 
