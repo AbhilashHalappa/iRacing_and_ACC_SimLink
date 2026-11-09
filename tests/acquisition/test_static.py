@@ -60,6 +60,23 @@ class StaticAcquisitionTests(unittest.TestCase):
         self.assertEqual(acquirer.metrics.unchanged_read_count, 1)
         self.assertEqual(buffer.size, 2)
 
+    def test_retries_changed_page_after_buffer_rejection(self):
+        source = FakeStaticSource([b"first001", b"second02", b"second02"])
+        buffer = AcquisitionRingBuffer[object](capacity=1)
+        acquirer = StaticAcquirer(source, buffer)
+
+        first = acquirer.capture_once()
+        rejected = acquirer.capture_once()
+        self.assertFalse(buffer.try_get() is None)  # free the slot
+
+        retried = acquirer.capture_once()
+        self.assertEqual(first.capture_sequence, 1)
+        self.assertEqual(rejected.capture_sequence, 2)
+        self.assertEqual(retried.capture_sequence, 3)
+        self.assertEqual(retried.payload, b"second02")
+        self.assertEqual(acquirer.metrics.buffer_rejection_count, 1)
+        self.assertEqual(buffer.size, 1)
+
     def test_windows_source_copies_full_mapping_without_decoding(self):
         mapping = FakeMapping()
         source = WindowsACCStaticSource(mapping_factory=lambda: mapping)
