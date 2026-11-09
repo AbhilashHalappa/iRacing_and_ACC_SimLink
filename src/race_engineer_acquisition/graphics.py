@@ -18,7 +18,7 @@ from typing import Iterable, Protocol
 
 from .ring_buffer import AcquisitionRingBuffer
 
-GRAPHICS_MAP = r"Local\\acpmf_graphics"
+GRAPHICS_MAP = r"Local\acpmf_graphics"
 MIN_GRAPHICS_MAPPING_SIZE = 4
 _FILE_MAGIC = b"ACCGFX01"
 _FILE_VERSION = 1
