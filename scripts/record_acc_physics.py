@@ -100,8 +100,7 @@ def main() -> int:
                 source.close()
             except Exception as exc:
                 producer_errors.append(f"Source close {type(exc).__name__}: {exc}")
-            finally:
-                pass
+            # Source ownership ends here; dispatcher shutdown is signalled by main.
 
     recorder_thread = threading.Thread(
         target=recorder.run, args=(recorder_stop,), name="ACC-Raw-Recorder", daemon=True
@@ -117,7 +116,6 @@ def main() -> int:
     def checkpoint_snapshot() -> dict:
         checkpoint_sequence["value"] += 1
         acquired_now = acquirer.metrics.capture_count
-        persisted_now = recorder.metrics.persisted_snapshot_count
         acquisition_rejected_now = acquisition_buffer.total_rejection_count
         consumer_now = recorder_buffer.metrics
         persisted_now = consumer_now.processed_count
@@ -158,10 +156,10 @@ def main() -> int:
             "recorder_buffer": {
                 "capacity": recorder_buffer.capacity,
                 "pending": recorder_pending_now,
-                "high_water_mark": recorder_buffer.high_water_mark,
+                "high_water_mark": consumer_now.high_water_mark,
                 "rejections": recorder_rejected_now,
-                "first_lost_sequence": recorder_buffer.first_lost_sequence,
-                "last_lost_sequence": recorder_buffer.last_lost_sequence,
+                "first_lost_sequence": consumer_now.first_lost_sequence,
+                "last_lost_sequence": consumer_now.last_lost_sequence,
             },
             "recorder": {
                 "persisted_snapshot_count": persisted_now,
@@ -171,7 +169,7 @@ def main() -> int:
                 "failed_snapshot_count": failed_now,
                 "first_failed_sequence": recorder.metrics.first_failed_sequence,
                 "last_failed_sequence": recorder.metrics.last_failed_sequence,
-                "in_flight_snapshot_count": recorder_in_flight,
+                "in_flight_snapshot_count": consumer_now.in_flight_count,
                 "in_flight_first_sequence": recorder.metrics.in_flight_first_sequence,
                 "in_flight_last_sequence": recorder.metrics.in_flight_last_sequence,
             },
@@ -184,7 +182,7 @@ def main() -> int:
                 "acquisition_queue_pending": acquisition_pending_now,
                 "recorder_queue_pending": recorder_pending_now,
                 "dispatcher_in_flight": dispatcher_in_flight,
-                "recorder_in_flight": recorder_in_flight,
+                "recorder_in_flight": consumer_now.in_flight_count,
                 "observed_unclassified_delta": acquired_now - accounted_now,
             },
             "note": "Counters are sampled independently without locking the acquisition path; a brief non-zero accounting delta can occur while a sample moves between stages.",
