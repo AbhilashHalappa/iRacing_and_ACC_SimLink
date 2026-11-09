@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+import struct
+import threading
+import time
+import unittest
+
+from race_engineer_acquisition.acquirer import PhysicsAcquirer
+from race_engineer_acquisition.graphics import GraphicsAcquirer, RawGraphicsRead
+from race_engineer_acquisition.health import AcquisitionHealth
+from race_engineer_acquisition.models import RawPhysicsRead
+from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
+from race_engineer_acquisition.static import RawStaticRead, StaticAcquirer
+from race_engineer_acquisition.supervisor import AcquisitionStream, AcquisitionSupervisor
+
+
+class StepClock:
+    def __init__(self):
+        self.value = 100
+
+    def __call__(self):
+        value = self.value
+        self.value += 10
+        return value
+
+
+class FailsOnce:
+    def __init__(self, value):
+        self.value = value
+        self.calls = 0
+
+    def read_physics(self):
+        self.calls += 1
+        if self.calls == 1:
+            raise OSError("temporary source read failure")
+        return self.value
+
+    def read_graphics(self):
+        self.calls += 1
+        if self.calls == 1:
+            raise OSError("temporary source read failure")
+        return self.value
+
+    def read_static(self):
+        self.calls += 1
+        if self.calls == 1:
+            raise OSError("temporary source read failure")
+        return self.value
+
+
+class AcquisitionHealthTests(unittest.TestCase):
+    def test_physics_source_failure_and_recovery_are_counted(self):
+        source = FailsOnce(RawPhysicsRead(1, 1, b"physics"))
+        acquirer = PhysicsAcquirer(source, AcquisitionRingBuffer(2), clock_ns=StepClock())
+        with self.assertRaisesRegex(OSError, "temporary"):
+            acquirer.capture_once()
+        failed = acquirer.health.snapshot
+        self.assertEqual(failed.source_read_failures, 1)
+        self.assertEqual(failed.consecutive_failures, 1)
+        self.assertIn("temporary source read failure", failed.last_error)
+        acquirer.capture_once()
+        recovered = acquirer.health.snapshot
+        self.assertEqual(recovered.successful_reads, 1)
+        self.assertEqual(recovered.consecutive_failures, 0)
+        self.assertIsNotNone(recovered.last_successful_read_ns)
+        self.assertEqual(recovered.last_read_duration_ns, 10)
+
+    def test_graphics_source_failure_and_recovery_are_counted(self):
+        raw = RawGraphicsRead(1, 1, 1, struct.pack("<i", 1) + b"graphics")
+        source = FailsOnce(raw)
+        acquirer = GraphicsAcquirer(source, AcquisitionRingBuffer(2), clock_ns=StepClock())
+        with self.assertRaisesRegex(OSError, "temporary"):
+            acquirer.capture_once()
+        acquirer.capture_once()
+        health = acquirer.health.snapshot
+        self.assertEqual(health.source_read_failures, 1)
+        self.assertEqual(health.successful_reads, 1)
+        self.assertEqual(health.consecutive_failures, 0)
+
+    def test_static_source_failure_and_recovery_are_counted(self):
+        source = FailsOnce(RawStaticRead(b"static"))
+        acquirer = StaticAcquirer(source, AcquisitionRingBuffer(2), clock_ns=StepClock())
+        with self.assertRaisesRegex(OSError, "temporary"):
+            acquirer.capture_once()
+        acquirer.capture_once()
+        health = acquirer.health.snapshot
+        self.assertEqual(health.source_read_failures, 1)
+        self.assertEqual(health.successful_reads, 1)
+        self.assertEqual(health.consecutive_failures, 0)
+
+    def test_buffer_rejection_is_in_common_health(self):
+        source = FailsOnce(RawPhysicsRead(1, 1, b"physics"))
+        # Use a source that succeeds on both calls after its injected first error.
+        with self.assertRaises(OSError):
+            PhysicsAcquirer(source, AcquisitionRingBuffer(1)).capture_once()
+        acquirer = PhysicsAcquirer(
+            type("Source", (), {"read_physics": lambda self: RawPhysicsRead(1, 1, b"x")})(),
+            AcquisitionRingBuffer(1),
+        )
+        acquirer.capture_once()
+        acquirer.capture_once()
+        self.assertEqual(acquirer.health.snapshot.buffer_rejections, 1)
+        self.assertEqual(acquirer.metrics.buffer_rejection_count, 1)
+
+    def test_supervisor_exposes_running_failed_and_stopped_health(self):
+        entered = threading.Event()
+        release = threading.Event()
+        health = AcquisitionHealth()
+
+        def worker(stop):
+            entered.set()
+            release.wait(1)
+            raise RuntimeError("fatal worker error")
+
+        supervisor = AcquisitionSupervisor([
+            AcquisitionStream("physics", worker, lambda: None, health)
+        ])
+        self.assertEqual(health.snapshot.lifecycle_state, "idle")
+        supervisor.start()
+        self.assertTrue(entered.wait(1))
+        self.assertEqual(supervisor.status["physics"]["health"].lifecycle_state, "running")
+        release.set()
+        deadline = time.monotonic() + 1
+        while supervisor.status["physics"]["state"] != "failed" and time.monotonic() < deadline:
+            time.sleep(0.005)
+        status = supervisor.status["physics"]
+        self.assertEqual(status["state"], "failed")
+        self.assertEqual(status["health"].lifecycle_state, "failed")
+        self.assertIn("fatal worker error", status["error"])
+        supervisor.stop(timeout=1)
+
+
+if __name__ == "__main__":
+    unittest.main()
