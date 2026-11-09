@@ -55,6 +55,10 @@ The complete 82-field, 800-byte structural inventory is documented in [docs/ACC_
 
 The complete candidate inventory and six-minute live evidence are maintained in [docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md). The 4,096-byte Graphics mapping is preserved in raw recordings; the 1,588-byte/87-field Pro Engineer structure is an offline candidate only. Do not treat it as a confirmed Kunos v1.9 ABI or merge it with Physics. The audit records all scalar summaries, array/string observations, the unresolved Engine Map 9-versus-8 mismatch, and the existing crash-context event index. No repeat capture is required for the documented evidence.
 
+## Graphics field coverage audit
+
+The full 87-field candidate inventory, six-minute 4,096-byte raw capture evidence, array/string observations, crash-context event-index notes and unresolved Engine Map mismatch are documented in [docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md). The candidate 1,588-byte layout remains a third-party reference, not official Kunos Shared Memory 1.9 ABI sign-off. Graphics remains a separate raw-only acquisition path; no Graphics decoder is in the acquisition hot path.
+
 ## Current gate
 
 **Physics acquisition: closed for the current scope.** The 9 November live recording and independent raw-byte cross-check are documented in [Physics Field Coverage Audit](docs/ACC_PHYSICS_FIELD_COVERAGE_AUDIT.md). Graphics is now a separate raw-only acquisition/recording path, with a six-minute target-PC recording and complete 87-field candidate audit documented; its candidate field layout remains separate from Physics and is not official ABI sign-off. Static remains a future acquisition scope.
