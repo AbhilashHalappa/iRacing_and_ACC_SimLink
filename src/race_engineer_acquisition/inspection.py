@@ -23,7 +23,6 @@ _FILE_HEADER = struct.Struct("<8sIIQI")
 _BLOCK_MAGIC = b"PHBK"
 _BLOCK_HEADER = struct.Struct("<4sQIII")
 _RECORD_HEADER = struct.Struct("<QQQQQI")
-_LEGACY_PHYSICS_SIZE = 784
 
 
 def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
@@ -39,10 +38,9 @@ def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
             raise ValueError("Unsupported raw Physics recording format")
         if zlib.crc32(header[:-4]) != checksum:
             raise ValueError("Recording header checksum mismatch")
-        if payload_size not in (_LEGACY_PHYSICS_SIZE, PHYSICS_SIZE):
+        if payload_size != PHYSICS_SIZE:
             raise ValueError(
-                f"Unsupported Physics payload size {payload_size}; expected legacy "
-                f"{_LEGACY_PHYSICS_SIZE} or current {PHYSICS_SIZE}"
+                f"Unsupported Physics payload size {payload_size}; expected {PHYSICS_SIZE}"
             )
 
         expected_block = 1
@@ -92,24 +90,6 @@ def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
 def inspect_recording(path: str | Path) -> dict[str, Any]:
     """Summarize observed values for every scalar and array component."""
     payload_size, samples = read_raw_payloads(path)
-    if payload_size == _LEGACY_PHYSICS_SIZE:
-        return {
-            "recording": str(Path(path)),
-            "payload_size_bytes": payload_size,
-            "snapshot_count": len(samples),
-            "first_capture_sequence": samples[0][0],
-            "last_capture_sequence": samples[-1][0],
-            "field_component_count": 0,
-            "unique_value_tracking_limit_per_component": 4096,
-            "layout": "legacy-784-byte",
-            "interpretation": (
-                "Legacy 784-byte payload preserved and readable as raw snapshots. "
-                "It is not decoded with the current 800-byte layout because the "
-                "field offsets differ after byte 588."
-            ),
-            "fields": [],
-        }
-
     accumulators: dict[str, dict[str, Any]] = {}
     field_specs = _Physics._fields_
 
