@@ -190,3 +190,10 @@ The complete candidate inventory has been checked against two additional indepen
 **Results:** both references declare the Graphics mapping as 1,588 bytes. RaceIQ's 44 explicit offset descriptors align with the corresponding Pro Engineer offsets. RaceIQ's current offset map stops at `clock` (1488) and omits explicit descriptors for the final 96 bytes; Pro Engineer supplies the complete 87-member field sequence through `gap_behind` at 1584. RaceIQ's 1,320-byte minimum is a legacy parser-compatibility path, not the complete page, and is not suitable for new raw acquisition.
 
 The 87-field candidate inventory in this audit therefore uses Pro Engineer's complete sequence and RaceIQ's overlapping offsets as a cross-check. This is reference corroboration, not official Kunos Shared Memory 1.9 ABI confirmation. Preserve the complete 4,096-byte mapping capture; treat bytes 1,588–4,095 as opaque mapping tail based on the existing all-zero observation, not as additional declared fields.
+
+
+## Raw-only acquisition boundary — 9 November 2026
+
+The separate Graphics raw-only reader/recorder has been added. It preserves the complete mapping allocation discovered at runtime (4,096 bytes in the existing target capture) and does not use the candidate 1,588-byte struct to limit acquisition. The 87-field candidate inventory remains an offline interpretation reference only.
+
+Automated tests are present for the Graphics acquisition and recording path; CI and live target-PC validation are pending. This does not change the ABI sign-off status above: field offsets/types for Shared Memory 1.9 remain unconfirmed as a complete official contract.
