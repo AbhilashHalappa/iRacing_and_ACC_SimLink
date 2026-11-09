@@ -101,7 +101,6 @@ class StaticAcquirer:
             capture_timestamp_ns=completed,
             payload=payload,
         )
-        self._previous_payload = payload
         self.metrics.capture_count += 1
         self.metrics.last_capture_sequence = sequence
         duration = snapshot.acquisition_duration_ns
@@ -111,6 +110,10 @@ class StaticAcquirer:
         )
         if not self._buffer.try_put(snapshot):
             self.metrics.buffer_rejection_count += 1
+        else:
+            # Only suppress this payload after it has entered the queue. If the
+            # bounded buffer rejects it, the next poll must retry the same page.
+            self._previous_payload = payload
         return snapshot
 
     def run(self, stop_event: Event, *, refresh_interval_ns: int = 1_000_000_000) -> None:
