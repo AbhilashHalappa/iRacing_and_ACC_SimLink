@@ -119,4 +119,11 @@ The recovery utility preserves complete sequential CRC-valid blocks and truncate
 
 The existing Graphics ABI investigation, field-coverage audit and 18,000-sample full-mapping capture are documented in [ACC_GRAPHICS_ABI_INVESTIGATION.md](docs/ACC_GRAPHICS_ABI_INVESTIGATION.md) and [ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md](docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md). RaceIQ and Pro Engineer have been cross-checked: both declare a 1,588-byte candidate structure; Pro Engineer supplies the complete 87-field inventory, while RaceIQ's 44 explicit offset descriptors align with the corresponding Pro Engineer offsets.
 
-A separate raw-only Graphics reader and CRC-block recorder now copy the entire mapping allocation reported by Windows (4,096 bytes in the existing target capture). The 1,588-byte candidate is not used to limit or decode the payload; bytes beyond it are retained unchanged. Physics code and recordings are untouched. Automated tests are added, but the new path still requires CI and target-PC live validation. The exact Shared Memory 1.9 field ABI remains not signed off pending evidence reconciliation.
+A separate raw-only Graphics reader and CRC-block recorder now copy the entire mapping allocation reported by Windows (4,096 bytes in the existing target capture). The 1,588-byte candidate is not used to limit or decode the payload; bytes beyond it are retained unchanged. Every consistent poll is recorded, including repeated packet IDs, so same-ID page changes cannot be discarded by a deduplication filter. Physics code and recordings are untouched. The acquisition and recorder tests pass in GitHub Actions on both Windows and Ubuntu (60/60 each, including compilation of the new runner). Target-PC live validation remains pending. The exact Shared Memory 1.9 field ABI remains not signed off pending evidence reconciliation.
+
+
+**Target-PC validation command:**
+
+```powershell
+python scripts\\record_acc_graphics.py --duration-seconds 120 --poll-hz 100
+```
