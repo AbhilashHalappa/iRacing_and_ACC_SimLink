@@ -238,7 +238,7 @@ This materially strengthens the 1,588-byte candidate but does **not** turn the v
 The reference cross-check has been followed by a separate raw-only implementation:
 
 - `src/race_engineer_acquisition/graphics.py` opens `Local\\acpmf_graphics` read-only and discovers the mapping allocation size at runtime.
-- The source copies the complete mapping allocation and brackets the copy with packet-ID reads (including the ID embedded in the copied payload).
+- The source copies the complete mapping allocation and brackets the copy with packet-ID reads (including the ID embedded in the copied payload). Every consistent poll is preserved, even when packet ID repeats; duplicate IDs are metrics, not a deduplication rule.
 - The candidate 1,588-byte structure is not used as a copy limit and is not decoded in the acquisition path. With the current target allocation, all 4,096 bytes are retained.
 - Graphics has independent snapshot models, acquisition metrics, CRC-block recording/recovery, recorder queue and recording magic/schema. Only the generic bounded ring buffer and checkpoint worker are reused.
 - Runner: `scripts/record_acc_graphics.py`. Automated tests: `tests/acquisition/test_graphics_acquisition.py` and `tests/acquisition/test_graphics_recorder.py`.
