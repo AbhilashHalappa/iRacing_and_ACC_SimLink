@@ -18,11 +18,12 @@ from typing import Any
 from .acc_windows import PHYSICS_SIZE, _Physics
 
 _FILE_MAGIC = b"ACCPHY01"
-_FILE_VERSION = 1
+_SUPPORTED_FILE_VERSIONS = (1, 2)
 _FILE_HEADER = struct.Struct("<8sIIQI")
 _BLOCK_MAGIC = b"PHBK"
 _BLOCK_HEADER = struct.Struct("<4sQIII")
-_RECORD_HEADER = struct.Struct("<QQQQQI")
+_RECORD_HEADER_V1 = struct.Struct("<QQQQQI")
+_RECORD_HEADER_V2 = struct.Struct("<QQQQQQI")
 
 
 def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
@@ -34,7 +35,7 @@ def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
         if len(header) != _FILE_HEADER.size:
             raise ValueError("Recording header is incomplete")
         magic, version, payload_size, _created_ns, checksum = _FILE_HEADER.unpack(header)
-        if magic != _FILE_MAGIC or version != _FILE_VERSION:
+        if magic != _FILE_MAGIC or version not in _SUPPORTED_FILE_VERSIONS:
             raise ValueError("Unsupported raw Physics recording format")
         if zlib.crc32(header[:-4]) != checksum:
             raise ValueError("Recording header checksum mismatch")
@@ -45,6 +46,8 @@ def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
 
         expected_block = 1
         last_capture_sequence = 0
+        last_persistence_timestamp_ns = None
+        record_header = _RECORD_HEADER_V1 if version == 1 else _RECORD_HEADER_V2
         while True:
             block_header = stream.read(_BLOCK_HEADER.size)
             if not block_header:
@@ -64,12 +67,23 @@ def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
 
             offset = 0
             for _ in range(count):
-                if len(block) - offset < _RECORD_HEADER.size:
+                if len(block) - offset < record_header.size:
                     raise ValueError(f"Truncated record header in block {block_sequence}")
-                sequence, _packet_id, _started, _completed, _captured, size = (
-                    _RECORD_HEADER.unpack_from(block, offset)
-                )
-                offset += _RECORD_HEADER.size
+                values = record_header.unpack_from(block, offset)
+                if version == 1:
+                    sequence, _packet_id, _started, _completed, _captured, size = values
+                else:
+                    (
+                        sequence, _packet_id, _started, _completed, _captured,
+                        persistence_timestamp_ns, size,
+                    ) = values
+                    if (
+                        last_persistence_timestamp_ns is not None
+                        and persistence_timestamp_ns < last_persistence_timestamp_ns
+                    ):
+                        raise ValueError("Persistence timestamp is not monotonic")
+                    last_persistence_timestamp_ns = persistence_timestamp_ns
+                offset += record_header.size
                 end = offset + size
                 if size != payload_size or end > len(block):
                     raise ValueError(f"Invalid payload size in block {block_sequence}")
@@ -86,6 +100,19 @@ def read_raw_payloads(path: str | Path) -> tuple[int, list[tuple[int, bytes]]]:
         raise ValueError("Recording contains no snapshots")
     return payload_size, samples
 
+
+
+def _read_recording_version(path: str | Path) -> int:
+    with Path(path).open("rb") as stream:
+        header = stream.read(_FILE_HEADER.size)
+    if len(header) != _FILE_HEADER.size:
+        raise ValueError("Recording header is incomplete")
+    magic, version, _payload_size, _created_ns, checksum = _FILE_HEADER.unpack(header)
+    if magic != _FILE_MAGIC or version not in _SUPPORTED_FILE_VERSIONS:
+        raise ValueError("Unsupported raw Physics recording format")
+    if zlib.crc32(header[:-4]) != checksum:
+        raise ValueError("Recording header checksum mismatch")
+    return version
 
 def inspect_recording(path: str | Path) -> dict[str, Any]:
     """Summarize observed values for every scalar and array component."""
@@ -172,6 +199,7 @@ def inspect_recording(path: str | Path) -> dict[str, Any]:
         "recording": str(Path(path)),
         "payload_size_bytes": payload_size,
         "layout": "current-800-byte",
+        "format_version": _read_recording_version(path),
         "snapshot_count": len(samples),
         "first_capture_sequence": samples[0][0],
         "last_capture_sequence": samples[-1][0],
