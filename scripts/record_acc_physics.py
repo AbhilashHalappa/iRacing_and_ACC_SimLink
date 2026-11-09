@@ -22,6 +22,7 @@ from race_engineer_acquisition.acquirer import PhysicsAcquirer
 from race_engineer_acquisition.checkpoint import PeriodicCheckpointWorker
 from race_engineer_acquisition.recorder import PhysicsRecorderWorker, recover_recording
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
+from race_engineer_acquisition.fanout import FanOutDispatcher
 from race_engineer_acquisition.timing_windows import WindowsTimerResolution
 
 
@@ -70,7 +71,10 @@ def main() -> int:
 
     source = WindowsACCPhysicsSource()
     acquisition_buffer = AcquisitionRingBuffer(args.acquisition_buffer_capacity)
-    recorder_buffer = AcquisitionRingBuffer(args.recorder_buffer_capacity)
+    fanout = FanOutDispatcher(acquisition_buffer)
+    recorder_buffer = fanout.register(
+        "recorder", args.recorder_buffer_capacity, required=True
+    )
     acquirer = PhysicsAcquirer(source, acquisition_buffer)
     recorder = PhysicsRecorderWorker(
         recorder_buffer, recording_path, payload_size=PHYSICS_SIZE,
@@ -80,8 +84,7 @@ def main() -> int:
     )
     acquisition_stop = threading.Event()
     recorder_stop = threading.Event()
-    producer_done = threading.Event()
-    dispatcher_stats = {"transferred_count": 0, "in_flight_sequence": None}
+    dispatcher_stop = threading.Event()
     checkpoint_stop = threading.Event()
     checkpoint_sequence = {"value": 0}
     producer_errors: list[str] = []
@@ -98,24 +101,14 @@ def main() -> int:
             except Exception as exc:
                 producer_errors.append(f"Source close {type(exc).__name__}: {exc}")
             finally:
-                producer_done.set()
-
-    def dispatcher() -> None:
-        while not producer_done.is_set() or acquisition_buffer.size > 0:
-            item = acquisition_buffer.try_get()
-            if item is None:
-                time.sleep(0.0005)
-                continue
-            dispatcher_stats["in_flight_sequence"] = item.capture_sequence
-            if recorder_buffer.try_put(item):
-                dispatcher_stats["transferred_count"] += 1
-            dispatcher_stats["in_flight_sequence"] = None
+                pass
 
     recorder_thread = threading.Thread(
         target=recorder.run, args=(recorder_stop,), name="ACC-Raw-Recorder", daemon=True
     )
     dispatcher_thread = threading.Thread(
-        target=dispatcher, name="ACC-Recorder-Dispatcher", daemon=True
+        target=fanout.run, args=(dispatcher_stop,),
+        name="ACC-Recorder-Dispatcher", daemon=True
     )
     producer_thread = threading.Thread(
         target=producer, name="ACC-Physics-Acquisition", daemon=True
@@ -126,16 +119,17 @@ def main() -> int:
         acquired_now = acquirer.metrics.capture_count
         persisted_now = recorder.metrics.persisted_snapshot_count
         acquisition_rejected_now = acquisition_buffer.total_rejection_count
-        recorder_rejected_now = recorder_buffer.total_rejection_count
-        failed_now = recorder.metrics.failed_snapshot_count
+        consumer_now = recorder_buffer.metrics
+        persisted_now = consumer_now.processed_count
+        recorder_rejected_now = consumer_now.rejected_count
+        failed_now = consumer_now.failed_count
         acquisition_pending_now = acquisition_buffer.size
-        recorder_pending_now = recorder_buffer.size
-        dispatcher_in_flight = int(dispatcher_stats["in_flight_sequence"] is not None)
-        recorder_in_flight = recorder.metrics.in_flight_snapshot_count
+        recorder_pending_now = consumer_now.pending_count
+        dispatcher_in_flight = int(fanout.metrics.in_flight_sequence is not None)
         accounted_now = (
             persisted_now + acquisition_rejected_now + recorder_rejected_now
             + failed_now + acquisition_pending_now + recorder_pending_now
-            + dispatcher_in_flight + recorder_in_flight
+            + dispatcher_in_flight
         )
         return {
             "schema_version": 1,
@@ -159,10 +153,8 @@ def main() -> int:
                 "first_lost_sequence": acquisition_buffer.first_lost_sequence,
                 "last_lost_sequence": acquisition_buffer.last_lost_sequence,
             },
-            "dispatcher": {
-                "transferred_count": dispatcher_stats["transferred_count"],
-                "in_flight_sequence": dispatcher_stats["in_flight_sequence"],
-            },
+            "dispatcher": asdict(fanout.metrics),
+            "recorder_consumer": asdict(consumer_now),
             "recorder_buffer": {
                 "capacity": recorder_buffer.capacity,
                 "pending": recorder_pending_now,
@@ -218,13 +210,13 @@ def main() -> int:
         producer_thread.start()
         checkpoint_thread.start()
         producer_thread.join(timeout=args.duration_seconds)
+        acquisition_stop.set()
         if producer_thread.is_alive():
-            acquisition_stop.set()
             producer_thread.join(timeout=10)
-        else:
-            acquisition_stop.set()
         if producer_thread.is_alive():
             producer_error = "Acquisition thread did not stop within 10 seconds."
+        else:
+            dispatcher_stop.set()
         dispatcher_thread.join(timeout=30)
         if dispatcher_thread.is_alive():
             producer_error = producer_error or "Dispatcher did not finish draining acquisition buffer."
@@ -249,13 +241,18 @@ def main() -> int:
     if producer_errors:
         producer_error = "; ".join(producer_errors)
     acquired = acquirer.metrics.capture_count
-    persisted = recorder.metrics.persisted_snapshot_count
+    consumer_final = recorder_buffer.metrics
+    persisted = consumer_final.processed_count
     acquisition_rejected = acquisition_buffer.total_rejection_count
-    recorder_rejected = recorder_buffer.total_rejection_count
-    failed = recorder.metrics.failed_snapshot_count
+    recorder_rejected = consumer_final.rejected_count
+    failed = consumer_final.failed_count
     pending_acquisition = acquisition_buffer.size
-    pending_recorder = recorder_buffer.size
-    accounted = persisted + acquisition_rejected + recorder_rejected + failed + pending_acquisition + pending_recorder
+    pending_recorder = consumer_final.pending_count
+    dispatcher_in_flight = int(fanout.metrics.in_flight_sequence is not None)
+    accounted = (
+        persisted + acquisition_rejected + recorder_rejected + failed
+        + pending_acquisition + pending_recorder + dispatcher_in_flight
+    )
     reconciliation_delta = acquired - accounted
 
     recovery = None
@@ -278,7 +275,11 @@ def main() -> int:
     )
     report = {
         "schema_version": 1,
-        "status": "completed" if not producer_error and not recorder.error and recovery_ok and checkpoint_ok and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0 else "failed",
+        "status": "completed" if (
+            not producer_error and not recorder.error and recovery_ok and checkpoint_ok
+            and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0
+            and acquisition_rejected == 0 and recorder_rejected == 0 and failed == 0
+        ) else "failed",
         "recovery_validation_passed": recovery_ok,
         "checkpoint_validation_passed": checkpoint_ok,
         "checkpoint_file": checkpoint_path.name,
@@ -313,10 +314,11 @@ def main() -> int:
             "rejections": acquisition_rejected,
             "pending": pending_acquisition,
         },
-        "dispatcher": dispatcher_stats,
+        "dispatcher": asdict(fanout.metrics),
+        "recorder_consumer": asdict(consumer_final),
         "recorder_buffer": {
             "capacity": recorder_buffer.capacity,
-            "high_water_mark": recorder_buffer.high_water_mark,
+            "high_water_mark": consumer_final.high_water_mark,
             "rejections": recorder_rejected,
             "pending": pending_recorder,
         },
@@ -349,7 +351,10 @@ def main() -> int:
     print(f"Recorder write failures : {failed}")
     print(f"Acquisition rejects     : {acquisition_rejected}")
     print(f"Recorder queue rejects  : {recorder_rejected}")
-    print(f"Recorder queue high-water: {recorder_buffer.high_water_mark}")
+    print(f"Recorder queue high-water: {consumer_final.high_water_mark}")
+    print(f"Recorder processed       : {consumer_final.processed_count}")
+    print(f"Recorder failed          : {consumer_final.failed_count}")
+    print(f"Required delivery losses : {fanout.metrics.required_delivery_rejection_count}")
     print(f"Pending                 : {pending_acquisition + pending_recorder}")
     print(f"Simulated write delay   : {recorder.metrics.simulated_write_delay_ns / 1_000_000:.1f} ms")
     print(f"Simulated disk full     : {recorder.metrics.simulated_disk_full_triggered}")
