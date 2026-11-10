@@ -342,7 +342,7 @@ button { cursor: pointer; }
 .rpm-leds i.active.zone-red { background:linear-gradient(180deg,#ff8a8a,#e52332); border-color:#ff414c; box-shadow:0 0 9px rgba(237,45,58,.62); }
 .rpm-leds i.active.shift-flash { animation:rpm-shift-flash .22s steps(2,end) infinite; }
 @keyframes rpm-shift-flash { 0%,100% { background:#ff2738; border-color:#ff6470; box-shadow:0 0 8px #ff2738; } 50% { background:#65000a; border-color:#ff2738; box-shadow:0 0 2px #ff2738; } }
-.fuel-gradient-track { background:linear-gradient(90deg,#e52332 0%,#f07824 35%,#e8d52a 68%,#18b85d 100%); }
-.fuel-gradient-track i { background:transparent; box-shadow:inset -2px 0 0 rgba(255,255,255,.65); }
+.fuel-gradient-track { background:var(--surface-high); }
+.fuel-gradient-track i { background:linear-gradient(90deg,#e52332 0%,#f07824 35%,#e8d52a 68%,#18b85d 100%); box-shadow:inset -2px 0 0 rgba(255,255,255,.65); }
 .fuel-bar-caption { display:flex; justify-content:space-between; margin:-9px 0 13px; color:var(--muted); font-size:8px; font-weight:700; letter-spacing:.5px; }
 .glance-fuel .glance-inline-stats b { font-size:11px; }
