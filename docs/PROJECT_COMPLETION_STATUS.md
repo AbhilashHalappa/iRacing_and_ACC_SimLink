@@ -361,3 +361,18 @@ The candidate sources disagree on `TrackConfiguration` length (15 vs 33 UTF-16 c
 The user ran the candidate inspector on the target PC. ACC Shared Memory version 1.9, game version 1.7, Porsche 992 GT3 R, Monza, three sectors, 9,250 max RPM and 120 max fuel were observed. Candidate B produced coherent `CarSkin=skin`, `DryTyresName=DHE` and `WetTyresName=WH` at its tail offsets; candidate A produced empty strings at the corresponding offsets. This strongly favors candidate B for the observed build. The `TrackConfiguration` text alone does not distinguish the capacities. Pit-window values were 600500 and 599500; their units/semantics are unresolved and they remain raw-only.
 
 A conservative decoder was added in `src/race_engineer_acquisition/static_decoder.py`, with tests in `tests/acquisition/test_static_decoder.py`. It exposes selected common-prefix and candidate-B metadata only, rejects short pages and non-boolean values in boolean fields, and does not decode pit-window fields or claim official Kunos ABI certification. The user reported the previous acquisition tests as 3 passed; the newly added decoder tests have not yet been run by the user. Next command after pull: `python -m pytest tests/acquisition/test_static.py tests/acquisition/test_static_decoder.py -q`. No new recording or Physics/Graphics test is required.
+
+
+## Physics decoder and downstream consumer — 10 November 2026
+
+**Status: Implemented; decoder unit tests passed locally; live ACC consumer validation and UI bridge remain pending.**
+
+A downstream `physics_decoder.py` decodes the audited 800-byte ACC Physics page fields through byte 783. The final 16 bytes remain opaque. It retains ACC's FL/FR/RL/RR wheel-array ordering, exposes the raw gear value plus an R/N/number display value, rejects short payloads and non-finite decoded floats, and does not run in the acquisition worker.
+
+`physics_consumer.py` drains the Physics acquisition ring on its own supervised worker. It checks that the packet ID decoded from the page matches the acquisition snapshot metadata, keeps the last good decoded sample if a page fails decoding, and publishes a detached JSON-compatible latest-sample payload with consumer counters. Shutdown waits for the Physics producer to finish before the consumer drains the remaining ring entries. Graphics and Static remain separate and are not decoded by this consumer.
+
+The user ran `python -m pytest tests/test_physics_decoder.py -q`: **5 passed**. The new downstream-consumer tests have been committed but have not yet been run locally. No live ACC decode validation has been performed after adding this consumer.
+
+**UI integration boundary:** this branch currently contains the acquisition package and standalone Vite frontend, but no Python desktop-app entry point or HTTP/SSE host to attach the latest-sample provider to. Therefore Overview tiles are not yet connected to live telemetry. The next integration gate is to add the provider to the actual Qt application's existing local bridge, then subscribe the frontend to that bridge. Do not create a separate browser-only telemetry server or route UI reads directly to shared memory.
+
+**Known qualification:** the decoder's 784-byte minimum covers the last currently decoded field; production acquisition still reads the 800-byte audited page. This does not resolve or reinterpret the opaque 16-byte tail. The 5 passing tests are synthetic decoder tests, not live field-semantic validation.
