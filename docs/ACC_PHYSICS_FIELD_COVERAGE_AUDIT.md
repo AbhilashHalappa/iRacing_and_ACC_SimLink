@@ -1,6 +1,6 @@
 # ACC Physics Page — Field Coverage Audit
 
-**Status:** Physics acquisition and raw recording validation closed for the current scope. The 800-byte layout is strongly corroborated by three independent reader implementations and live read-only mapping probes; exact Kunos v1.9 ABI/header confirmation remains unavailable. Live acquisition, persistence, recording integrity and independent raw-byte cross-check passed on 9 November 2026.  
+**Status:** Physics acquisition and raw recording validation closed for the current scope. The 800-byte layout is strongly corroborated by three independent reader implementations and live read-only mapping probes; exact Kunos v1.9 ABI/header confirmation remains unavailable. A 600-second target-PC Physics recording on 10 November 2026 also passed acquisition, persistence, recovery and reconciliation checks. Field semantics and the version-matched Kunos ABI qualification remain separately tracked.  
 **Page size:** 800 bytes  
 **Layout:** Little-endian, `_pack_ = 4`  
 **Layout evidence:** three independent ACC readers include `mz[4]` after `currentMaxRpm`; the outlying 784-byte transcription omits this member. The live read-only probe confirmed readable data through byte 799. The final 16 bytes are preserved opaquely.  
@@ -21,7 +21,7 @@ This audit documents the corrected raw ABI. It does not add a decoder or semanti
 - **Raw preserved = Yes:** the adapter copies the entire page and the recorder stores that payload; there is no per-field filtering.
 - **Reference decoder exposes = Yes:** the cited reference decoder includes a corresponding output key. For `wheel_load` and `tyre_dirty`, it deliberately returns `None` because the reference comments identify those ACC values as unused. This is not a decoder implemented in this greenfield repository.
 - **Unused/deprecated:** based on explicit field naming in the reference structure. A field not so marked is not thereby proven to be populated by ACC.
-- **Live validation:** statuses below summarize evidence through the 2026-11-09 five-minute capture. “Validated” means a plausible signal was correlated with a controlled action or repeatable driving state; it does not automatically establish calibrated units or complete semantics.
+- **Live validation:** statuses below summarize evidence through the 2026-11-10 600-second capture. “Validated” means a plausible signal was correlated with a controlled action or repeatable driving state; it does not automatically establish calibrated units or complete semantics.
 - **Observed:** a field changed in a live capture, but controlled causality, axis/sign calibration or semantic confirmation is missing.
 - **Unresolved:** latest evidence is contradictory or implausible; do not use the declared interpretation.
 - **Reference unused:** this reflects the cited third-party reference, not an official Kunos guarantee.
@@ -102,18 +102,18 @@ Offsets are zero-based byte offsets. Array sizes are total bytes.
 | `slip_angle` | `c_float[4]` | 656 | 16 | Yes | Yes | Not marked unused | Observed — four channels vary in D-BOX drive; controlled cornering correlation pending |
 | `tc_in_action` | `c_int32` | 672 | 4 | Yes | No | Intervention indicator; not a selected TC level | Stable zero in the 9 November capture; no intervention observed in sampled data |
 | `abs_in_action` | `c_int32` | 676 | 4 | Yes | No | Intervention indicator; not a selected ABS level | Stable zero in the 9 November capture; no intervention observed in sampled data |
-| `suspension_damage_unused` | `c_float[4]` | 680 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
-| `tyre_temp_unused` | `c_float[4]` | 696 | 16 | Yes | No | Marked unused/deprecated in reference naming | Reference marks unused/deprecated; not a live target |
-| `water_temp_c` | `c_float` | 712 | 4 | Yes | Yes | Not marked unused | Unresolved — latest capture aliases tyre_core_temp_c[0] statistics |
-| `brake_pressure` | `c_float[4]` | 716 | 16 | Yes | Yes | Not marked unused | Unresolved — latest capture overlaps tyre-core-temperature statistics |
-| `front_brake_compound` | `c_int32` | 732 | 4 | Yes | Yes | Not marked unused | Unresolved — int32 value 1.06183e9 is not a credible compound ID |
-| `rear_brake_compound` | `c_int32` | 736 | 4 | Yes | Yes | Not marked unused | Unresolved — int32 value 1.06183e9 is not a credible compound ID |
-| `pad_life` | `c_float[4]` | 740 | 16 | Yes | Yes | Not marked unused | Unresolved — rear components show 1.4013e-45 subnormal values |
-| `disc_life` | `c_float[4]` | 756 | 16 | Yes | Yes | Not marked unused | Unresolved — changing values; units/meaning not established |
-| `ignition_on` | `c_int32` | 772 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
-| `starter_engine_on` | `c_int32` | 776 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
-| `engine_running` | `c_int32` | 780 | 4 | Yes | Yes | Not marked unused | Unresolved — values around 1.107e9, not clean 0/1 flags |
-| `tail_reserved` | `c_ubyte[16]` | 784 | 16 | Yes | No | Opaque/reserved bytes | Preserved raw; semantics intentionally not assigned |
+| `suspension_damage_unused` | `c_float[4]` | 680 | 16 | Yes | No | Conditional field in older reference; not approved as unused | Observed — components 0 and 1 varied (max 0.107493 and 0.062567); components 2 and 3 remained zero. Semantics remain conditional/unconfirmed |
+| `tyre_temp_unused` | `c_float[4]` | 696 | 16 | Yes | No | Duplicate core-temperature alias in newer references | Confirmed byte-for-byte alias for this 224,956-snapshot capture: bytes 152–167 equalled bytes 696–711 in every sample; 0 mismatches. Do not expose as independent telemetry |
+| `water_temp_c` | `c_float` | 712 | 4 | Yes | Yes | Not marked unused | Observed — maximum 86.663; semantic/unit validation remains open |
+| `brake_pressure` | `c_float[4]` | 716 | 16 | Yes | Yes | Not marked unused | Observed — maxima by component 0.742, 0.742, 0.258, 0.258; scale/meaning remain unvalidated |
+| `front_brake_compound` | `c_int32` | 732 | 4 | Yes | Yes | Not marked unused | Observed — integer values 0–1 in the 10 Nov capture; enum mapping not validated |
+| `rear_brake_compound` | `c_int32` | 736 | 4 | Yes | Yes | Not marked unused | Observed — integer values 0–1 in the 10 Nov capture; enum mapping not validated |
+| `pad_life` | `c_float[4]` | 740 | 16 | Yes | Yes | Not marked unused | Observed — components varied; maximum approximately 29; units, corner mapping and direction remain unvalidated |
+| `disc_life` | `c_float[4]` | 756 | 16 | Yes | Yes | Not marked unused | Observed — components varied; maximum approximately 32; units, corner mapping and direction remain unvalidated |
+| `ignition_on` | `c_int32` | 772 | 4 | Yes | Yes | Not marked unused | Observed — 0/1 values in this capture; full engine-state transition validation remains open |
+| `starter_engine_on` | `c_int32` | 776 | 4 | Yes | Yes | Not marked unused | Observed — remained zero in this capture; start transition not exercised |
+| `engine_running` | `c_int32` | 780 | 4 | Yes | Yes | Not marked unused | Observed — 0/1 values in this capture; full engine-state transition validation remains open |
+| `tail_reserved` | `c_ubyte[16]` | 784 | 16 | Yes | No | Four vibration-float candidates in RaceIQ/Pro Engineer; opaque in Greenfield | Raw bytes preserved. Interpreting four little-endian floats is numerically possible in this capture, but field semantics are not independently established; keep opaque in production |
 
 ## Layout regression tests
 
@@ -127,7 +127,6 @@ Use `scripts/inspect_acc_physics.py` to inspect a completed `.accraw` file witho
 $env:PYTHONPATH = "src"
 python scripts/inspect_acc_physics.py "user_data\\raw_recordings\\<recording>.accraw" --csv-out "user_data\\raw_recordings\\<recording>.physics.csv"
 ```
-
 The utility validates the recording header, block sequence, payload lengths and CRCs, then reports per-field/per-array-component sample count, finite/non-finite count, zero/non-zero count, min/max, first/last value and whether the observed value was constant or varied. Each component now includes its scalar type (`int32` or `float32`), field byte offset, field byte size, array length and component byte offset. The JSON and optional CSV carry the same metadata.
 
 Unique-value tracking is capped at 4,096 distinct values per component to bound offline memory use. `unique_values_count_exact` is true only when fewer than 4,096 values were observed. If the limit is reached, `unique_values_observed` is a lower bound, not an exact cardinality. The report also records the tracking limit. The utility writes a JSON report beside the recording by default and an optional CSV. It never truncates or modifies the source recording.
@@ -257,8 +256,7 @@ The following register consolidates every field currently marked observed, pendi
 | `fuel_kg` / 12 | Confirm actual unit and response to known fuel addition/refuelling; references disagree between kg and litres. | Observed; unit unresolved. | Controlled before/after fuel change compared with ACC Static max fuel and known added quantity. |
 | `velocity[3]` / 32 | Axis order, coordinate frame and sign. | Observed; calibration open. | Controlled straight-line motion and known direction changes, correlated with another position/velocity reference. |
 | `wheel_slip[4]` / 56 | Per-wheel sign/range and behaviour during controlled slip. | Observed; semantics not calibrated. | Controlled wheel-lock/spin event with wheel identity preserved. |
-| `tc` / 204 and `abs` / 252 | Whether these represent intervention activity, selected aid level, or another value. | Observed; must not be represented as selected setup levels. | Controlled setup changes and interventions, separately logged and compared. |
-| `heading`, `pitch`, `roll` / 208–216 | Coordinate convention, axis and sign. | Observed; calibration open. | Known orientation changes or track-aligned controlled manoeuvres. |
+| `tc` / 204 and `abs` / 252 | Whether these represent intervention activity, selected aid level, or another value. | Observed; must not be represented as selected setup levels. | Controlled setup changes and interventions, separately logged and compared. || `heading`, `pitch`, `roll` / 208–216 | Coordinate convention, axis and sign. | Observed; calibration open. | Known orientation changes or track-aligned controlled manoeuvres. |
 | `autoshifter_on` / 264 | Boolean encoding and transition. | Pending. | Toggle automatic shifting in a controlled session and inspect raw int32 values. |
 | `turbo_boost` / 276 | Whether populated for the tested car and its units. | Pending. | Controlled boost/load comparison on a car that exposes turbo boost. |
 | `air_temp_c`, `road_temp_c` / 288–292 | Independent environmental meaning and units. | Pending. | Compare with known ACC session weather/track temperatures; avoid inferring from plausible ranges alone. |
@@ -277,9 +275,9 @@ The following register consolidates every field currently marked observed, pendi
 | `slip_angle[4]` / 656 | Per-wheel semantics, sign and units. | Observed; cornering correlation pending. | Controlled cornering in both directions with wheel identity and sign correlation. |
 | `tc_in_action`, `abs_in_action` / 672–676 | Whether and how the intervention flags assert. | Stable zero; no intervention observed in current capture. | Deliberately trigger TC and ABS independently and record transitions. |
 | `suspension_damage[4]` / 680 | Whether this is a populated conditional damage field or unused. | Conditional candidate; current “unused” label is not adequately supported. | Controlled suspension damage event or authoritative target-version definition. |
-| `tyre_temp[4]` / 696 | Duplicate alias versus unused field. | Strong duplicate-alias candidate; not approved as independent telemetry. | Exact per-sample byte/value equality against offset 152 across existing/new raw captures. |
-| `water_temp` / 712 | Whether field is real water temperature or an offset/type alias. | Unresolved; later capture statistics overlap core-temperature data. | Raw-byte per-sample comparison, plus engine warm-up/cool-down transition. |
-| `brake_pressure[4]` / 716 | Whether four channels align and how raw values map to pressure. | Unresolved; later capture statistics overlap core-temperature data. | Decode exact offsets 716/720/724/728 from raw bytes; controlled brake pressure and compare with brake bias and documented car-specific coefficient. |
+| `tyre_temp[4]` / 696 | Duplicate alias versus unused field. | Strong duplicate-alias candidate; not approved as independent telemetry. | Exact per-sample byte equality against offset 152 in the 10 Nov 2026 recording (completed: all 224,956 samples, zero mismatches). |
+| `water_temp` / 712 | Whether field is real water temperature or an offset/type alias. | Unresolved; later capture statistics overlap core-temperature data. | Engine warm-up/cool-down transition if water-temperature semantics are needed; the new capture did not establish units or causal meaning. |
+| `brake_pressure[4]` / 716 | Whether four channels align and how raw values map to pressure. | Unresolved; later capture statistics overlap core-temperature data. | Controlled brake-pressure event and comparison with brake bias and the documented car-specific coefficient; retain raw float interpretation as a candidate only. |
 | `front_brake_compound`, `rear_brake_compound` / 732–736 | Integer encoding, offset and valid enum values. | Unresolved; current int32 values implausible. | Inspect same four bytes as int32 and float32; compare with selected compound and known valid enum mapping. |
 | `pad_life[4]` / 740 | All four components and units/direction. | Unresolved; rear values are subnormal in current capture. | Raw-byte validation for all corners and controlled pad wear/service or authoritative unit definition. |
 | `disc_life[4]` / 756 | Units, direction and service semantics. | Numeric variation observed; not approved as life percentage. | Raw-byte validation and controlled wear/service comparison; confirm whether unit is thickness. |
@@ -294,14 +292,14 @@ The following register consolidates every field currently marked observed, pendi
 - Fields explicitly documented as unused may remain in the layout for offset correctness but must not be exposed as live telemetry.
 - Unknown/reserved bytes remain opaque. Candidate vibration fields at 784–799 are not promoted until target evidence is available.
 - Do not add a production decoder as part of this inventory step. First close the ABI/type and raw-byte correlation questions; decoder work remains a separate downstream task.
-- No new ACC recording is requested by this review. Existing recordings should be inspected first for the exact byte-level comparisons above.
+- The 10 Nov 2026 recording now supplies the target-PC byte-level evidence listed below. Do not repeat already completed RaceIQ/Pro Engineer comparisons or run additional exploratory correlations without a specific unresolved acceptance criterion.
 
 ### Remaining Physics work
 
 1. Keep the corrected 800-byte ABI stable; investigate individual unresolved field semantics only when a required feature needs them.
 2. Verify all four `pad_life` components and establish units/direction.
 3. Establish the meaning and units of all four `disc_life` components.
-4. Validate brake-pressure channels using controlled brake application and raw bytes at offsets 700, 704, 708 and 712.
+4. Validate brake-pressure channels using controlled brake application and raw bytes at offsets 716, 720, 724 and 728.
 5. Confirm front/rear brake compound representation and scalar type.
 6. Confirm engine flags with engine-off, start, running and stop transitions.
 7. Resolve the separate C# `mz[4]` layout variant against authoritative Kunos v1.9 ABI evidence.
@@ -387,5 +385,63 @@ The Physics fields at offsets 672 and 676 are intervention indicators (`tc_in_ac
 - Recording structure/CRC inspection: validated.
 - Independent raw-byte comparison for 16 selected fields: passed.
 - Full semantic validation of every field: not claimed; individual statuses remain in the inventory.
-- Graphics and Static acquisition: explicitly outside this closure and unchanged.
-- No Physics decoder, Graphics reader, or Graphics/Physics merge is introduced by this closure.
+- Graphics and Static acquisition: explicitly outside this closure and unchanged.- No Physics decoder, Graphics reader, or Graphics/Physics merge is introduced by this closure.
+
+## Additional target-PC Physics evidence — 10 November 2026
+
+This capture extends the existing RaceIQ and Pro Engineer reference comparison; it does not repeat or replace that work.
+
+Recording: `user_data/raw_recordings/acc_physics_20261110T100629_533039Z.accraw`  
+Manifest recording ID: `b6d606e2-44de-4614-b944-7d0fe92ee14d`
+
+### Acquisition and recording integrity
+
+- ACC game build: 1.10.4; shared-memory identifiers: `smVersion = 1.9`, `acVersion = 1.7`.
+- Duration: 600 seconds; requested Physics polling: 480 Hz; raw payload: 800 bytes.
+- Acquired and persisted: 224,956 snapshots; capture sequence 1–224,956.
+- Source packet IDs: 14,221–254,467; packet regressions: 0.
+- Acquisition rejects, recorder rejects, recorder write failures, failed samples and pending samples: all 0.
+- Reconciliation delta: 0.
+- Recovery: valid; 46,142 blocks; 224,956 recovered samples; 0 truncated bytes.
+- Persisted payload bytes: 179,964,800 (224,956 × 800); full recording size is larger due to recording headers and block metadata.
+- Checkpoint writes: 600; failures: 0.
+- Maximum persist duration: 13.3 ms; maximum block write: 13.2 ms; CPU: 10.22% of one core.
+- Source packet gap observations (15,291) and duplicate packet observations (59,259) are source-side observations, not missing persisted capture sequences; all 224,956 acquired snapshots were persisted.
+- Manifest session metadata is null because the separate Static metadata decoder warned on `AidAutoClutch=2`. This does not indicate Physics payload or recording loss.
+
+### Field-level observations from this capture
+
+| Offset | Candidate field | Target-PC observation | Disposition |
+|---:|---|---|---|
+| 152–167 and 696–711 | Core-temperature array and duplicate alias | Exact raw-byte equality for every one of 224,956 snapshots; zero mismatches | Confirms duplicate alias for this capture; not an independent telemetry channel |
+| 680–695 | Suspension damage [4] | Components 0 and 1 varied (maximum 0.107493 and 0.062567); components 2 and 3 remained zero | Conditional field is populated in this session; meaning and component mapping remain unvalidated |
+| 712 | Water temperature candidate | Maximum 86.663 | Numeric observation only; units and semantic identity remain open |
+| 716–731 | Brake pressure [4] | Component maxima 0.742, 0.742, 0.258 and 0.258 | Numeric observation only; scale and calibration remain open |
+| 732 / 736 | Front/rear brake compound | Integer values 0–1 | Plausible enum range in this capture; enum mapping not established |
+| 740–755 | Pad life [4] | Maximum approximately 29 | Units, direction and corner mapping remain open |
+| 756–771 | Disc life [4] | Maximum approximately 32 | Units, direction and corner mapping remain open |
+| 772 / 780 | Ignition / engine-running flags | Integer values 0/1 | Observed; complete state-transition validation remains open |
+| 776 | Starter-engine flag | Remained zero | Start transition was not exercised |
+| 784–799 | Reference vibration candidates | Four little-endian float interpretations are finite in all samples. Channel at 784 is mostly zero with occasional ±0.1; channel 788 ranges approximately -1..1; channel 792 approximately -1..1; channel 796 takes only -1, 0 or +1. | Consistent with treating the bytes as reference-supported candidate channels, but not proof of each channel's semantics. Preserve as opaque bytes in production. |
+
+The tail observations above do not justify more correlation experiments: the existing RaceIQ and Pro Engineer comparison already identifies the four vibration candidates. The current implementation's conservative opaque representation remains appropriate until a feature requires a semantic decoder.
+
+### Reference reconciliation and remaining ABI qualification
+
+The previously recorded pinned references remain the layout evidence:
+- RaceIQ commit `64a34783f706722cf342e18ec7fc06d29f30f8e`, `packages/capture-formats/src/acc/structs.ts`.
+- Pro Engineer commit `b33ab4b2c8dfcfeb1079cfb08197fe7e77127b26`, `core/src/games/assetto_corsa_competizione/structs.rs`.
+
+Their offset/size evidence for the 800-byte structure remains consistent with Greenfield, including `currentMaxRpm` at 588, `mz[4]` at 592 and the tail vibration candidates at 784–799. The 10 Nov target-PC capture adds full-page integrity and the offset-696 exact-alias observation. It does not resolve the separate type disagreement: newer ACC-focused references use int32 for `currentMaxRpm`, while the v1.8.12 transcription and older C# reader declare float. No official Kunos Shared Memory v1.9 header was located. Therefore the 800-byte layout remains strongly corroborated, not officially version-certified.
+
+### Issue #11 disposition after this capture
+
+- The complete 800-byte raw capture, persistence, CRC recovery and reconciliation are confirmed for this 600-second run.
+- The RaceIQ and Pro Engineer comparisons are already complete and remain the independent reference basis; no further repeat comparison is required.
+- Offset 696 is confirmed as a byte-for-byte duplicate of offset 152 in this recording.
+- Offset 680 is demonstrably populated in at least two components in this recording; conditional semantics remain unconfirmed.
+- Offsets 712–783 now have current target-PC observations, but units, enum mapping and engine-state transitions are not all fully calibrated.
+- Offsets 784–799 remain opaque in production, consistent with the current conservative boundary.
+- Remaining true limitation: no official version-matched Kunos v1.9 ABI/header evidence, plus field-specific semantics/units only where a future feature actually needs them.
+- No production code, ABI declaration, acquisition path, recorder, queue capacity or hot-loop behavior changed for this evidence update. No tests were run; this is a documentation-only update based on the user's completed capture and inspection.
+
