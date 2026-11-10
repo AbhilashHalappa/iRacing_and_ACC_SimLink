@@ -27,6 +27,7 @@ The manifest describes one file and one stream. Physics, Graphics and Static rem
 | `completion_failure_reasons` | array of strings | Empty only when all stream completion gates pass |
 | `session` | object | ACC metadata fields, each nullable when unavailable |
 | `stream_summary` | object | Stream-specific counts and source sequence/packet ranges |
+| `error_counts` | object | Producer, dispatcher, recorder-write, recorder and checkpoint error counts |
 | `integrity` | object | Recovery/CRC and accounting reconciliation summary |
 
 ## Session metadata
@@ -45,7 +46,7 @@ Counts must reconcile with the stream's existing accounting report. The manifest
 
 ## Integrity
 
-The `integrity` object includes `recovery_valid`, `recovered_count`, `truncated_bytes`, `reconciliation_delta`, and `metadata_warnings`. For streams without a checkpoint worker, checkpoint fields are omitted rather than fabricated.
+The `error_counts` object includes `producer_error_count`, `dispatcher_error_count`, `recorder_write_failure_count`, `recorder_error_count`, and `checkpoint_write_failure_count`. The `integrity` object includes `recovery_valid`, `recovered_count`, `truncated_bytes`, `reconciliation_delta`, and `metadata_warnings`. For streams without a checkpoint worker, checkpoint fields are omitted rather than fabricated.
 
 A successful completion requires the existing stream-specific completion policy to pass, all required samples to be persisted, no required queue losses/failures/pending work, a valid recovered recording with no truncated tail, and zero reconciliation delta. A partial but recoverable raw file is still `incomplete` or `failed`, not `completed`.
 
@@ -98,7 +99,7 @@ A successful completion requires the existing stream-specific completion policy 
 }
 ```
 
-The example is illustrative; the UUID and counts are not actual recording evidence.
+The example is illustrative; the UUID and counts are not actual recording evidence. The repository does not currently declare an application release version, so `application_version` is null and a warning is included rather than inventing a version.
 
 ## Implementation
 
