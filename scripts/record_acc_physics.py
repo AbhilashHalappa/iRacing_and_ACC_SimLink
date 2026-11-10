@@ -41,6 +41,10 @@ def parse_args() -> argparse.Namespace:
         help="Optional delay before each recorder batch write; recorder thread only.",
     )
     parser.add_argument(
+        "--simulated-initial-recorder-stall-seconds", type=float, default=0.0,
+        help="Test only: pause the first recorder batch once, while acquisition continues.",
+    )
+    parser.add_argument(
         "--simulate-disk-full-after-batches", type=int, default=None,
         help="Test only: inject ENOSPC during the next block after N successful blocks.",
     )
@@ -56,6 +60,10 @@ def parse_args() -> argparse.Namespace:
         parser.error("checkpoint interval must be positive")
     if args.simulated_write_delay_ms < 0:
         parser.error("simulated write delay cannot be negative")
+    if args.simulated_initial_recorder_stall_seconds < 0:
+        parser.error("initial recorder stall cannot be negative")
+    if args.simulated_initial_recorder_stall_seconds and args.duration_seconds < (2 * args.simulated_initial_recorder_stall_seconds + 1):
+        parser.error("initial-stall validation requires duration >= 2 * stall + 1 second for an equal-length recovery window")
     if args.simulate_disk_full_after_batches is not None and args.simulate_disk_full_after_batches <= 0:
         parser.error("simulated disk-full batch count must be positive")
     return args
@@ -81,6 +89,7 @@ def main() -> int:
         recorder_buffer, recording_path, payload_size=PHYSICS_SIZE,
         batch_size=args.batch_size,
         simulated_write_delay_seconds=args.simulated_write_delay_ms / 1000.0,
+        simulated_initial_stall_seconds=args.simulated_initial_recorder_stall_seconds,
         simulated_disk_full_after_batches=args.simulate_disk_full_after_batches,
     )
     acquisition_stop = threading.Event()
@@ -209,7 +218,27 @@ def main() -> int:
         dispatcher_thread.start()
         producer_thread.start()
         checkpoint_thread.start()
-        producer_thread.join(timeout=args.duration_seconds)
+        producer_deadline = time.monotonic() + args.duration_seconds
+        stall_backlog_at_release = None
+        recovery_empty_since_ns = None
+        recovery_elapsed_ns = None
+        recovery_while_acquisition_running = False
+        while producer_thread.is_alive() and time.monotonic() < producer_deadline:
+            stall_finished_ns = recorder.metrics.simulated_initial_stall_finished_ns
+            if args.simulated_initial_recorder_stall_seconds and stall_finished_ns is not None:
+                if stall_backlog_at_release is None:
+                    stall_backlog_at_release = recorder_buffer.metrics.pending_count
+                pending_now = recorder_buffer.metrics.pending_count
+                if pending_now == 0:
+                    if recovery_empty_since_ns is None:
+                        recovery_empty_since_ns = time.perf_counter_ns()
+                    elif time.perf_counter_ns() - recovery_empty_since_ns >= 500_000_000:
+                        recovery_elapsed_ns = recovery_empty_since_ns - stall_finished_ns
+                        recovery_while_acquisition_running = producer_thread.is_alive()
+                        break
+                else:
+                    recovery_empty_since_ns = None
+            time.sleep(0.01)
         acquisition_stop.set()
         if producer_thread.is_alive():
             producer_thread.join(timeout=10)
@@ -346,6 +375,7 @@ def main() -> int:
             "timer_resolution_ms_requested": args.timer_resolution_ms,
             "checkpoint_interval_seconds": args.checkpoint_interval_seconds,
             "simulated_write_delay_ms": args.simulated_write_delay_ms,
+            "simulated_initial_recorder_stall_seconds": args.simulated_initial_recorder_stall_seconds,
             "simulate_disk_full_after_batches": args.simulate_disk_full_after_batches,
             "physics_payload_size": PHYSICS_SIZE,
         },
@@ -372,6 +402,25 @@ def main() -> int:
             "pending": pending_recorder,
         },
         "recorder_metrics": asdict(recorder.metrics),
+        "stall_recovery_validation": {
+            "requested": args.simulated_initial_recorder_stall_seconds > 0,
+            "stall_backlog_at_release": stall_backlog_at_release,
+            "recovery_elapsed_ns": recovery_elapsed_ns,
+            "recovery_deadline_ns": round(args.simulated_initial_recorder_stall_seconds * 1_000_000_000) if args.simulated_initial_recorder_stall_seconds else None,
+            "recovered_while_acquisition_running": recovery_while_acquisition_running,
+            "passed": (
+                args.simulated_initial_recorder_stall_seconds == 0
+                or (
+                    stall_backlog_at_release is not None
+                    and stall_backlog_at_release > 0
+                    and recovery_elapsed_ns is not None
+                    and recovery_elapsed_ns <= round(args.simulated_initial_recorder_stall_seconds * 1_000_000_000)
+                    and recovery_while_acquisition_running
+                    and recorder_buffer.metrics.rejected_count == 0
+                    and acquisition_rejected == 0
+                )
+            ),
+        },
         "recorder_error": recorder.error,
         "producer_error": producer_error,
         "reconciliation": {
@@ -407,6 +456,10 @@ def main() -> int:
     print(f"Required delivery losses : {fanout.metrics.required_delivery_rejection_count}")
     print(f"Pending                 : {pending_acquisition + pending_recorder}")
     print(f"Simulated write delay   : {recorder.metrics.simulated_write_delay_ns / 1_000_000:.1f} ms")
+    print(f"Initial recorder stall  : {recorder.metrics.simulated_initial_stall_ns / 1_000_000_000:.3f} s")
+    print(f"Stall backlog at release: {stall_backlog_at_release}")
+    print(f"Recovery elapsed        : {recovery_elapsed_ns / 1_000_000_000:.3f} s" if recovery_elapsed_ns is not None else "Recovery elapsed        : not recovered during acquisition")
+    print(f"Recovered while acquiring: {recovery_while_acquisition_running}")
     print(f"Simulated disk full     : {recorder.metrics.simulated_disk_full_triggered}")
     print(f"Max persist duration    : {recorder.metrics.max_persist_duration_ns / 1_000_000:.1f} ms")
     print(f"Max block write duration: {recorder.metrics.max_block_write_duration_ns / 1_000_000:.1f} ms")
