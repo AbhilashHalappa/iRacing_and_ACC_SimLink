@@ -108,6 +108,8 @@ class ACCDesktopWindow(QMainWindow):
 
 def run_desktop() -> int:
     app = QApplication.instance() or QApplication([])
+    app.setOrganizationName("RaceEngineerACC")
+    app.setApplicationName("RaceEngineerACC")
     try:
         window = ACCDesktopWindow(app=app)
     except Exception as exc:
