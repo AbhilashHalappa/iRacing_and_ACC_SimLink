@@ -325,5 +325,5 @@ button { cursor: pointer; }
 @media(prefers-reduced-motion:reduce){.value-change-glow.is-changing{animation:none;border-color:#25c878;box-shadow:0 0 12px #25c878}}
 
 /* Live ACC connection and RPM shift progress states. */
-.prototype-state span.connected,.connection-chip span.connected { background:var(--success); box-shadow:0 0 9px var(--success); }
+.status-dot.connected,.prototype-state span.connected,.connection-chip span.connected { background:var(--success); box-shadow:0 0 9px var(--success); }
 .rpm-leds i.active { background:linear-gradient(180deg,#ffdb64,#f07824); border-color:#ffb34a; box-shadow:0 0 8px rgba(255,150,45,.55); }
