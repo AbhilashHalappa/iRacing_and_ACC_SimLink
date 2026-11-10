@@ -1,4 +1,5 @@
 import struct
+from threading import Event, Thread
 
 from src.race_engineer_acquisition.models import PhysicsSnapshot
 from src.race_engineer_acquisition.physics_consumer import PhysicsDecodeConsumer
@@ -74,3 +75,24 @@ def test_consumer_payload_is_json_compatible_and_labels_wheel_order():
     assert payload["data"]["gear_display"] == "R"
     assert payload["data"]["wheel_order"] == ["FL", "FR", "RL", "RR"]
     assert payload["data"]["wheels"]["FL"]["tyre_pressure_psi"] == 0.0
+
+
+
+def test_worker_drains_final_samples_after_producer_stops():
+    ring = AcquisitionRingBuffer[PhysicsSnapshot](4)
+    consumer = PhysicsDecodeConsumer(ring)
+    stop_event = Event()
+    producer_done = Event()
+    worker = Thread(target=consumer.run, args=(stop_event, producer_done))
+    worker.start()
+
+    assert ring.try_put(_snapshot(1, 20))
+    producer_done.set()
+    stop_event.set()
+    worker.join(timeout=1)
+
+    assert not worker.is_alive()
+    assert consumer.snapshot.processed_count == 1
+    assert consumer.snapshot.latest is not None
+    assert consumer.snapshot.latest.packet_id == 20
+    assert consumer.snapshot.lifecycle_state == "stopped"
