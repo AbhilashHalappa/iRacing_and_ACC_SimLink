@@ -21,6 +21,7 @@ from race_engineer_acquisition.acc_windows import PHYSICS_SIZE, WindowsACCPhysic
 from race_engineer_acquisition.acquirer import PhysicsAcquirer
 from race_engineer_acquisition.checkpoint import PeriodicCheckpointWorker
 from race_engineer_acquisition.recorder import PhysicsRecorderWorker, recover_recording
+from race_engineer_acquisition.recording_policy import evaluate_recording_completion
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 from race_engineer_acquisition.fanout import FanOutDispatcher
 from race_engineer_acquisition.timing_windows import WindowsTimerResolution
@@ -254,8 +255,30 @@ def main() -> int:
     )
     reconciliation_delta = acquired - accounted
 
+    shutdown_threads = {
+        "producer": producer_thread,
+        "dispatcher": dispatcher_thread,
+        "recorder": recorder_thread,
+        "checkpoint": checkpoint_thread,
+    }
+    shutdown_threads_alive = [
+        name for name, thread in shutdown_threads.items() if thread.is_alive()
+    ]
+    shutdown_timed_out = bool(shutdown_threads_alive)
+    core_threads_alive = [
+        name for name in ("producer", "dispatcher", "recorder")
+        if shutdown_threads[name].is_alive()
+    ]
+
+    # Never inspect/truncate a recording while a producer, dispatcher or writer
+    # can still mutate it. A timed-out shutdown is an explicit incomplete run.
     recovery = None
-    if recording_path.exists():
+    if core_threads_alive:
+        recovery = {
+            "error": "Recovery skipped because recording workers are still running: "
+            + ", ".join(core_threads_alive)
+        }
+    elif recording_path.exists():
         try:
             recovery = asdict(recover_recording(recording_path))
         except Exception as exc:
@@ -272,15 +295,27 @@ def main() -> int:
         and checkpoint_worker.write_count > 0
         and not checkpoint_thread.is_alive()
     )
+    completion = evaluate_recording_completion(
+        acquired=acquired,
+        persisted=persisted,
+        acquisition_rejections=acquisition_rejected,
+        pending_acquisition=pending_acquisition,
+        dispatcher_in_flight=dispatcher_in_flight,
+        required_delivery_rejections=fanout.metrics.required_delivery_rejection_count,
+        required_consumer=consumer_final,
+        dispatcher_error=fanout.metrics.error,
+        producer_error=producer_error,
+        recorder_error=recorder.error,
+        recovery_valid=recovery_ok,
+        checkpoint_valid=checkpoint_ok,
+        shutdown_timed_out=shutdown_timed_out,
+    )
     report = {
         "schema_version": 1,
-        "status": "completed" if (
-            not producer_error and not recorder.error and recovery_ok and checkpoint_ok
-            and reconciliation_delta == 0 and pending_acquisition == 0 and pending_recorder == 0
-            and acquisition_rejected == 0 and recorder_rejected == 0 and failed == 0
-            and dispatcher_in_flight == 0 and fanout.metrics.error is None
-            and fanout.metrics.required_delivery_rejection_count == 0
-        ) else "failed",
+        "status": "completed" if completion.completed else "failed",
+        "completion_failure_reasons": list(completion.reasons),
+        "shutdown_timed_out": shutdown_timed_out,
+        "shutdown_threads_alive": shutdown_threads_alive,
         "recovery_validation_passed": recovery_ok,
         "checkpoint_validation_passed": checkpoint_ok,
         "checkpoint_file": checkpoint_path.name,
