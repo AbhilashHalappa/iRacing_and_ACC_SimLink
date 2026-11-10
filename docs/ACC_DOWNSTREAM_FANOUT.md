@@ -181,11 +181,100 @@ be sized and monitored so any overflow is surfaced as a failed recording.
 Synthetic tests cover independent recorder/decoder-test delivery, queue
 isolation, slow/full consumer behavior, failed consumer isolation, explicit
 processing failure, required consumer loss, shutdown drain, and recorder
-acknowledgement only after successful persistence. Live Physics recording
-validation is required after the synthetic suite passes; the existing 600
-second acquisition parity benchmark remains the performance reference and
-must not be weakened.
+acknowledgement only after successful persistence. The Physics fan-out live
+recording validation has passed; the existing 600-second acquisition parity
+benchmark remains the performance reference and must not be weakened.
 
 ## Capacity rationale
 
 Configured queue capacities, stream-rate coverage, raw-payload memory bounds, measured Graphics slow-recorder results, and outstanding sizing assumptions are documented in [ACC Buffer Capacity Rationale](ACC_BUFFER_CAPACITY.md). The documented decision is to retain current defaults until stream-specific stall objectives and the remaining Physics/Static stress measurements are available.
+
+
+## Graphics and Static consumer coverage decision (Issue #10)
+
+**Decision: do not add multi-consumer fan-out to Graphics or Static at this
+stage.** Keep each stream's existing independent, bounded acquisition-to-raw-
+recorder pipeline. Revisit only when a concrete second live snapshot consumer
+is introduced and its delivery requirements are specified.
+
+### Consumer inventory
+
+The inventory below is based on the current `feature/acquisition-foundation`
+repository implementation and documentation.
+
+| Stream | Current live snapshot consumer | Classification | Other identified consumers |
+|---|---|---|---|
+| Physics | Raw Physics recorder through the required fan-out consumer queue | Required | Fan-out supports independent optional consumers; this is the established Physics path |
+| Graphics | `GraphicsRecorderWorker` through its dedicated recorder queue | Required | Inspection/recovery tooling reads completed recording files, not live snapshots |
+| Static | `StaticRecorderWorker` through its dedicated recorder queue | Required | Candidate decoder/metadata extraction runs on copied or recorded Static data, not as a competing live snapshot consumer |
+
+No second live Graphics or Static snapshot consumer is currently implemented
+or specified with an independently required delivery contract. The common
+acquisition supervisor exposes separate SPSC buffers and explicitly does not
+provide broadcast semantics or connect those buffers to persistence. The
+Graphics and Static recording runners each add a downstream dispatcher and a
+single recorder queue; this is a one-consumer pipeline, not multi-consumer
+fan-out.
+
+### Required/optional policy
+
+- **Graphics required consumer:** raw Graphics recorder. Every accepted raw
+  snapshot is required recording data.
+- **Static required consumer:** raw Static recorder. The initial raw page and
+  each successfully acquired changed page are required recording data;
+  unchanged refreshes are intentionally not emitted.
+- **Optional live consumers:** none currently registered or required for either
+  stream. Offline inspection, recovery, and candidate decoding are not
+  classified as live fan-out consumers because they operate on recording or
+  copied data rather than competing for the acquisition SPSC stream.
+- A future live decoder, diagnostics subscriber, or analysis consumer must be
+  proposed with an explicit best-effort/required classification, queue sizing,
+  failure policy, and ownership boundary before fan-out is added.
+
+### Why fan-out is deferred
+
+The existing Graphics and Static paths already isolate the acquisition
+producer from disk work with bounded queues and separate worker threads.
+Adding a general fan-out layer now would create per-consumer queues,
+acknowledgement state, and more lifecycle paths without a second live
+consumer. It would not improve isolation for a consumer that does not exist.
+
+Keep the current stream-specific capacities unchanged. The documented
+Graphics slow-recorder measurements and Static queue-boundary test remain the
+available sizing evidence; this decision does not justify reducing or
+increasing capacities. Physics fan-out behavior is unchanged.
+
+### Existing failure and completion behavior
+
+The current single-recorder pipelines already treat their raw recorder as
+required:
+
+- Queue insertion is nonblocking from the dispatcher; a full recorder queue
+  increments its rejection counter and contributes to a non-zero reconciliation
+  delta / failed validation.
+- Recorder write failures and failed samples are reported separately from
+  persisted samples. A batch is counted persisted only after write, flush, and
+  `fsync` succeed.
+- The Graphics runner checks producer/dispatcher/recorder shutdown, queue
+  rejections, pending/in-flight accounting, recorder errors, recovery, and
+  checkpoint validation before reporting `completed`.
+- The Static runner raises a non-zero failure on producer/dispatcher/recorder
+  shutdown timeout; otherwise its completion gate checks queue rejections,
+  write failures, pending/in-flight work, reconciliation, and recovery before
+  reporting `completed`. A shutdown timeout does not produce a successful
+  completion report.
+
+These are single-required-recorder completion gates, not the general
+per-consumer acknowledgement model used by Physics fan-out. That distinction
+is acceptable while each stream has exactly one live consumer. If a second
+consumer is added, do not share or steal the recorder queue: introduce an
+independent bounded queue and explicit per-consumer delivery accounting,
+reusing the Physics fan-out semantics where appropriate.
+
+### Revisit trigger
+
+Reopen this decision when a concrete second live consumer for Graphics or
+Static is added to the implementation plan. At that point, specify whether it
+is required or best-effort and add tests proving queue isolation, queued plus
+in-flight capacity bounds, acknowledgement only after successful processing,
+consumer failure isolation, rejection accounting, and shutdown-timeout behavior.
