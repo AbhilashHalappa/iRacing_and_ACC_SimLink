@@ -1,6 +1,6 @@
 # ACC Recording Manifest — Common Metadata Contract
 
-**Status:** Schema design for acquisition Issue #9  
+**Status:** Implemented in the three raw recording validation scripts; validation pending  
 **Applies to:** Physics, Graphics and Static recording reports  
 **Manifest schema version:** 1  
 **Raw recording format:** Stream-specific; currently version 2
@@ -39,7 +39,7 @@ These values may be populated only from a successfully decoded ACC Static page u
 
 All streams include `captured_count`, `persisted_count`, `failed_count`, `acquisition_rejection_count`, `recorder_rejection_count`, `first_capture_sequence`, and `last_capture_sequence`.
 
-Physics and Graphics additionally include `first_source_packet_id` and `last_source_packet_id`. Static sets both to null because ACC Static has no documented source packet ID. Do not substitute capture sequence or a Physics/Graphics packet ID.
+Physics and Graphics additionally include `first_source_packet_id` and `last_source_packet_id`, tracked from the first and most recent accepted source observations. Static sets both to null because ACC Static has no documented source packet ID. Do not substitute capture sequence or a Physics/Graphics packet ID.
 
 Counts must reconcile with the stream's existing accounting report. The manifest is a compact index, not a replacement for detailed acquisition, dispatcher, recorder, checkpoint, or recovery metrics.
 
@@ -99,3 +99,13 @@ A successful completion requires the existing stream-specific completion policy 
 ```
 
 The example is illustrative; the UUID and counts are not actual recording evidence.
+
+## Implementation
+
+The shared generator is `src/race_engineer_acquisition/recording_manifest.py`. The Physics, Graphics and Static recording scripts attach its output to the existing sidecar report under `manifest`; the existing stream-specific report keys remain unchanged.
+
+The scripts collect Static session metadata once more after their acquisition/recording workers have stopped. This read is outside every acquisition hot loop. The candidate-B decoder must succeed for the metadata fields to be populated; otherwise the manifest retains null values and records a warning. The Static mapping is closed after this metadata read. This is best-effort descriptive metadata and does not alter the raw recording's completion decision.
+
+Physics and Graphics acquisition metrics now retain the first accepted source packet ID alongside the last packet ID so the manifest can report both bounds. Static source packet fields remain null by design.
+
+The shared generator has deterministic unit coverage for Physics, Graphics and Static report mapping, failed/incomplete status, packet-ID semantics, and invalid stream names in `tests/acquisition/test_recording_manifest.py`. Live Windows/ACC verification is still required for all three scripts.
