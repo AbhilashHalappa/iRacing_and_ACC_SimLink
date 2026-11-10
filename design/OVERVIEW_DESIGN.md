@@ -226,7 +226,7 @@ The agreed default presentation is valid = green, invalid = red, out lap = orang
 
 ### 4.7 Persistence and reset
 
-- Configuration should persist across application restarts. The local dashboard now uses a stable loopback origin (`127.0.0.1:8765`) so browser local-storage keys remain consistent between launches; verify saved tile layouts in the desktop app.
+- Configuration should persist across application restarts. The local dashboard uses a stable loopback origin (`127.0.0.1:8765`) and an explicitly named, disk-backed Qt WebEngine profile. Persistent browser storage is placed under the Windows per-user AppLocalDataLocation for the `RaceEngineerACC` application identity. Overview layout is saved to `localStorage` when the user clicks Save; verify by changing layout, clicking Save, closing the app, and relaunching.
 - Provide a reset-to-defaults action if the settings UI supports it.
 - Verify persistence and reset behaviour in the application before marking them complete.
 
@@ -316,3 +316,11 @@ A change to Overview is not complete merely because it compiles.
 - The local HTTP bridge now binds to `127.0.0.1:8765` rather than a random port, keeping the frontend origin stable so saved browser local-storage layout can be restored after restarts.
 - Physics, Graphics and Static acquisition workers now retry shared-memory opening after failures, allowing the dashboard to start before ACC and connect when ACC is launched. Retry interval is one second; verify with an ACC-off → app-on → ACC-on test.
 - These changes have been committed but require local frontend build and Windows/ACC runtime validation before marking them user-tested.
+
+
+### Tile layout persistence correction
+
+- The fixed HTTP port alone did not guarantee persistence because the Qt host relied on the implicit WebEngine profile.
+- The Qt host now creates a named `QWebEngineProfile` with explicit persistent storage and cache directories under the application's Windows AppLocalDataLocation, and attaches an explicit `QWebEnginePage` to the view.
+- `QApplication` organization and application names are set to `RaceEngineerACC` before creating the window, keeping the profile directory stable between launches.
+- The Overview layout remains saved only when the user clicks **Save** in Edit dashboard mode. This change makes that localStorage value disk-backed across app restarts.
