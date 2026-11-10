@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from race_engineer_acquisition.checkpoint import PeriodicCheckpointWorker
+from race_engineer_acquisition.recording_manifest import attach_recording_manifest
 from race_engineer_acquisition.graphics import (
     GraphicsAcquirer, GraphicsRecorderWorker, WindowsACCGraphicsSource,
     recover_graphics_recording,
@@ -310,6 +311,7 @@ def main() -> int:
         "recovery_validation_passed": recovery_ok,
         "checkpoint_validation_passed": checkpoint_ok,
     }
+    attach_recording_manifest("graphics", report, recording_format_version=2)
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Status                  : {status}")
     print(f"Recording               : {recording_path}")
