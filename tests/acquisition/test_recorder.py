@@ -332,7 +332,7 @@ class RecorderTests(unittest.TestCase):
             worker = PhysicsRecorderWorker(
                 queue, Path(directory) / "live_batching.accraw",
                 payload_size=8, batch_size=128,
-                max_batch_latency_seconds=0.02,
+                max_batch_latency_seconds=0.05,
             )
             worker_thread = Thread(target=worker.run, args=(stop,))
             worker_thread.start()
