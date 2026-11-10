@@ -103,7 +103,28 @@ Using the configured capacities and observed raw payload sizes, the conservative
 | Static | 524,288 bytes |
 | **Total** | **242,444,288 bytes (about 242.4 MB / 231.3 MiB)** |
 
-This is a payload-only bound, not a prediction of process RSS. The six preallocated ring-buffer slot arrays contain 220,128 references in total (200,000 Physics + 20,000 Graphics + 128 Static). On the 64-bit target, the reference slots alone account for approximately 1,761,024 bytes (1.68 MiB), plus small per-list headers. This slot-array estimate is separate from the payload bound. The combined figures still exclude Python snapshot objects, locks, dictionaries, allocator fragmentation, writer batch lists/encoding buffers, transient dispatcher items, and other application memory. For Graphics and Static, a recorder batch can be held outside the recorder ring while it is being written; the batch sizes are 64 and 16 respectively. The Static acquirer also retains its previous raw page for change detection. The Physics fan-out queues retain snapshot references; payload bytes are not copied once per consumer.
+This is a payload-only bound, not a prediction of process working set. The six preallocated ring-buffer slot arrays contain 220,128 references in total (200,000 Physics + 20,000 Graphics + 128 Static). On the 64-bit target, the reference slots alone account for approximately 1,761,024 bytes (1.68 MiB), plus small per-list headers. This slot-array estimate is separate from the payload bound. The combined figures exclude Python snapshot objects, locks, dictionaries, allocator fragmentation, writer batch lists/encoding buffers, transient dispatcher items, and other application memory. For Graphics and Static, a recorder batch can be held outside the recorder ring while it is being written; the batch sizes are 64 and 16 respectively. The Static acquirer also retains its previous raw page for change detection. The Physics fan-out queues retain snapshot references; payload bytes are not copied once per consumer.
+
+### Synthetic process-memory measurement (10 November 2026)
+
+The user ran `python scripts/measure_acc_buffer_memory.py` on the Windows development PC. The diagnostic allocated all six queues at their configured default capacities and populated them with synthetic Physics, Graphics, and Static snapshot objects. It did not connect to ACC or write recordings. Payload objects were deliberately shared per stream so the measurement isolates snapshot/reference and queue overhead; the conservative payload budget above continues to assume a distinct full payload for every retained snapshot.
+
+| Measurement | Result |
+|---|---:|
+| Queue slots | 220,128 |
+| Theoretical reference-slot arrays | 1,761,024 bytes (1.68 MiB) |
+| Traced queue-storage increment | 1,766,119 bytes (1.68 MiB) |
+| Traced snapshot-population increment | 47,533,655 bytes (45.33 MiB) |
+| Traced current / peak allocation | 49,299,774 / 49,299,870 bytes (47.02 MiB) |
+| Snapshot population increment per retained item | 215.94 bytes |
+| Process working set before allocation | 20,738,048 bytes (19.78 MiB) |
+| Process working set after empty queues | 22,614,016 bytes (21.57 MiB) |
+| Process working set after population | 197,742,592 bytes (188.54 MiB) |
+| Process private usage after population | 195,956,736 bytes (186.87 MiB) |
+| Peak process working set | 207,925,248 bytes (198.24 MiB) |
+| Conservative payload + traced queue/snapshot overhead | 291,744,062 bytes (278.23 MiB) |
+
+The process working set/private usage are process-level observations and include the interpreter, imported modules, allocator behaviour, and other runtime costs; they are not queue-only measurements. The traced snapshot increment is an average for this synthetic object mix and must not be treated as a universal per-sample constant. The 278.23 MiB combined figure is a conservative payload-plus-traced-overhead planning estimate, not measured process RAM and not a strict upper bound on the complete application. The diagnostic is reproducible with `python scripts/measure_acc_buffer_memory.py` after setting `PYTHONPATH=src` in PowerShell.
 
 The three validation scripts are independent and need not run simultaneously. The aggregate is a conservative topology-wide comparison, not a claim that all three scripts currently allocate this amount in one process.
 
@@ -119,9 +140,9 @@ Established:
 
 Not yet established:
 - A maximum tolerated real disk outage for each stream.
-- A target-PC Physics recorder stall/high-water measurement under controlled slow storage.
+- A maximum tolerated real disk outage for each stream.
 - A worst-case Static page-change rate during a stalled recorder.
-- A full-process RSS measurement including Python/runtime overhead.
+- A production-load process working-set measurement while ACC is running and recording; the synthetic process-level measurement is available, but it is not a live workload measurement.
 - A long-duration Graphics stress profile or a realistic OS/storage fault distribution.
 
 The simulated Graphics delay is intentionally narrow: it sleeps before each batch and then performs the normal writer operation. It does not reproduce device cache behavior, filesystem pauses, antivirus interference, disk-full conditions, or arbitrary thread scheduling delays. It should not be described as a universal storage benchmark.
@@ -158,9 +179,9 @@ For each run, retain the JSON report and inspect both queue high-water marks, re
 ## Follow-up required before final capacity sign-off
 
 1. Specify a tolerated downstream stall/recovery objective for each required recorder.
-2. If Physics capacity is to be reduced, run a controlled Physics recorder-delay test and measure queue high-water, while preserving the 480 Hz acquisition performance gate and all completion/recovery checks.
+2. The deliberate Physics overload test now verifies full-queue high-water, explicit rejection, exact reconciliation, and failed completion. A non-overload Physics stall/high-water profile at a specified tolerated delay is still needed only if a smaller Physics capacity is being considered.
 3. Define whether Static must tolerate a specified real-source burst of changed pages; the deterministic 64-entry queue boundary is tested, but source burst rate under ACC has not been measured.
-4. Measure process RSS on the target PC if a strict memory budget is required.
+4. If a strict memory budget is required, measure process working set/private usage during a representative live ACC recording workload; the current synthetic process-level measurement is not a substitute.
 5. Revisit capacities only if those objectives and measurements show a mismatch.
 
 Until then, retain the existing defaults. This closes the documentation/calculation portion of capacity justification but leaves the unmeasured cases explicit rather than implying they have passed.
