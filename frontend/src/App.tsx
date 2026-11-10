@@ -112,18 +112,15 @@ function flagTone(value:string) {
   return "unknown";
 }
 function ChangeGlowBox({label,value,primary=false}:{label:string;value:string;primary?:boolean}) {
-  const [pulsing,setPulsing]=useState(false);
+  const [pulseId,setPulseId]=useState(0);
   const previous=useRef(value);
   useEffect(()=>{
     if(previous.current!==value) {
       previous.current=value;
-      setPulsing(true);
-      const timeout=window.setTimeout(()=>setPulsing(false),1000);
-      return ()=>window.clearTimeout(timeout);
+      setPulseId(id=>id+1);
     }
-    previous.current=value;
   },[value]);
-  return <div className={`${primary?"electronics-primary-box":"balanced-field"} value-change-glow${pulsing?" is-changing":""}`}><span>{label}</span><b>{value}</b></div>;
+  return <div key={pulseId} className={`${primary?"electronics-primary-box":"balanced-field"} value-change-glow${pulseId>0?" is-changing":""}`}><span>{label}</span><b>{value}</b></div>;
 }
 function TileContent({ id, glow }: { id: TileId; glow:GlowConfig }) {
   switch (id) {
