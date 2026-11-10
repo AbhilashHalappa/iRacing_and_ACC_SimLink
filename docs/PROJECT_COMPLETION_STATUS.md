@@ -1,7 +1,7 @@
 # Race Engineer ACC New — Project Completion Status
 
-**Last updated:** 9 November 2026  
-**Branch:** `feature/acquisition-foundation`  
+**Last updated:** 10 November 2026  
+**Branch:** `feature/overview-physics-consumer`  
 **Project phase:** Greenfield acquisition foundation  
 **Status:** Physics acquisition and raw-recording layer closed for the current scope. The 800-byte layout is strongly corroborated; live acquisition/recording, CRC inspection and independent raw-byte cross-check passed. Field-by-field semantic validation remains explicitly qualified. Stage 3 normal recording, forced-termination recovery, checkpoint-assisted recovery, live slow-storage simulation and bounded simulated-ENOSPC fault handling have been exercised. The target-PC slow-storage run persisted 11,800/11,800 samples with zero rejects; the target-PC simulated-ENOSPC run preserved three complete blocks and accounted for 11,780 unpersisted queued samples. Physical disk-full testing was intentionally skipped. The Physics adapter uses the corroborated 800-byte layout; no Physics field decoder or cross-stream merge has been added. A separate raw-only Static adapter is implemented and has passed a 90-second target-PC stable-page acquisition check. A separate raw-only Graphics reader/recorder has passed two target-PC runs: six minutes (36,001 samples) and ten minutes (60,000 samples), each copying the complete 4,096-byte mapping with zero rejects/write failures/pending records and zero reconciliation delta. The final 87-field candidate audit and live transition evidence are documented. Graphics field-coverage evidence inventory is complete for the tested scope; numeric semantics/units for selected fields, unexercised fields and official Kunos v1.9 ABI confirmation remain qualified.
 
