@@ -69,6 +69,9 @@ class RecorderMetrics:
     last_block_write_duration_ns: int = 0
     max_block_write_duration_ns: int = 0
     simulated_write_delay_ns: int = 0
+    simulated_initial_stall_started_ns: int | None = None
+    simulated_initial_stall_finished_ns: int | None = None
+    simulated_initial_stall_ns: int = 0
     last_persist_duration_ns: int = 0
     max_persist_duration_ns: int = 0
     simulated_disk_full_triggered: bool = False
@@ -287,12 +290,15 @@ class PhysicsRecorderWorker:
         payload_size: int = PHYSICS_SIZE,
         batch_size: int = 128,
         simulated_write_delay_seconds: float = 0.0,
+        simulated_initial_stall_seconds: float = 0.0,
         simulated_disk_full_after_batches: int | None = None,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
         if simulated_write_delay_seconds < 0:
             raise ValueError("simulated_write_delay_seconds cannot be negative")
+        if simulated_initial_stall_seconds < 0:
+            raise ValueError("simulated_initial_stall_seconds cannot be negative")
         if simulated_disk_full_after_batches is not None and simulated_disk_full_after_batches <= 0:
             raise ValueError("simulated_disk_full_after_batches must be positive")
         self.buffer = buffer
@@ -300,6 +306,8 @@ class PhysicsRecorderWorker:
         self.payload_size = payload_size
         self.batch_size = batch_size
         self.simulated_write_delay_seconds = simulated_write_delay_seconds
+        self.simulated_initial_stall_seconds = simulated_initial_stall_seconds
+        self._initial_stall_pending = simulated_initial_stall_seconds > 0
         self.simulated_disk_full_after_batches = simulated_disk_full_after_batches
         self.metrics = RecorderMetrics()
         self.error: str | None = None
@@ -348,6 +356,15 @@ class PhysicsRecorderWorker:
         self.metrics.in_flight_last_sequence = batch[-1].capture_sequence
         persist_started_ns = time.perf_counter_ns()
         try:
+            if self._initial_stall_pending:
+                self._initial_stall_pending = False
+                self.metrics.simulated_initial_stall_started_ns = time.perf_counter_ns()
+                time.sleep(self.simulated_initial_stall_seconds)
+                self.metrics.simulated_initial_stall_finished_ns = time.perf_counter_ns()
+                self.metrics.simulated_initial_stall_ns = (
+                    self.metrics.simulated_initial_stall_finished_ns
+                    - self.metrics.simulated_initial_stall_started_ns
+                )
             if self.simulated_write_delay_seconds:
                 delay_ns = round(self.simulated_write_delay_seconds * 1_000_000_000)
                 time.sleep(self.simulated_write_delay_seconds)
