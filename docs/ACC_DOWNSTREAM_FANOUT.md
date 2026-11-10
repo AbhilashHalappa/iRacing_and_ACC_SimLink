@@ -1,6 +1,6 @@
 # ACC Downstream Fan-out Queues
 
-**Status:** Implemented on \`feature/acquisition-foundation\`; synthetic validation pending.
+**Status:** Implemented and validated on \`feature/acquisition-foundation\`; required-consumer failure policy is defined in this document and enforced by the Physics recording validator.
 
 ## Purpose
 
@@ -84,6 +84,76 @@ to required-delivery rejection metrics. Any required recorder rejection,
 processing failure, remaining pending sample, writer error, or recovery
 mismatch causes the Physics recording validation script to report failure.
 Loss is never converted into a successful recording result.
+
+
+## Required versus optional consumer policy
+
+A consumer's required flag is a delivery contract, not a scheduling priority.
+All consumers remain bounded and nonblocking from the dispatcher's perspective.
+
+| Event | Required raw recorder | Optional/best-effort consumer |
+|---|---|---|
+| Queue full / offer rejected | Count rejection and lost sequence; recording is incomplete | Count rejection and lost sequence for that consumer only |
+| Worker exception / crash | Mark the consumer failed; account queued and in-flight samples as failed; recording is incomplete | Mark that consumer failed and account its outstanding samples; other consumers continue |
+| Processing error | Acknowledge the affected sample as failed, never processed; recording is incomplete | Acknowledge the affected sample as failed; other consumers continue |
+| Shutdown drain | Drain source first, close dispatch, then drain accepted recorder work and acknowledge only after durable writes | Drain accepted work if its worker is healthy; otherwise explicitly fail its outstanding work |
+| Shutdown timeout | Mark the run incomplete; do not claim recovery or completion while a producer, dispatcher, or writer may still mutate the file | Report the consumer as timed out/failed; do not block required recording indefinitely |
+
+There are no automatic retries in this layer. Retrying an arbitrary processing
+operation can reorder samples or duplicate side effects; a future retry policy
+must be consumer-specific, bounded, and idempotent. A transient exception is
+therefore treated as a failed delivery for that sample. The raw recorder worker
+fails its current batch and marks its remaining queued/in-flight deliveries
+failed when its writer exits abnormally.
+
+A required-recorder failure does not block the acquisition polling loop and
+does not silently drop into a successful state. The current recording runner
+continues only as far as its bounded shutdown sequence permits, then reports
+status `failed` (incomplete) if any required delivery was rejected/failed,
+any sample remains pending, any worker times out, any stage reports an error,
+or recovery/checkpoint validation fails. On a shutdown timeout, recovery is
+skipped while a producer, dispatcher, or recorder thread is still alive so the
+validator does not scan or truncate a file concurrently with its writer.
+
+Optional consumer failures are isolated: they do not increment required-delivery
+losses and do not affect the raw recorder completion decision. They remain
+visible in that optional consumer's own counters and error state. The recording
+completion decision evaluates the required recorder only; it does not require
+best-effort analysis to succeed.
+
+## Sequence accounting and final status
+
+For every consumer, the queue-level invariants are:
+
+- `offered = dispatched + rejected`
+- `dispatched = processed + failed + pending`
+- `pending = queued + in_flight`
+
+For the current single-required-recorder Physics path, end-to-end accounting is:
+
+`acquired = persisted + acquisition_rejections + recorder_rejections + recorder_failed + acquisition_pending + recorder_pending + dispatcher_in_flight`
+
+The final recording decision additionally requires:
+- The registered recorder is marked required.
+- Recorder processed acknowledgements equal persisted snapshots. Acknowledgement
+  occurs only after the block write, flush, and `fsync` return successfully.
+- No required-recorder rejection, failure, pending item, or in-flight item.
+- No acquisition rejection or pending acquisition item; no dispatcher in-flight
+  sample or dispatcher error.
+- Zero end-to-end reconciliation delta.
+- No producer, recorder, or shutdown error; no timed-out worker.
+- Successful recovery/CRC validation with recovered count equal to persisted
+  count and no invalid tail, plus a successful checkpoint worker.
+
+The recording validator now uses a dedicated completion-policy function and
+writes machine-readable `completion_failure_reasons` into its report. A run
+with any failure reason is incomplete, even if a valid prefix of the raw file
+can be recovered. Recovery is a salvage mechanism, not proof that the requested
+recording completed.
+
+Fault-injection coverage includes full required queues, optional consumer
+failure isolation, required consumer crashes, failed recorder acknowledgements
+(simulated write failure), shutdown timeout, and recovery/checkpoint failure.
 
 ## Memory bounds
 
