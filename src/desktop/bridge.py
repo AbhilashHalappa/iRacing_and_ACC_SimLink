@@ -21,7 +21,7 @@ def _json_default(value):
 
 
 class TelemetryBridge:
-    def __init__(self, static_root: Path, host: str = "127.0.0.1", port: int = 0) -> None:
+    def __init__(self, static_root: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
         self.static_root = Path(static_root).resolve()
         self._condition = threading.Condition()
         self._snapshot: dict = {"connected": False, "physics": None, "acquisition": {}}
