@@ -25,7 +25,7 @@ class ACCDesktopWindow(QMainWindow):
         self._runtime = create_acc_acquisition_runtime()
         self._car_model: str | None = None
         self._runtime.supervisor.start()
-        self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist")
+        self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
         self._view = QWebEngineView(self)
         self.setCentralWidget(self._view)
         try:
