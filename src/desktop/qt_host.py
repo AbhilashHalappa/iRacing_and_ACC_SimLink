@@ -35,7 +35,7 @@ class ACCDesktopWindow(QMainWindow):
         cache_data = app_data / "webengine-cache"
         profile_data.mkdir(parents=True, exist_ok=True)
         cache_data.mkdir(parents=True, exist_ok=True)
-        self._web_profile = QWebEngineProfile("RaceEngineerACC", self)
+        self._web_profile = QWebEngineProfile("RaceEngineerACC", app)
         self._web_profile.setPersistentStoragePath(str(profile_data))
         self._web_profile.setCachePath(str(cache_data))
         self._web_profile.setPersistentCookiesPolicy(
