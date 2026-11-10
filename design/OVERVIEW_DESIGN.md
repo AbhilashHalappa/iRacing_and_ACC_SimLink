@@ -119,13 +119,32 @@ Agreed design for the next implementation:
 
 ### 3.8 Car lights and status
 
-The Car Lights & Status area should include:
+The Car Lights & Status tile owns vehicle operating states and external light controls:
 
+- Pit limiter.
+- Engine running.
+- Ignition.
+- Starter.
+- AI control.
+- Water temperature (single Overview location).
 - Rain light.
 - Wiper.
 - Left indicator.
 - Right indicator.
-- Other supported light/status indicators already present in the tile.
+
+Boolean values must be rendered as `ON` / `OFF`, never raw `true` / `false`. Unknown or unavailable values remain neutral/unavailable. Rain light, wiper and indicators remain pending until ACC Graphics telemetry is connected and validated.
+
+### 3.9 Car electronics
+
+The Car Electronics tile is limited to:
+
+- TC setup level.
+- ABS setup level.
+- Brake bias (currently unresolved; see issue #13).
+- Auto shifter state, rendered as `ON` / `OFF`.
+- Turbo boost.
+
+Do not duplicate pit limiter, engine running, ignition, starter, AI control or water temperature in Car Electronics. TC/ABS intervention is omitted until its ACC source is validated; do not present unverified flags as genuine ON/OFF states.
 
 Remove from this tile:
 
@@ -144,7 +163,7 @@ Water temperature should appear only once in the Overview, not as a duplicate in
 
 **Known issue:** The user reports that this ON/OFF/unknown colour behaviour is not working. Do not treat it as complete. Inspect the actual ACC payload values and frontend status interpretation for each indicator before changing the colour logic. Handle booleans, numeric values, enums/bit fields, null and missing fields explicitly. Do not assume every ACC status is represented by a simple boolean.
 
-### 3.9 Electronics and race-control status
+### 3.10 Electronics and race-control status
 
 - Electronics status changes were designed to produce a green pulse for one second.
 - Race-control status glow should follow the relevant flag colour.
@@ -275,8 +294,8 @@ A change to Overview is not complete merely because it compiles.
 - Live tyre pressure from ACC Physics shown as actual PSI.
 - Target-pressure tile currently lacks editable target values and comparison.
 - Vehicle damage shown as Front/Rear/Left/Right/Centre, with suspension damage separately by wheel.
-- Car Lights & Status includes rain light, wiper and left/right indicators; air and road temperature removed.
-- Water temperature duplicate removed from Vehicle Damage and should appear only once.
+- Car Lights & Status owns pit limiter, engine running, ignition, starter, AI control, water temperature, rain light, wiper and left/right indicators. Boolean values display as ON/OFF.
+- Water temperature appears only once, in Car Lights & Status. Car Electronics is limited to TC/ABS setup, brake bias, auto shifter and turbo boost. Duplicate status fields have been removed.
 - Vehicle-light colour mapping remains broken and requires investigation.
 - Brake-bias mismatch recorded in issue #13.
 
