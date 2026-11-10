@@ -211,7 +211,7 @@ function App() {
           {editing&&<div className="tile-size-control"><label>Size <select value={tile.size} onChange={e=>update(tile.id,{size:e.target.value as TileSize})}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="text-action" onClick={()=>update(tile.id,{pinned:!tile.pinned})}>{tile.pinned?<PinOff size={13}/>:<Pin size={13}/>} {tile.pinned?"Unpin":"Pin"}</button><button className="remove-tile" onClick={()=>remove(tile.id)} aria-label={`Remove ${fmt(tile.id)} tile`}><X size={14}/></button></div>}
         </div>)}
       </div></section> : <section className="workspace"><div className="page-placeholder"><div className="placeholder-mark">RE</div><h2>{active}</h2><p>This workspace will be added in a later implementation stage.</p><span className="pending-label">NOT INTEGRATED</span></div></section>}
-      <footer className="demo-footnote"><span><Droplets size={13}/> {connected?"LIVE ACC PHYSICS":"ACC TELEMETRY"}</span><span>{connected?`${telemetry.physics?.processed_count??0} decoded samples · ${telemetry.physics?.decode_error_count??0} decode errors`:"Waiting for ACC Shared Memory. Graphics and Static fields are not connected yet."}</span></footer>
+      <footer className="demo-footnote"><span><Droplets size={13}/> {connected?"LIVE ACC PHYSICS":"ACC TELEMETRY"}</span><span>{connected?`${telemetry.physics?.processed_count??0} decoded samples · ${telemetry.physics?.decode_error_count??0} decode errors`:"Waiting for ACC Shared Memory. Static car identity is connected; Graphics fields are not connected yet."}</span></footer>
     </main>
   </div>;
 }
