@@ -229,8 +229,18 @@ def main() -> int:
     except Exception as exc:
         producer_error = f"{type(exc).__name__}: {exc}"
         acquisition_stop.set()
+        # Exceptional shutdown is explicitly incomplete. Signal every stage so
+        # no daemon worker is left waiting indefinitely; the completion policy
+        # rejects any samples stranded by this bounded abort path.
+        dispatcher_stop.set()
         recorder_stop.set()
         checkpoint_stop.set()
+        if producer_thread.is_alive():
+            producer_thread.join(timeout=10)
+        if dispatcher_thread.is_alive():
+            dispatcher_thread.join(timeout=30)
+        if recorder_thread.is_alive():
+            recorder_thread.join(timeout=30)
         if checkpoint_thread.is_alive():
             checkpoint_thread.join(timeout=5)
     finally:
