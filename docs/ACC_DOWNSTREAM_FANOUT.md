@@ -185,3 +185,7 @@ acknowledgement only after successful persistence. Live Physics recording
 validation is required after the synthetic suite passes; the existing 600
 second acquisition parity benchmark remains the performance reference and
 must not be weakened.
+
+## Capacity rationale
+
+Configured queue capacities, stream-rate coverage, raw-payload memory bounds, measured Graphics slow-recorder results, and outstanding sizing assumptions are documented in [ACC Buffer Capacity Rationale](ACC_BUFFER_CAPACITY.md). The documented decision is to retain current defaults until stream-specific stall objectives and the remaining Physics/Static stress measurements are available.
