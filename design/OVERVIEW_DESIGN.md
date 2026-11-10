@@ -52,8 +52,8 @@ The following records work that has been discussed or implemented. A listed tile
 
 ### 3.2 RPM and shift indication
 
-- RPM display uses a colour gradient.
-- Shift indication includes a glow effect.
+- RPM LED segments progress green → yellow → orange → red as RPM rises.
+- At 95% of the reported maximum RPM, all segments flash red as an upshift cue.
 - RPM LED tile is retained; the previous Motor Temperature tile was removed.
 - RPM LED hardware integration is separate from the live vehicle telemetry display.
 
@@ -73,7 +73,10 @@ The following records work that has been discussed or implemented. A listed tile
 
 - Track map tile.
 - Weather information.
-- Fuel information.
+- Fuel remaining is read from ACC Physics in kg.
+- Fuel bar currently scales against the highest fuel level observed since app start and uses a red → orange → yellow → green fill gradient.
+- Fuel-per-lap and estimated laps remaining are pending a validated completed-lap fuel-consumption estimator; see issue #14. Do not fabricate these values.
+- Verified tank capacity is not yet connected, so the bar is not an absolute tank-capacity percentage.
 - Session/lap history-related overview information where supported.
 - Keep the live map lightweight. Do not rewrite or rebuild the map on every lap unnecessarily.
 - Detailed historical/replay analysis remains in Performance Hub rather than being duplicated in Overview.
@@ -223,7 +226,7 @@ The agreed default presentation is valid = green, invalid = red, out lap = orang
 
 ### 4.7 Persistence and reset
 
-- Configuration should persist across application restarts.
+- Configuration should persist across application restarts. The local dashboard now uses a stable loopback origin (`127.0.0.1:8765`) so browser local-storage keys remain consistent between launches; verify saved tile layouts in the desktop app.
 - Provide a reset-to-defaults action if the settings UI supports it.
 - Verify persistence and reset behaviour in the application before marking them complete.
 
@@ -254,6 +257,7 @@ The agreed default presentation is valid = green, invalid = red, out lap = orang
 | ABS intervention | Not validated | Find a supported source before presenting a live state. |
 | Car-specific profiles | Partial design | Porsche 992 GT3 R is the starting profile; full profile management remains future work. |
 | Damage scale/units | Needs validation | Preserve raw values unless scale is verified. |
+| Fuel-per-lap / laps-left estimate | Open issue #14 | Requires validated completed-lap boundaries and fuel deltas; Graphics is currently acquired raw-only. |
 | Out-lap menu-to-garage edge case | Known limitation | Direct mid-lap menu jump/rejoin is not currently marked as an out lap. |
 
 ### Brake-bias issue reference
@@ -282,14 +286,14 @@ A change to Overview is not complete merely because it compiles.
 
 ### ACC Overview — current documented state
 
-- Configurable tile layout on a 12-column grid.
+- Configurable tile layout on a 12-column grid; dashboard origin fixed to loopback port 8765 to preserve local-storage layout between restarts.
 - Light/dark theme switch.
 - Compact permanent icon navigation and sticky top bar.
 - Live speed, gear, RPM, throttle, brake and steering data.
 - Steering angle displayed in degrees with a centred left/right progress bar.
-- RPM gradient and shift glow; RPM LED tile retained, Motor Temperature tile removed.
+- RPM LED progression green → yellow → orange → red, with all segments flashing red at the shift threshold; RPM LED tile retained, Motor Temperature tile removed.
 - Lap tile valid/invalid/out-lap colour behaviour.
-- Track map, weather and fuel context.
+- Track map, weather and live fuel remaining; fuel bar uses a session-observed reference and red → orange → yellow → green fill. Fuel-per-lap and laps-left remain pending issue #14.
 - Per-corner tyre/brake display and temperature colour progression.
 - Live tyre pressure from ACC Physics shown as actual PSI.
 - Target-pressure tile currently lacks editable target values and comparison.
@@ -302,3 +306,13 @@ A change to Overview is not complete merely because it compiles.
 ---
 
 **Maintenance rule:** Update this document whenever an Overview feature is implemented, changed, tested, deferred, or found to be unsupported. Keep the distinction between *agreed*, *implemented*, *user-tested*, and *pending validation* explicit.
+
+
+### Latest implementation notes — fuel, RPM, persistence and connection startup
+
+- RPM segments now use green/yellow/orange/red bands as revs rise; at 95% of ACC-reported maximum RPM all 15 segments flash red.
+- Fuel bar now fills proportionally to the highest fuel level observed since the app started and the filled portion uses a red → orange → yellow → green gradient. This is a session-observed reference, not verified tank capacity.
+- Fuel-per-lap and estimated laps remaining are deliberately not guessed. Tracking is recorded in [issue #14](https://github.com/AbhilashHalappa/Race-Engineer-ACC-New/issues/14).
+- The local HTTP bridge now binds to `127.0.0.1:8765` rather than a random port, keeping the frontend origin stable so saved browser local-storage layout can be restored after restarts.
+- Physics, Graphics and Static acquisition workers now retry shared-memory opening after failures, allowing the dashboard to start before ACC and connect when ACC is launched. Retry interval is one second; verify with an ACC-off → app-on → ACC-on test.
+- These changes have been committed but require local frontend build and Windows/ACC runtime validation before marking them user-tested.
