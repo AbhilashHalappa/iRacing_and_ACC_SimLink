@@ -124,16 +124,14 @@ function ChangeGlowBox({label,value,primary=false}:{label:string;value:string;pr
   return <div key={pulseId} className={`${primary?"electronics-primary-box":"balanced-field"} value-change-glow${pulseId>0?" is-changing":""}`}><span>{label}</span><b>{value}</b></div>;
 }
 function display(value: unknown, digits=1, suffix="") { return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits)+suffix : "—"; }
-const brakeBiasDashOffsets: Record<string, number> = {
-  // Empirically calibrated against the user's ACC setup values (58.4 -> 79.4
-  // raw display, then 60.0 -> 81.0). Offset is percentage points, not a scale.
-  porsche_992_gt3_r: -21.0,
-};
 function correctedBrakeBiasPercent(data: any, carModel: unknown): number | null {
   const raw = data?.brake_bias;
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
   const model = typeof carModel === "string" ? carModel.trim().toLowerCase() : "";
-  return raw * 100 + (brakeBiasDashOffsets[model] ?? 0);
+  // ACC Static car IDs can include a namespace/prefix; match the Porsche 992
+  // family rather than requiring one exact serialized identifier.
+  const isPorsche992 = model.includes("porsche") && model.includes("992");
+  return raw * 100 + (isPorsche992 ? -21.0 : 0);
 }
 function TileContent({ id, glow, telemetry }: { id: TileId; glow:GlowConfig; telemetry:any }) {
   const data=telemetry?.physics?.data ?? null;
@@ -145,7 +143,7 @@ function TileContent({ id, glow, telemetry }: { id: TileId; glow:GlowConfig; tel
     case "speed": return <div className="hero-value glance-hero"><strong>{display(data?.speed_kph,0)}</strong><span>KM/H</span><small>VEHICLE SPEED · ACC PHYSICS</small></div>;
     case "gear": return <div className="hero-value gear-value glance-hero"><strong>{data?.gear_display ?? "—"}</strong><span>GEAR</span><small>ACC PHYSICS</small></div>;
     case "rpm": { const rpm=Number(data?.rpm??0); const max=Number(data?.current_max_rpm??9000); const lit=max>0?Math.max(0,Math.min(15,Math.round(rpm/max*15))):0; return <div className="rpm-content glance-rpm"><div className="rpm-number">{display(data?.rpm,0)} <small>RPM</small></div><div className="rpm-leds">{Array.from({ length: 15 }, (_, i) => <i key={i} className={i<lit?"active":""}/> )}</div><div className="rpm-scale"><span>0</span><span>{display(max/4,0)}</span><span>{display(max/2,0)}</span><span>{display(max,0)}</span></div><small className="glance-hint">ACC PHYSICS · MAX {display(max,0)} RPM</small></div>; }
-    case "pedals": return <div className="stacked-meters glance-pedals"><div className="driver-steering-angle"><span>STEERING ANGLE</span><b>{display(typeof data?.steering_angle==="number"?data.steering_angle*180/Math.PI:null,1,"°")}</b></div><Meter label="THROTTLE" value={data?Math.max(0,Math.min(100,Number(data.throttle)*100)):null}/><Meter label="BRAKE" value={data?Math.max(0,Math.min(100,Number(data.brake)*100)):null} tone="red"/><Meter label="CLUTCH" value={data?Math.max(0,Math.min(100,Number(data.clutch)*100)):null} tone="teal"/></div>;
+    case "pedals": { const steeringDeg=typeof data?.steering_angle==="number"?data.steering_angle*180/Math.PI:null; const steeringWidth=steeringDeg===null?0:Math.min(50,Math.abs(steeringDeg)/180*50); return <div className="stacked-meters glance-pedals"><div className="driver-steering-angle"><div className="steering-angle-heading"><span>STEERING ANGLE</span><b>{display(steeringDeg,1,"°")}</b></div><div className="steering-angle-track"><i className="steering-angle-center"/>{steeringDeg!==null&&<i className={`steering-angle-fill ${steeringDeg<0?"left":"right"}`} style={{width:`${steeringWidth}%`}}/>}</div><div className="steering-angle-scale"><span>LEFT</span><span>CENTER</span><span>RIGHT</span></div></div><Meter label="THROTTLE" value={data?Math.max(0,Math.min(100,Number(data.throttle)*100)):null}/><Meter label="BRAKE" value={data?Math.max(0,Math.min(100,Number(data.brake)*100)):null} tone="red"/><Meter label="CLUTCH" value={data?Math.max(0,Math.min(100,Number(data.clutch)*100)):null} tone="teal"/></div>; }
     case "laps": return <div className={`lap-metrics glance-laps lap-glow lap-${telemetry?.graphics?.lap_status??"unknown"}`} style={{"--glow-intensity":glow.intensity/100,"--glow-blur":`${5+12*glow.intensity/100}px`} as React.CSSProperties}><div className="lap-primary"><span>CURRENT</span><b>—:—.---</b><small>LAP — · VALIDITY —</small></div><div><span>LAST</span><b>—:—.---</b></div><div><span>BEST</span><b>—:—.---</b></div></div>;
     case "lap_history": return <div className="history-table"><div className="history-head"><span>LAP</span><span>TIME</span><span>DELTA</span><span>S1</span><span>S2</span><span>S3</span></div><div className="history-empty">Completed laps will appear here.</div></div>;
     case "weather": return <div className="field-grid balanced-grid glance-weather">{[["ROAD TEMP","— °C"],["AIR TEMP","— °C"],["TRACK GRIP","—"],["RAIN","—"],["RAIN FORECAST","—"],["WIND","— km/h"],["WIND DIRECTION","— °"]].map(([a,b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
