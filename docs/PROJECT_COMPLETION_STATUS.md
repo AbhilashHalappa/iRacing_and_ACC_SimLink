@@ -376,3 +376,16 @@ The user ran `python -m pytest tests/test_physics_decoder.py -q`: **5 passed**. 
 **UI integration boundary:** this branch currently contains the acquisition package and standalone Vite frontend, but no Python desktop-app entry point or HTTP/SSE host to attach the latest-sample provider to. Therefore Overview tiles are not yet connected to live telemetry. The next integration gate is to add the provider to the actual Qt application's existing local bridge, then subscribe the frontend to that bridge. Do not create a separate browser-only telemetry server or route UI reads directly to shared memory.
 
 **Known qualification:** the decoder's 784-byte minimum covers the last currently decoded field; production acquisition still reads the 800-byte audited page. This does not resolve or reinterpret the opaque 16-byte tail. The 5 passing tests are synthetic decoder tests, not live field-semantic validation.
+
+
+## ACC-only Qt desktop host and Physics bridge — 10 November 2026
+
+**Status: Initial host and bridge implementation committed; local build, automated bridge test, Qt startup and live ACC validation are pending.**
+
+The greenfield branch now has an ACC-only Qt entry point (python -m src.main) and a QMainWindow that embeds the React dashboard with Qt WebEngine. The local loopback HTTP/SSE bridge serves the built frontend from src/web_ui/dist, exposes /api/snapshot and /events, and accepts only detached snapshots from the Qt host. It does not read shared memory or decode telemetry.
+
+The Qt host starts the existing greenfield create_acc_acquisition_runtime() supervisor and polls the downstream Physics consumer snapshot at 20 Hz. The frontend subscribes to the bridge and now renders live Physics values where the decoder exposes them: speed, gear, RPM, pedals, fuel mass, brake temperatures/pressure, tyre core temperatures/pressures/slip, TC/ABS levels and action flags, brake bias, engine flags, temperatures and decoded damage arrays. The remaining tiles stay unavailable until their separate Graphics/Static decoders and data contracts are integrated; no synthetic values are presented as live telemetry.
+
+This is an ACC-only host, not a wholesale copy of the old F1-oriented 500 KB overlay window or its 115 KB multi-feature dashboard server. It ports the proven desktop pattern (native Qt window + embedded web surface + local HTTP/SSE snapshot bridge) while keeping the greenfield acquisition runtime as the sole ACC shared-memory owner. The bridge binds to loopback only. The desktop dependency set is in requirements-desktop.txt.
+
+**Not yet proven:** Windows Qt WebEngine startup, frontend production build after the SSE changes, bridge tests on the user's machine, ACC live Physics connection through the complete Qt process, and graceful shutdown under a live session. No Graphics/Static data is currently wired to Overview tiles.
