@@ -288,8 +288,8 @@ button { cursor: pointer; }
 .glow-corners>div{transition:box-shadow .18s ease,border-color .18s ease}
 .glow-0{--glow-colour:#3989ff}.glow-1{--glow-colour:#25c878}.glow-2{--glow-colour:#e8cf35}.glow-3{--glow-colour:#f28a32}.glow-4{--glow-colour:#ed4545}
 .damage-0{--glow-colour:#25c878}.damage-1{--glow-colour:#e8cf35}.damage-2{--glow-colour:#f28a32}.damage-3{--glow-colour:#ed4545}
-.glow-corners>div{box-shadow:0 0 calc(5px + 12px * var(--glow-intensity)) var(--glow-colour);border-color:var(--glow-colour)}
-.lap-glow .lap-primary{border-radius:10px;padding:10px;border:1px solid var(--lap-colour);box-shadow:0 0 calc(7px + 13px * var(--glow-intensity)) var(--lap-colour)}
+.glow-corners>div{box-shadow:0 0 var(--glow-blur) var(--glow-colour);border-color:var(--glow-colour)}
+.lap-glow .lap-primary{border-radius:10px;padding:10px;border:1px solid var(--lap-colour);box-shadow:0 0 var(--glow-blur) var(--lap-colour)}
 .lap-valid{--lap-colour:#25c878}.lap-invalid{--lap-colour:#ed4545}.lap-out{--lap-colour:#f28a32}
 .settings-page{display:grid;gap:13px;align-content:start}.settings-panel{padding:16px;border:1px solid var(--outline);border-radius:13px;background:var(--surface)}
 .settings-panel h3{margin:0 0 5px;font-size:13px}.settings-panel p{margin:0 0 12px;color:var(--muted);font-size:10px;line-height:1.5}
