@@ -22,11 +22,15 @@ class ACCDesktopWindow(QMainWindow):
         self.setStyleSheet("QMainWindow { background: #0b1118; }")
 
         self._runtime = create_acc_acquisition_runtime()
+        self._runtime.supervisor.start()
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist")
         self._view = QWebEngineView(self)
         self.setCentralWidget(self._view)
-        self._bridge_url = self._bridge.start()
-        self._runtime.supervisor.start()
+        try:
+            self._bridge_url = self._bridge.start()
+        except Exception:
+            self._runtime.supervisor.stop(timeout=5.0)
+            raise
         self._view.load(QUrl(self._bridge_url))
 
         self._publish_timer = QTimer(self)
