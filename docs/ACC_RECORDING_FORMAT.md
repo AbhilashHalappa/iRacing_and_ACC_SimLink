@@ -1,6 +1,6 @@
 # ACC Raw Recording Format
 
-**Updated:** 9 November 2026  
+**Updated:** 10 November 2026  
 **Status:** Physics, Graphics, and Static writers emit format version 2. Physics and Graphics readers/recovery accept versions 1 and 2; Static has its own version-2 reader/recovery.
 
 ## Scope and invariants
@@ -97,3 +97,15 @@ out-of-loop dispatcher are specified in
 acknowledges samples only after successful batch write, flush, and fsync; queue
 rejections and processing failures remain explicit and prevent a successful
 recording validation result.
+
+
+## Required recording completion
+
+The Physics recorder is the required consumer in the current fan-out topology.
+Queue overflow, failed processing, a writer error, non-zero pending/in-flight
+work, shutdown timeout, failed checkpoint, or failed recovery/CRC validation
+makes the run incomplete. A recoverable valid prefix is salvage data and does
+not make an incomplete run successful. The deterministic completion rules and
+optional-consumer isolation policy are documented in
+[ACC Downstream Fan-out Queues](ACC_DOWNSTREAM_FANOUT.md) and enforced by
+`recording_policy.py`.
