@@ -66,6 +66,7 @@ class GraphicsAcquisitionMetrics:
     source_packet_gap_count: int = 0
     packet_id_regression_count: int = 0
     buffer_rejection_count: int = 0
+    first_packet_id: int | None = None
     last_packet_id: int | None = None
     last_capture_sequence: int = 0
     last_acquisition_duration_ns: int = 0
@@ -156,6 +157,8 @@ class GraphicsAcquirer:
         )
         self.metrics.capture_count += 1
         self.metrics.last_capture_sequence = sequence
+        if self.metrics.first_packet_id is None:
+            self.metrics.first_packet_id = packet_id
         self.metrics.last_packet_id = packet_id
         duration = snapshot.acquisition_duration_ns
         self.metrics.last_acquisition_duration_ns = duration
