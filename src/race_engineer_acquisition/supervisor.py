@@ -1,7 +1,8 @@
 """Supervise the independent ACC Physics, Graphics and Static readers.
 
-The supervisor owns worker threads, stop events and source closure. It does not
-merge streams, consume their buffers, decode payloads or perform persistence.
+The supervisor owns worker threads, stop events and source closure. Physics
+acquisition remains raw-only; a separate supervised downstream worker drains
+its ring and decodes samples. Graphics and Static remain independent/raw-only.
 A worker failure is isolated to that stream and remains visible in status.
 """
 from __future__ import annotations
@@ -305,7 +306,8 @@ def create_acc_acquisition_runtime(
     """Build the three independent Windows ACC acquisition workers.
 
     Shared-memory handles are opened lazily by each worker. The returned
-    buffers are separate SPSC queues; this function does not add consumers.
+    buffers are separate SPSC queues. A dedicated Physics decoder consumer is
+    attached downstream; Graphics and Static remain unconsumed raw streams.
     """
     if min(physics_poll_hz, graphics_poll_hz, static_refresh_seconds) <= 0:
         raise ValueError("poll rates and Static refresh interval must be positive")
