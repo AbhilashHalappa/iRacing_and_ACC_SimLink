@@ -274,3 +274,12 @@ button { cursor: pointer; }
 .pressure-target-layout>p{margin:5px 0 0;color:var(--muted);font-size:9px;line-height:1.4}
 .race-control-grid .message-field{grid-column:1/-1;min-height:42px}
 @media(max-width:650px){.balanced-grid{gap:7px}.balanced-field{min-height:46px;padding:8px}.balanced-field b{font-size:11px}.balanced-hardware{grid-template-columns:repeat(2,minmax(0,1fr))}.damage-corner-group .glance-corners b{font-size:14px}}
+
+/* Final balance refinements for uneven field counts. */
+.glance-weather.balanced-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.electronics-primary.three-up{grid-template-columns:repeat(3,minmax(0,1fr))}
+.balanced-hardware>div:last-child:nth-child(odd){grid-column:1/-1}
+.electronics-secondary,.pit-secondary{padding:5px 0}
+.electronics-secondary .balanced-field{min-height:43px}
+.pit-secondary .balanced-field{min-height:46px}
+@media(max-width:650px){.glance-weather.balanced-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.electronics-primary.three-up{grid-template-columns:repeat(3,minmax(0,1fr))}}
