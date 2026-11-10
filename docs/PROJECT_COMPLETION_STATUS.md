@@ -389,3 +389,14 @@ The Qt host starts the existing greenfield create_acc_acquisition_runtime() supe
 This is an ACC-only host, not a wholesale copy of the old F1-oriented 500 KB overlay window or its 115 KB multi-feature dashboard server. It ports the proven desktop pattern (native Qt window + embedded web surface + local HTTP/SSE snapshot bridge) while keeping the greenfield acquisition runtime as the sole ACC shared-memory owner. The bridge binds to loopback only. The desktop dependency set is in requirements-desktop.txt.
 
 **Not yet proven:** Windows Qt WebEngine startup, frontend production build after the SSE changes, bridge tests on the user's machine, ACC live Physics connection through the complete Qt process, and graceful shutdown under a live session. No Graphics/Static data is currently wired to Overview tiles.
+
+
+## Desktop bridge JSON serialization correction — 10 November 2026
+
+**Status: Fix committed; regression test added; user rerun pending.**
+
+The user ran the desktop bridge, Physics decoder and Physics consumer tests together and reported **10 passed**. Launching the Qt app then exposed a runtime HTTP serialization error: the supervisor's acquisition status contains nested `AcquisitionHealthSnapshot` dataclass instances, which the standard JSON encoder cannot serialize. The failure occurred in bridge responses (and would also affect SSE frames), not in acquisition or Physics decoding.
+
+The bridge now converts nested dataclass values with `dataclasses.asdict` through a JSON default handler for both `/api/snapshot` and `/events`. A regression test publishes a nested health dataclass and verifies the returned JSON fields. This keeps acquisition health objects immutable and leaves the acquisition worker path unchanged.
+
+**Validation still required:** rerun `python -m pytest tests\\test_desktop_bridge.py tests\\test_physics_decoder.py tests\\test_physics_consumer.py -q`, then relaunch with `python -m src.main`. The reported 10-test result predates this fix; do not count the new regression test as passed until the user reruns it. Qt WebEngine startup and live ACC telemetry remain unvalidated.
