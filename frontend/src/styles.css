@@ -171,3 +171,17 @@ button { cursor: pointer; }
 @media (max-width:900px) { .top-bar,.workspace {padding-left:20px;padding-right:20px}.demo-footnote {margin-left:20px;margin-right:20px} }
 @media (max-width:650px) { .top-bar {align-items:flex-start;padding:14px}.top-bar-actions {justify-content:flex-end}.prototype-state {display:none}.workspace {padding:20px 14px}.overview-heading {align-items:flex-start;flex-direction:column}.overview-heading-actions {width:100%}.dashboard-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile-slot-small,.tile-slot-medium,.tile-slot-large {grid-column:span 1}.tile-slot-hardware {grid-column:span 2}.tile-heading {padding-left:10px;padding-right:10px}.tile-body {padding-left:10px;padding-right:10px}.hero-value strong {font-size:42px}.lap-metrics {grid-template-columns:1fr}.lap-metrics>div {gap:3px}.lap-metrics b {font-size:14px}.weather-grid {grid-template-columns:repeat(2,1fr)}.hardware-list {grid-template-columns:repeat(2,1fr)}.tile-library-grid {grid-template-columns:repeat(2,1fr)}.demo-footnote {margin-left:14px;margin-right:14px;flex-direction:column}.dashboard-editor {align-items:flex-start;flex-direction:column} }
 @media (prefers-reduced-motion: no-preference) { button,.dashboard-tile {transition:background-color .14s ease,border-color .14s ease,filter .14s ease} }
+
+.field-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px 10px; padding:10px 0; }
+.field-grid>div { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.field-grid span,.field-rows span { color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.55px; }
+.field-grid b,.field-rows b { color:var(--on-surface); font-size:11px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.field-rows { display:grid; gap:0; padding:3px 0; }
+.field-rows>div { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:31px; padding:5px 0; border-bottom:1px solid var(--outline); }
+.field-rows>div:last-child { border-bottom:0; }
+.field-rows.compact>div { min-height:28px; }
+.extended-corners { flex-wrap:wrap; }
+.extended-corners>div { min-width:0; }
+.extended-corners p,.pressure-target-grid p { flex-basis:100%; margin:4px 0 0; color:var(--muted); font-size:9px; }
+.pressure-target-grid { flex-wrap:wrap; }
+@media (max-width:650px) { .field-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
