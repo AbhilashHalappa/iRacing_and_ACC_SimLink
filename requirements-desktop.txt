@@ -1,0 +1,4 @@
+# ACC-only desktop shell. Install alongside requirements-hardware.txt as needed.
+PySide6==6.10.1
+PySide6-Addons==6.10.1
+PySide6-Essentials==6.10.1
