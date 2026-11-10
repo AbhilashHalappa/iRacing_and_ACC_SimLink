@@ -18,7 +18,7 @@ class RecordingManifestTests(unittest.TestCase):
                 "recovered_snapshot_count": 480, "truncated_bytes": 0,
             },
             "acquisition_metrics": {
-                "last_capture_sequence": 480, "last_packet_id": 9001,
+                "last_capture_sequence": 480, "first_packet_id": 8522, "last_packet_id": 9001,
             },
             "reconciliation": {
                 "acquired": 480, "persisted": 480, "recorder_failed_samples": 0,
@@ -34,6 +34,7 @@ class RecordingManifestTests(unittest.TestCase):
         self.assertEqual(manifest["completion_status"], "completed")
         self.assertEqual(manifest["stream_summary"]["captured_count"], 480)
         self.assertEqual(manifest["stream_summary"]["first_capture_sequence"], 1)
+        self.assertEqual(manifest["stream_summary"]["first_source_packet_id"], 8522)
         self.assertEqual(manifest["stream_summary"]["last_source_packet_id"], 9001)
         self.assertEqual(manifest["session"]["track"], "monza")
         self.assertEqual(manifest["integrity"]["reconciliation_delta"], 0)
