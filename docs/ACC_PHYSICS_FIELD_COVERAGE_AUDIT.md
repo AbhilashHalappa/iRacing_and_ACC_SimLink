@@ -219,6 +219,83 @@ These anomalies do **not** prove that the entire 800-byte structure is wrong. Th
 
 The pad-life value `1.401298464e-45` is the smallest positive IEEE-754 float32 subnormal. It is not a credible brake-life reading for validation purposes.
 
+## Issue #11 — unresolved-field inventory and reference reconciliation
+
+**Review branch:** `feature/acquisition-foundation`  
+**Review date:** 10 November 2026  
+**Scope:** documentation/reference audit only. No acquisition, recorder, ABI declaration, decoder or test code changed by this review.
+
+### Reference comparison
+
+The current Greenfield declaration is `src/race_engineer_acquisition/acc_windows.py::_Physics`. It declares an 800-byte little-endian structure with 4-byte packing.
+
+| Reference | Relevant evidence | Comparison with Greenfield |
+|---|---|---|
+| RaceIQ, pinned commit `64a34783f706722cf342e18ecb7fc06d29f30f8e`, `packages/capture-formats/src/acc/structs.ts` | Explicit offsets: `currentMaxRpm` int32 at 588; `mz[4]` at 592; `slipRatio` at 640; `tyreTemp` at 696; `waterTemp` at 712; `brakePressure` at 716; `padLife` at 740; `discLife` at 756; engine flags at 772–780; vibration fields at 784–796. | Matches the Greenfield offsets and types through the final 16-byte region, except Greenfield currently leaves 784–799 opaque. RaceIQ says its offsets derive from the v1.8.12 header and that later tail members were checked against live data. |
+| Pro Engineer, pinned commit `b33ab4b2c8dfcfeb1079cfb08197fe7e77127b26`, `core/src/games/assetto_corsa_competizione/structs.rs` | Declares an 800-byte ACC Physics structure; compile-time size and offset assertions include 588, 640, 696, 712, 716, 740, 756 and 780. Its documented live recording reports 8,376 samples and values at several tail offsets. | Matches the Greenfield layout at the asserted offsets. This is independent empirical corroboration, not an official Kunos header and not a capture from this project's target PC. |
+| Grafana Simracing Telemetry Go ACC package (published 2022) | Declares `currentMaxRpm` as int32 followed by `mz[4]`, `fx[4]`, `fy[4]`, slip ratio and slip angle. | Corroborates the int32 + MZ sequence through the pre-tail fields; its age and incomplete extended-tail coverage limit its value for the current v1.9 tail. |
+| ACC Shared Memory Documentation v1.8.12 transcription | Lists `currentMaxRpm` as float, followed by `mz[4]`, then `fx[4]` and `fy[4]`; lists the later brake, wear, engine and vibration members. | Confirms member order and presence of MZ, but conflicts with the int32 type at offset 588 used by Greenfield, RaceIQ and Pro Engineer. It is v1.8.12, not a version-matched v1.9 header. |
+| heikowulf C# `ACCsharedmemory/Physics.cs` | Declares `currentMaxRpm` as float and includes `mz[4]`; its comments identify fields added in older AC/ACC revisions. | Another older float-typed transcription. It does not settle the target v1.9 type. |
+| Legacy F1 reference decoder `Race-Engineer-ACC/src/acc_shared_memory_extended.py` | Uses float `current_max_rpm`, omits the MZ array, and ends with four vibration floats. | Not layout-equivalent to Greenfield. Do not port this structure or its decoder as the ACC v1.9 ABI. Its downstream fields are 16 bytes earlier than the Greenfield declaration after the omitted MZ member. |
+
+**Reference conclusion:** the Greenfield 800-byte sequence with int32 `current_max_rpm` at 588 and `mz[4]` at 592 is supported by two current ACC-focused independent implementations and an older Go implementation. However, the v1.8.12 transcription and C# reader disagree on the type of `currentMaxRpm`, and no authoritative Kunos Shared Memory v1.9 header has been obtained. Keep the existing 800-byte raw capture unchanged; do not treat the current regression test as proof of official ABI conformance.
+
+### Important inventory corrections to investigate
+
+1. **Offset 696, `tyre_temp_unused[4]`:** RaceIQ describes this as a second core-temperature channel; Pro Engineer reports it byte-for-byte identical to `tyre_core_temp[4]` at offset 152. The v1.8.12 transcription marks this field as a duplicate (asterisk), not simply unused. Greenfield currently labels it unused. Candidate disposition: duplicate core-temperature alias, pending exact per-sample raw-byte comparison on this project's capture.
+2. **Offsets 784–799, `tail_reserved[16]`:** RaceIQ and Pro Engineer identify four float vibration channels at offsets 784, 788, 792 and 796. Pro Engineer reports the final channel varying in its own capture. Greenfield currently preserves these bytes opaquely. Candidate disposition: four vibration fields; keep opaque/untrusted until exact target-PC raw-byte evidence and a controlled FFB/motion correlation are available.
+3. **Offset 680, `suspension_damage[4]`:** the v1.8.12 field list describes suspension damage levels; Pro Engineer declares the array but notes it was zero in a session with no damage. The current Greenfield table labels it unused/deprecated based on the legacy reference naming. That is not sufficient to call it unused. Candidate disposition: conditional field; controlled damage evidence required before semantic use.
+4. **Offset 588, `current_max_rpm`:** type disagreement remains (int32 in Greenfield/RaceIQ/Pro Engineer/Go versus float in the v1.8.12 transcription and C# reader). Pro Engineer's independent live recording reports 8650 at this offset and the Static page reports the same maximum RPM. Candidate disposition: int32 strongly supported for the observed ACC layout, but retain the v1.9 ABI qualification until version-matched authoritative evidence is found.
+5. **Offsets 712–783:** the field order is independently corroborated, but the target capture's anomalous values/statistical overlap mean semantic decoding is not approved. Do not use plausible values from an earlier capture to override the later anomaly.
+
+### Complete open-finding register
+
+The following register consolidates every field currently marked observed, pending, partially validated, unverified or unresolved in the 82-member audit. “Candidate” is not approval for production telemetry.
+
+| Field(s) / offset(s) | Open question | Current disposition | Evidence needed to close |
+|---|---|---|---|
+| `fuel_kg` / 12 | Confirm actual unit and response to known fuel addition/refuelling; references disagree between kg and litres. | Observed; unit unresolved. | Controlled before/after fuel change compared with ACC Static max fuel and known added quantity. |
+| `velocity[3]` / 32 | Axis order, coordinate frame and sign. | Observed; calibration open. | Controlled straight-line motion and known direction changes, correlated with another position/velocity reference. |
+| `wheel_slip[4]` / 56 | Per-wheel sign/range and behaviour during controlled slip. | Observed; semantics not calibrated. | Controlled wheel-lock/spin event with wheel identity preserved. |
+| `tc` / 204 and `abs` / 252 | Whether these represent intervention activity, selected aid level, or another value. | Observed; must not be represented as selected setup levels. | Controlled setup changes and interventions, separately logged and compared. |
+| `heading`, `pitch`, `roll` / 208–216 | Coordinate convention, axis and sign. | Observed; calibration open. | Known orientation changes or track-aligned controlled manoeuvres. |
+| `autoshifter_on` / 264 | Boolean encoding and transition. | Pending. | Toggle automatic shifting in a controlled session and inspect raw int32 values. |
+| `turbo_boost` / 276 | Whether populated for the tested car and its units. | Pending. | Controlled boost/load comparison on a car that exposes turbo boost. |
+| `air_temp_c`, `road_temp_c` / 288–292 | Independent environmental meaning and units. | Pending. | Compare with known ACC session weather/track temperatures; avoid inferring from plausible ranges alone. |
+| `local_angular_velocity[3]` / 296 | Axis order, frame and sign. | Observed; calibration open. | Controlled yaw/pitch/roll manoeuvres and cross-check against orientation changes. |
+| `final_ff` / 308 | Sign, scale and relation to force-feedback output. | Pending. | Controlled FFB change/steering test with a known output reference. |
+| `is_ai_controlled` / 416 | AI-controlled state transition. | Partially validated (zero in human-driven captures only). | A controlled AI/replay or AI-car capture where this field should change. |
+| `tyre_contact_point[4][3]` / 420 | Coordinate frame, axis order and units. | Observed; calibration open. | Compare wheel contact positions with independently known car/world coordinates. |
+| `tyre_contact_normal[4][3]` / 468 | Axis order, normalization and coordinate frame. | Observed; calibration open. | Compare with flat and banked/kerbed surface orientations; check vector magnitude. |
+| `tyre_contact_heading[4][3]` / 516 | Axis order, normalization and coordinate frame. | Observed; calibration open. | Compare with known wheel/car heading and check vector magnitude. |
+| `brake_bias` / 564 | Scale and relationship to setup percentage. | Observed; controlled adjustment pending. | Change brake bias by a known amount and compare raw value. |
+| `local_velocity[3]` / 568 | Axis order, frame and sign. | Observed; calibration open. | Compare with controlled forward, lateral and reverse movement. |
+| `current_max_rpm` / 588 | int32 versus float ABI disagreement and relationship to active rev limiter/engine map. | Candidate int32; ABI type qualification remains. | Version-matched authoritative definition or controlled engine-map/limiter changes with raw int32 and float interpretations recorded. |
+| `mz[4]` / 592 | ACC population/use. | Candidate unused/reserved; raw preserved. | Controlled target capture; do not expose unless non-zero/meaningful use is established. |
+| `fx[4]`, `fy[4]` / 608–636 | ACC population/use. | Reference-unused candidate; stable zero in current capture. | Controlled target capture if a feature requires tyre force data. |
+| `slip_ratio[4]` / 640 | Per-wheel semantics, sign and units. | Observed; controlled event pending. | Controlled acceleration/braking slip with per-wheel correlation. |
+| `slip_angle[4]` / 656 | Per-wheel semantics, sign and units. | Observed; cornering correlation pending. | Controlled cornering in both directions with wheel identity and sign correlation. |
+| `tc_in_action`, `abs_in_action` / 672–676 | Whether and how the intervention flags assert. | Stable zero; no intervention observed in current capture. | Deliberately trigger TC and ABS independently and record transitions. |
+| `suspension_damage[4]` / 680 | Whether this is a populated conditional damage field or unused. | Conditional candidate; current “unused” label is not adequately supported. | Controlled suspension damage event or authoritative target-version definition. |
+| `tyre_temp[4]` / 696 | Duplicate alias versus unused field. | Strong duplicate-alias candidate; not approved as independent telemetry. | Exact per-sample byte/value equality against offset 152 across existing/new raw captures. |
+| `water_temp` / 712 | Whether field is real water temperature or an offset/type alias. | Unresolved; later capture statistics overlap core-temperature data. | Raw-byte per-sample comparison, plus engine warm-up/cool-down transition. |
+| `brake_pressure[4]` / 716 | Whether four channels align and how raw values map to pressure. | Unresolved; later capture statistics overlap core-temperature data. | Decode exact offsets 716/720/724/728 from raw bytes; controlled brake pressure and compare with brake bias and documented car-specific coefficient. |
+| `front_brake_compound`, `rear_brake_compound` / 732–736 | Integer encoding, offset and valid enum values. | Unresolved; current int32 values implausible. | Inspect same four bytes as int32 and float32; compare with selected compound and known valid enum mapping. |
+| `pad_life[4]` / 740 | All four components and units/direction. | Unresolved; rear values are subnormal in current capture. | Raw-byte validation for all corners and controlled pad wear/service or authoritative unit definition. |
+| `disc_life[4]` / 756 | Units, direction and service semantics. | Numeric variation observed; not approved as life percentage. | Raw-byte validation and controlled wear/service comparison; confirm whether unit is thickness. |
+| `ignition_on`, `starter_engine_on`, `engine_running` / 772–780 | Correct offsets and boolean/integer encoding. | Unresolved; current int32 interpretations are not clean flags. | Capture engine off → ignition → starter → running → stop and inspect raw bytes at each transition. |
+| Candidate vibration channels / 784–799 | Whether four float channels are present and what each represents. | Reference-supported candidate; Greenfield keeps opaque. | Exact target-PC raw-byte decoding and controlled kerb/slide/G/ABS/FFB correlation. |
+
+### Disposition rules for this issue
+
+- Keep all raw Physics bytes and the existing 800-byte acquisition/recording path unchanged.
+- Do not expose a field as trusted telemetry solely because a third-party structure names it.
+- A reference-supported field with no target-PC semantic evidence remains a candidate.
+- Fields explicitly documented as unused may remain in the layout for offset correctness but must not be exposed as live telemetry.
+- Unknown/reserved bytes remain opaque. Candidate vibration fields at 784–799 are not promoted until target evidence is available.
+- Do not add a production decoder as part of this inventory step. First close the ABI/type and raw-byte correlation questions; decoder work remains a separate downstream task.
+- No new ACC recording is requested by this review. Existing recordings should be inspected first for the exact byte-level comparisons above.
+
 ### Remaining Physics work
 
 1. Keep the corrected 800-byte ABI stable; investigate individual unresolved field semantics only when a required feature needs them.
