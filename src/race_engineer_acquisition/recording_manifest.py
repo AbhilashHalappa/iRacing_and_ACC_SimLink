@@ -23,26 +23,26 @@ def collect_static_session_metadata(
     source_factory: Callable[[], Any] = WindowsACCStaticSource,
 ) -> tuple[dict[str, Any], list[str]]:
     """Read and conservatively decode Static metadata outside acquisition workers."""
-    empty = {field: None for field in _SESSION_FIELDS}
+    metadata = {field: None for field in _SESSION_FIELDS}
+    warnings: list[str] = []
     source = None
     try:
         source = source_factory()
         decoded = decode_static_candidate_b(source.read_static().payload)
-        return (
-            {field: getattr(decoded, field) for field in _SESSION_FIELDS},
-            [],
-        )
+        metadata = {field: getattr(decoded, field) for field in _SESSION_FIELDS}
     except Exception as exc:
-        return empty, [f"ACC Static session metadata unavailable: {type(exc).__name__}: {exc}"]
+        warnings.append(
+            f"ACC Static session metadata unavailable: {type(exc).__name__}: {exc}"
+        )
     finally:
         if source is not None:
             try:
                 source.close()
             except Exception as exc:
-                # Metadata is descriptive; close failure must be visible but must
-                # not rewrite the raw recording's stream completion decision.
-                pass
-
+                warnings.append(
+                    f"ACC Static metadata mapping close failed: {type(exc).__name__}: {exc}"
+                )
+    return metadata, warnings
 
 def build_recording_manifest(
     stream: str,
