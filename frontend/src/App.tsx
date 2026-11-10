@@ -4,10 +4,10 @@ import {
   Thermometer, CircleGauge, Cable, Settings, Radio, ChevronDown,
   Plus, RotateCcw, Save, X, GripVertical, Pin, PinOff, Moon, Sun,
   LayoutDashboard, Waves, TriangleAlert, Clock3, Zap, Droplets,
-  Timer, ChartNoAxesColumnIncreasing, Medal, SlidersHorizontal, Wrench, Target, Siren,
+  Timer, ChartNoAxesColumnIncreasing, Medal, SlidersHorizontal, Wrench, Target, Siren, Lightbulb,
 } from "lucide-react";
 
-type TileId = "speed" | "gear" | "rpm" | "pedals" | "laps" | "lap_history" | "weather" | "map" | "session" | "brakes" | "tyres" | "fuel" | "warnings" | "hardware" | "delta" | "sectors" | "position" | "electronics" | "pit_stint" | "damage" | "pressure_targets" | "race_control";
+type TileId = "speed" | "gear" | "rpm" | "pedals" | "laps" | "lap_history" | "weather" | "map" | "session" | "brakes" | "tyres" | "fuel" | "warnings" | "hardware" | "delta" | "sectors" | "position" | "electronics" | "pit_stint" | "damage" | "pressure_targets" | "race_control" | "car_status";
 type TileSize = "small" | "medium" | "large";
 type Tile = { id: TileId; size: TileSize; pinned: boolean };
 const definitions: { id: TileId; title: string; description: string }[] = [
@@ -33,6 +33,7 @@ const definitions: { id: TileId; title: string; description: string }[] = [
   { id: "damage", title: "Vehicle damage", description: "ACC-reported vehicle damage status" },
   { id: "pressure_targets", title: "Tyre pressure targets", description: "Actual pressures compared with target pressures" },
   { id: "race_control", title: "Race control", description: "Flags, warnings and race-control messages" },
+  { id: "car_status", title: "Car lights & status", description: "ACC lights, wipers, engine and vehicle status" },
 ];
 const initial: Tile[] = [
   { id: "speed", size: "small", pinned: true },
@@ -57,6 +58,7 @@ const initial: Tile[] = [
   { id: "damage", size: "medium", pinned: false },
   { id: "pressure_targets", size: "large", pinned: false },
   { id: "race_control", size: "medium", pinned: false },
+  { id: "car_status", size: "medium", pinned: false },
 ];
 const nav = [
   { name: "Overview", icon: LayoutDashboard, group: "WORKSPACE" },
@@ -109,6 +111,7 @@ function TileContent({ id }: { id: TileId }) {
     case "damage": return <div className="damage-layout"><div className="damage-summary balanced-grid"><div className="balanced-field"><span>ACC CAR DAMAGE ARRAY</span><b>— / — / — / — / —</b></div><div className="balanced-field"><span>DAMAGE SUMMARY · DERIVED</span><b>—</b></div></div><section className="damage-corner-group"><h4>SUSPENSION DAMAGE</h4><div className="corner-grid glance-corners">{["FL","FR","RL","RR"].map(c=><div key={c}><span>{c}</span><b>—</b></div>)}</div></section></div>;
     case "pressure_targets": return <div className="pressure-target-layout"><div className="corner-grid glance-corners pressure-target-grid">{["FL","FR","RL","RR"].map((v)=><div key={v}><span>{v}</span><b>Actual — psi</b><small>MFD setting — psi</small><small>Actual − MFD — psi</small></div>)}</div><p>MFD pressure is shown as the displayed setting, not assumed to be an ideal setup target.</p></div>;
     case "race_control": return <div className="balanced-grid race-control-grid">{[["FLAG (ACC)","—"],["GLOBAL FLAG (ACC)","—"],["PENALTY TYPE (ACC)","—"],["PENALTY TIME (ACC)","—"],["MANDATORY PIT STATUS (ACC)","—"]].map(([a,b])=><div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}<div className="balanced-field message-field"><span>RACE CONTROL MESSAGE</span><b>—</b></div></div>;
+    case "car_status": return <div className="balanced-grid car-status-grid">{[["LIGHTS STAGE (ACC)","—"],["RAIN LIGHTS (ACC)","—"],["FLASHING LIGHTS (ACC)","—"],["WIPER LEVEL (ACC)","—"],["ENGINE RUNNING (ACC)","—"],["ENGINE STARTING (ACC)","—"],["IN PIT (ACC)","—"],["IN PIT LANE (ACC)","—"]].map(([a,b])=><div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
   }
 }
 function App() {
@@ -138,7 +141,7 @@ function App() {
       {editing&&libraryOpen&&<div className="tile-library"><div className="tile-library-heading"><strong>Available tiles</strong><button className="text-action" onClick={()=>setLibraryOpen(false)}>Close</button></div><div className="tile-library-grid">{definitions.filter(d=>!draft.some(t=>t.id===d.id)).map(d=><button className="library-item" key={d.id} onClick={()=>add(d.id)}><strong><Plus size={14}/>{d.title}</strong><span>{d.description}</span></button>)}</div></div>}
       <div className="dashboard-grid" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const el=(e.target as HTMLElement).closest("[data-tile-id]");const to=el?.getAttribute("data-tile-id") as TileId|null;if(dragging&&to)move(dragging,to);setDragging(null);}}>
         {shown.map(tile=><div key={tile.id} data-tile-id={tile.id} draggable={editing&&!tile.pinned} onDragStart={()=>setDragging(tile.id)} onDragEnd={()=>setDragging(null)} className={`tile-drag-wrapper tile-slot-${tile.size} ${tile.id==="hardware"?"tile-slot-hardware":""}`}>
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id}/></div></article>
+          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:tile.id==="car_status"?<Lightbulb/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id}/></div></article>
           {editing&&<div className="tile-size-control"><label>Size <select value={tile.size} onChange={e=>update(tile.id,{size:e.target.value as TileSize})}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="text-action" onClick={()=>update(tile.id,{pinned:!tile.pinned})}>{tile.pinned?<PinOff size={13}/>:<Pin size={13}/>} {tile.pinned?"Unpin":"Pin"}</button><button className="remove-tile" onClick={()=>remove(tile.id)} aria-label={`Remove ${fmt(tile.id)} tile`}><X size={14}/></button></div>}
         </div>)}
       </div></section> : <section className="workspace"><div className="page-placeholder"><div className="placeholder-mark">RE</div><h2>{active}</h2><p>This workspace will be added in a later implementation stage.</p><span className="pending-label">NOT INTEGRATED</span></div></section>}
