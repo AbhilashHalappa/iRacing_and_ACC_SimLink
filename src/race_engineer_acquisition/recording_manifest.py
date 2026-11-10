@@ -71,6 +71,8 @@ def build_recording_manifest(
         acq_reject = int(report.get("reconciliation", {}).get("acquisition_buffer_rejections", 0))
         rec_reject = int(report.get("reconciliation", {}).get("recorder_buffer_rejections", 0))
         last_capture = report.get("acquisition_metrics", {}).get("last_capture_sequence")
+        first_packet = report.get("acquisition_metrics", {}).get("first_packet_id")
+        first_packet = report.get("acquisition_metrics", {}).get("first_packet_id")
         last_packet = report.get("acquisition_metrics", {}).get("last_packet_id")
         recovery = report.get("recovery_validation") or {}
         recovery_valid = bool(report.get("recovery_validation_passed"))
@@ -101,6 +103,7 @@ def build_recording_manifest(
         acq_reject = int(acquisition.get("buffer_rejections", 0))
         rec_reject = int(recorder.get("queue_rejections", 0))
         last_capture = acquisition.get("last_capture_sequence")
+        first_packet = None
         last_packet = None
         recovery_valid = (
             recovery.get("truncated_bytes") == 0
@@ -143,7 +146,7 @@ def build_recording_manifest(
             "recorder_rejection_count": rec_reject,
             "first_capture_sequence": 1 if acquired else None,
             "last_capture_sequence": last_capture,
-            "first_source_packet_id": None,
+            "first_source_packet_id": first_packet,
             "last_source_packet_id": last_packet,
         },
         "integrity": {
