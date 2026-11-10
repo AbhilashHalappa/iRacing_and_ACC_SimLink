@@ -8,7 +8,7 @@
 
 Keep the current validation-runner defaults:
 
-| Stream | Acquisition queue | Required recorder queue | Batch size |
+| Stream | Acquisition queue | Recorder queue | Batch size |
 |---|---:|---:|---:|
 | Physics | 100,000 | 100,000 | 128 |
 | Graphics | 10,000 | 10,000 | 64 |
