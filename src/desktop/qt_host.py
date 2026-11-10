@@ -10,6 +10,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
+from ..race_engineer_acquisition.static_decoder import decode_car_model
 
 
 class ACCDesktopWindow(QMainWindow):
@@ -22,6 +23,7 @@ class ACCDesktopWindow(QMainWindow):
         self.setStyleSheet("QMainWindow { background: #0b1118; }")
 
         self._runtime = create_acc_acquisition_runtime()
+        self._car_model: str | None = None
         self._runtime.supervisor.start()
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist")
         self._view = QWebEngineView(self)
@@ -39,7 +41,22 @@ class ACCDesktopWindow(QMainWindow):
         self._publish_timer.start()
         self.statusBar().showMessage("ACC Shared Memory · waiting for telemetry")
 
+    def _refresh_static_identity(self) -> None:
+        # Static is acquired independently at low frequency. Drain its SPSC
+        # queue here, downstream of acquisition, and retain the latest valid ID.
+        static_ring = self._runtime.buffers["static"]
+        while True:
+            sample = static_ring.try_get()
+            if sample is None:
+                break
+            try:
+                self._car_model = decode_car_model(sample.payload)
+            except ValueError:
+                # Keep the last known-good identity if a page is malformed.
+                continue
+
     def _publish_snapshot(self) -> None:
+        self._refresh_static_identity()
         consumer = self._runtime.physics_consumer.snapshot
         physics = consumer.to_payload()
         timestamp = consumer.latest_capture_timestamp_ns
@@ -48,6 +65,7 @@ class ACCDesktopWindow(QMainWindow):
             "connected": connected,
             "source": "ACC Shared Memory / Physics",
             "physics": physics,
+            "vehicle": {"car_model": self._car_model},
             "acquisition": self._runtime.supervisor.status,
         }
         self._bridge.publish(snapshot)
