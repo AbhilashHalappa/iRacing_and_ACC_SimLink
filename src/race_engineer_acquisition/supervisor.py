@@ -289,6 +289,7 @@ class ACCAcquisitionRuntime:
     supervisor: AcquisitionSupervisor
     buffers: dict[str, object]
     acquirers: dict[str, object]
+    physics_consumer: object
 
 
 def create_acc_acquisition_runtime(
@@ -313,6 +314,7 @@ def create_acc_acquisition_runtime(
     from .acquirer import PhysicsAcquirer
     from .graphics import GraphicsAcquirer, WindowsACCGraphicsSource
     from .ring_buffer import AcquisitionRingBuffer
+    from .physics_consumer import PhysicsDecodeConsumer
     from .static import StaticAcquirer, WindowsACCStaticSource
     from .timing_windows import WindowsTimerResolution
 
@@ -330,12 +332,22 @@ def create_acc_acquisition_runtime(
         "graphics": GraphicsAcquirer(graphics_source, buffers["graphics"]),
         "static": StaticAcquirer(static_source, buffers["static"]),
     }
+    physics_consumer = PhysicsDecodeConsumer(buffers["physics"])
+    physics_producer_done = Event()
+
+    def run_physics(stop_event: Event) -> None:
+        try:
+            acquirers["physics"].run(
+                stop_event, poll_interval_ns=max(1, round(1_000_000_000 / physics_poll_hz))
+            )
+        finally:
+            # The decoder drains the final acquired page before it exits.
+            physics_producer_done.set()
+
     streams = (
         AcquisitionStream(
             "physics",
-            lambda stop: acquirers["physics"].run(
-                stop, poll_interval_ns=max(1, round(1_000_000_000 / physics_poll_hz))
-            ),
+            run_physics,
             physics_source.close,
             acquirers["physics"].health,
         ),
@@ -355,9 +367,14 @@ def create_acc_acquisition_runtime(
             static_source.close,
             acquirers["static"].health,
         ),
+        AcquisitionStream(
+            "physics-decode",
+            lambda stop: physics_consumer.run(stop, physics_producer_done),
+            lambda: None,
+        ),
     )
     return ACCAcquisitionRuntime(
         AcquisitionSupervisor(
             streams, timer_resolution=WindowsTimerResolution(timer_resolution_ms)
-        ), buffers, acquirers
+        ), buffers, acquirers, physics_consumer
     )
