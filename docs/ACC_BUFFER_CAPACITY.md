@@ -90,7 +90,7 @@ A previous normal 30-second live run acquired and persisted 3,000 snapshots with
 
 Static is change-driven: the acquirer emits the initial page and later pages only when raw bytes change. Unchanged 1 Hz refreshes are not queued. Therefore, converting 64 entries into “64 seconds of coverage” would be incorrect; capacity is 64 pending changed-page observations at each queue stage.
 
-The live 30-second Static validation observed 31 reads, one changed page (the initial page), 30 unchanged reads, one persisted page, zero rejects, and zero pending items. This validates the unchanged-page suppression path, not a worst-case rapid-change rate. Static's small page payload makes the current 64-entry bound inexpensive, but a future source-change-rate requirement should be used if Static can change repeatedly during a consumer stall.
+The live 30-second Static validation observed 31 reads, one changed page (the initial page), 30 unchanged reads, one persisted page, zero rejects, and zero pending items. This validates the unchanged-page suppression path, not a worst-case rapid-change rate. A deterministic unit test now fills a 64-entry Static queue with 64 distinct changed-page snapshots, verifies that the 65th is rejected and recorded as lost, and drains all original 64 snapshots in FIFO order with payloads intact. The test passed as part of the user's focused Static recording suite (6 tests, 0.054 seconds). This verifies the configured queue boundary and no-overwrite behaviour; it does not claim ACC produces 64 changed pages in one second. Static's small page payload makes the current 64-entry bound inexpensive.
 
 ## Aggregate queue payload budget
 
@@ -103,7 +103,7 @@ Using the configured capacities and observed raw payload sizes, the conservative
 | Static | 524,288 bytes |
 | **Total** | **242,444,288 bytes (about 242.4 MB / 231.3 MiB)** |
 
-This is a payload-only bound, not a prediction of process RSS. It excludes Python snapshot objects, list slots and references, locks, dictionaries, allocator fragmentation, writer batch lists/encoding buffers, transient dispatcher items, and other application memory. For Graphics and Static, a recorder batch can be held outside the recorder ring while it is being written; the batch sizes are 64 and 16 respectively. The Static acquirer also retains its previous raw page for change detection. The Physics fan-out queues retain snapshot references; payload bytes are not copied once per consumer.
+This is a payload-only bound, not a prediction of process RSS. The six preallocated ring-buffer slot arrays contain 220,128 references in total (200,000 Physics + 20,000 Graphics + 128 Static). On the 64-bit target, the reference slots alone account for approximately 1,761,024 bytes (1.68 MiB), plus small per-list headers. This slot-array estimate is separate from the payload bound. The combined figures still exclude Python snapshot objects, locks, dictionaries, allocator fragmentation, writer batch lists/encoding buffers, transient dispatcher items, and other application memory. For Graphics and Static, a recorder batch can be held outside the recorder ring while it is being written; the batch sizes are 64 and 16 respectively. The Static acquirer also retains its previous raw page for change detection. The Physics fan-out queues retain snapshot references; payload bytes are not copied once per consumer.
 
 The three validation scripts are independent and need not run simultaneously. The aggregate is a conservative topology-wide comparison, not a claim that all three scripts currently allocate this amount in one process.
 
@@ -159,7 +159,7 @@ For each run, retain the JSON report and inspect both queue high-water marks, re
 
 1. Specify a tolerated downstream stall/recovery objective for each required recorder.
 2. If Physics capacity is to be reduced, run a controlled Physics recorder-delay test and measure queue high-water, while preserving the 480 Hz acquisition performance gate and all completion/recovery checks.
-3. Define whether Static must tolerate a specified burst of changed pages; if so, test that burst against both 64-entry queues.
+3. Define whether Static must tolerate a specified real-source burst of changed pages; the deterministic 64-entry queue boundary is tested, but source burst rate under ACC has not been measured.
 4. Measure process RSS on the target PC if a strict memory budget is required.
 5. Revisit capacities only if those objectives and measurements show a mismatch.
 
