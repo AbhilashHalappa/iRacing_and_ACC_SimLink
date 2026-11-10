@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from race_engineer_acquisition.recording_manifest import build_recording_manifest
+from race_engineer_acquisition.recording_manifest import (
+    build_recording_manifest, collect_static_session_metadata,
+)
 
 
 class RecordingManifestTests(unittest.TestCase):
@@ -76,6 +78,15 @@ class RecordingManifestTests(unittest.TestCase):
         self.assertIsNone(manifest["stream_summary"]["last_source_packet_id"])
         self.assertEqual(manifest["stream_summary"]["captured_count"], 1)
         self.assertTrue(manifest["integrity"]["recovery_valid"])
+
+    def test_static_metadata_unavailable_is_null_with_warning(self):
+        def unavailable_source():
+            raise OSError("ACC Static mapping unavailable")
+
+        metadata, warnings = collect_static_session_metadata(unavailable_source)
+        self.assertTrue(all(value is None for value in metadata.values()))
+        self.assertTrue(warnings)
+        self.assertIn("ACC Static session metadata unavailable", warnings[0])
 
     def test_shutdown_timeout_is_marked_incomplete(self):
         manifest = build_recording_manifest(
