@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import struct
+import time
 from threading import Event, Lock
 from typing import Any
 
@@ -119,7 +120,10 @@ class PhysicsDecodeConsumer:
         try:
             while not producer_done.is_set() or self._source.size > 0:
                 if self.process_pending() == 0:
-                    stop_event.wait(self._idle_wait_seconds)
+                    if stop_event.is_set():
+                        time.sleep(self._idle_wait_seconds)
+                    else:
+                        stop_event.wait(self._idle_wait_seconds)
         finally:
             with self._lock:
                 self._lifecycle_state = "stopped"
