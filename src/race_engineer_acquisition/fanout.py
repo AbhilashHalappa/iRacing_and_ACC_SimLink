@@ -166,18 +166,25 @@ class BoundedConsumerQueue(Generic[T]):
                 self._failed = True
                 self._closed = True
                 self._error = reason
-            count = 0
+            failed_items = list(self._in_flight.values())
+            self._in_flight.clear()
             while True:
                 item = self._buffer.try_get()
                 if item is None:
                     break
+                failed_items.append(item)
+
+            # Preserve capture order in the first/last failed sequence metrics,
+            # independent of whether an item was queued or already in flight.
+            failed_items.sort(
+                key=lambda item: (
+                    self._sequence(item) is None,
+                    self._sequence(item) if self._sequence(item) is not None else 0,
+                )
+            )
+            for item in failed_items:
                 self._record_failure(item)
-                count += 1
-            for item in self._in_flight.values():
-                self._record_failure(item)
-                count += 1
-            self._in_flight.clear()
-            return count
+            return len(failed_items)
 
     @property
     def size(self) -> int:
