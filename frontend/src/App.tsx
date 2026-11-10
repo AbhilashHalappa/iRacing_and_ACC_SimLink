@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, Gauge, Flag, ChartNoAxesCombined, CloudSun, Map, Fuel,
   Thermometer, CircleGauge, Cable, Settings, Radio, ChevronDown,
@@ -91,6 +91,40 @@ type GlowConfig = { tyre:[number,number,number,number]; brake:[number,number,num
 const defaultGlow:GlowConfig={tyre:[70,90,100,110],brake:[250,400,500,600],damage:[20,40,70],intensity:65,lapStatus:"valid"};
 function readGlow():GlowConfig { try { const v=JSON.parse(window.localStorage.getItem("acc-glow-settings")||"null"); return v?{...defaultGlow,...v}:defaultGlow; } catch { return defaultGlow; } }
 function band(value:number, thresholds:number[], prefix:string) { return prefix+"-"+(value<thresholds[0]?0:value<thresholds[1]?1:value<thresholds[2]?2:value<thresholds[3]?3:4); }
+function statusTone(value:string) {
+  const v=value.trim().toLowerCase();
+  if (["on","true","1","enabled","active"].includes(v)) return "light-on";
+  if (["off","false","0","disabled","inactive"].includes(v)) return "light-off";
+  const numeric=Number(v);
+  if (v!=="" && Number.isFinite(numeric)) return numeric>0?"light-on":"light-off";
+  return "light-unknown";
+}
+function flagTone(value:string) {
+  const v=value.trim().toLowerCase().replace(/[ _-]+/g,"");
+  if (v.includes("chequer") || v.includes("checker")) return "checkered";
+  if (v.includes("black") && (v.includes("orange") || v.includes("meatball"))) return "black-orange";
+  if (v.includes("black")) return "black";
+  if (v.includes("red")) return "red";
+  if (v.includes("yellow")) return "yellow";
+  if (v.includes("blue")) return "blue";
+  if (v.includes("white")) return "white";
+  if (v.includes("green")) return "green";
+  return "unknown";
+}
+function ChangeGlowBox({label,value,primary=false}:{label:string;value:string;primary?:boolean}) {
+  const [pulsing,setPulsing]=useState(false);
+  const previous=useRef(value);
+  useEffect(()=>{
+    if(previous.current!==value) {
+      previous.current=value;
+      setPulsing(true);
+      const timeout=window.setTimeout(()=>setPulsing(false),1000);
+      return ()=>window.clearTimeout(timeout);
+    }
+    previous.current=value;
+  },[value]);
+  return <div className={`${primary?"electronics-primary-box":"balanced-field"} value-change-glow${pulsing?" is-changing":""}`}><span>{label}</span><b>{value}</b></div>;
+}
 function TileContent({ id, glow }: { id: TileId; glow:GlowConfig }) {
   switch (id) {
     case "speed": return <div className="hero-value glance-hero"><strong>—</strong><span>KM/H</span><small>VEHICLE SPEED</small></div>;
@@ -110,12 +144,12 @@ function TileContent({ id, glow }: { id: TileId; glow:GlowConfig }) {
     case "delta": return <div className="glance-delta"><div className="glance-delta-primary"><span>LIVE DELTA · ACC</span><strong>—.---</strong><small>TO REFERENCE LAP</small></div><div className="glance-inline-stats"><div><span>EST. LAP</span><b>—:—.---</b></div><div><span>DELTA TO STORED BEST</span><b>—.---</b></div></div><small className="glance-footnote">Reference: best lap —</small></div>;
     case "sectors": return <div className="glance-sector"><div className="glance-inline-stats"><div><span>LIVE SPLIT</span><b>—:—.---</b></div><div><span>LAST SECTOR</span><b>—:—.---</b></div><div><span>SECTOR</span><b>— / 3</b></div></div><div className="sector-strip">{["S1","S2","S3"].map(s=><div key={s}><span>{s}</span><b>—.---</b><small>Δ —.---</small></div>)}</div><small className="glance-footnote">Captured best sectors · delta calculated</small></div>;
     case "position": return <div className="glance-position"><div className="glance-position-hero"><strong>—</strong><span>POSITION</span><small>OF — CARS</small></div><div className="glance-inline-stats"><div><span>GAP AHEAD</span><b>—</b></div><div><span>GAP BEHIND</span><b>—</b></div></div></div>;
-    case "electronics": return <div className="glance-electronics"><div className="electronics-primary"><div><span>TC</span><b>—</b></div><div><span>ABS</span><b>—</b></div><div><span>BRAKE BIAS</span><b>—%</b></div><div><span>ENGINE MAP</span><b>—</b></div></div><div className="balanced-grid electronics-secondary"><div className="balanced-field"><span>TC CUT LEVEL</span><b>—</b></div><div className="balanced-field"><span>TC INTERVENTION</span><b>—</b></div><div className="balanced-field"><span>ABS INTERVENTION</span><b>—</b></div><div className="balanced-field"><span>PIT LIMITER</span><b>—</b></div><div className="balanced-field"><span>IGNITION</span><b>—</b></div><div className="balanced-field"><span>STARTER</span><b>—</b></div><div className="balanced-field"><span>ENGINE RUNNING</span><b>—</b></div><div className="balanced-field"><span>AUTO SHIFTER</span><b>—</b></div><div className="balanced-field"><span>DRS*</span><b>—</b></div></div><small className="glance-footnote">*DRS only where supported by the car</small></div>;
+    case "electronics": return <div className="glance-electronics"><div className="electronics-primary"><ChangeGlowBox primary label="TC" value="—"/><ChangeGlowBox primary label="ABS" value="—"/><ChangeGlowBox primary label="BRAKE BIAS" value="—%"/><ChangeGlowBox primary label="ENGINE MAP" value="—"/></div><div className="balanced-grid electronics-secondary"><ChangeGlowBox label="TC CUT LEVEL" value="—"/><ChangeGlowBox label="TC INTERVENTION" value="—"/><ChangeGlowBox label="ABS INTERVENTION" value="—"/><ChangeGlowBox label="PIT LIMITER" value="—"/><ChangeGlowBox label="IGNITION" value="—"/><ChangeGlowBox label="STARTER" value="—"/><ChangeGlowBox label="ENGINE RUNNING" value="—"/><ChangeGlowBox label="AUTO SHIFTER" value="—"/><ChangeGlowBox label="DRS*" value="—"/></div><small className="glance-footnote">Each electronics field pulses green for one second when its value changes · *DRS only where supported by the car</small></div>;
     case "pit_stint": return <div className="glance-pit"><div className="electronics-primary three-up"><div><span>IN PIT</span><b>—</b></div><div><span>IN PIT LANE</span><b>—</b></div><div><span>MANDATORY STOP</span><b>—</b></div></div><div className="balanced-grid pit-secondary"><div className="balanced-field"><span>DRIVER STINT</span><b>—:—</b></div><div className="balanced-field"><span>PIT WINDOW</span><b>— – —</b></div><div className="balanced-field"><span>LAST PIT DURATION</span><b>—:—</b></div><div className="balanced-field"><span>TIME IN CURRENT PIT</span><b>—:—</b></div></div></div>;
     case "damage": return <div className="damage-layout"><div className="damage-summary balanced-grid"><div className="balanced-field"><span>ACC CAR DAMAGE ARRAY</span><b>— / — / — / — / —</b></div><div className="balanced-field"><span>DAMAGE SUMMARY · DERIVED</span><b>—</b></div></div><section className="damage-corner-group"><h4>SUSPENSION DAMAGE</h4><div className="corner-grid glance-corners glow-corners damage-glows" style={{"--glow-intensity":glow.intensity/100} as React.CSSProperties}>{[["FL",5],["FR",35],["RL",65],["RR",90]].map(([c,v])=><div key={c} className={`damage-${Number(v)<glow.damage[0]?0:Number(v)<glow.damage[1]?1:Number(v)<glow.damage[2]?2:3}`}><span>{c}</span><b>{v}%</b><small>DAMAGE · TEST</small></div>)}</div></section></div>;
     case "pressure_targets": return <div className="pressure-target-layout"><div className="corner-grid glance-corners pressure-target-grid">{["FL","FR","RL","RR"].map((v)=><div key={v}><span>{v}</span><b>Actual — psi</b><small>MFD setting — psi</small><small>Actual − MFD — psi</small></div>)}</div><p>MFD pressure is shown as the displayed setting, not assumed to be an ideal setup target.</p></div>;
-    case "race_control": return <div className="balanced-grid race-control-grid">{[["FLAG (ACC)","—"],["GLOBAL FLAG (ACC)","—"],["PENALTY TYPE (ACC)","—"],["PENALTY TIME (ACC)","—"],["MANDATORY PIT STATUS (ACC)","—"]].map(([a,b])=><div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}<div className="balanced-field message-field"><span>RACE CONTROL MESSAGE</span><b>—</b></div></div>;
-    case "car_status": return <div className="balanced-grid car-status-grid">{[["LIGHTS STAGE (ACC)","—"],["RAIN LIGHTS (ACC)","—"],["FLASHING LIGHTS (ACC)","—"],["WIPER LEVEL (ACC)","—"],["ENGINE RUNNING (ACC)","—"],["ENGINE STARTING (ACC)","—"],["IN PIT (ACC)","—"],["IN PIT LANE (ACC)","—"]].map(([a,b])=><div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
+    case "race_control": return <div className="balanced-grid race-control-grid">{[["FLAG (ACC)","—"],["GLOBAL FLAG (ACC)","—"],["PENALTY TYPE (ACC)","—"],["PENALTY TIME (ACC)","—"],["MANDATORY PIT STATUS (ACC)","—"]].map(([a,b])=><div className={`balanced-field ${a.includes("FLAG")?"race-flag-field flag-"+flagTone(b):""}`} key={a}><span>{a}</span><b>{b}</b></div>)}<div className="balanced-field message-field"><span>RACE CONTROL MESSAGE</span><b>—</b></div></div>;
+    case "car_status": return <div className="balanced-grid car-status-grid">{[["LIGHTS STAGE (ACC)","—"],["RAIN LIGHTS (ACC)","—"],["FLASHING LIGHTS (ACC)","—"],["WIPER LEVEL (ACC)","—"],["ENGINE RUNNING (ACC)","—"],["ENGINE STARTING (ACC)","—"],["IN PIT (ACC)","—"],["IN PIT LANE (ACC)","—"]].map(([a,b])=><div className={`balanced-field ${a.includes("LIGHTS")?"light-status-field "+statusTone(b):""}`} key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
   }
 }
 function App() {
