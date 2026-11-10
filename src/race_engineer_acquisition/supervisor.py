@@ -337,10 +337,29 @@ def create_acc_acquisition_runtime(
     physics_consumer = PhysicsDecodeConsumer(buffers["physics"])
     physics_producer_done = Event()
 
+    def reconnecting_worker(stop_event: Event, run_once, close_source) -> None:
+        # ACC may not be running when the dashboard starts. Retry after
+        # closing any partial mapping instead of letting this worker die.
+        while not stop_event.is_set():
+            try:
+                run_once(stop_event)
+                return
+            except Exception:
+                try:
+                    close_source()
+                except Exception:
+                    pass
+                if stop_event.wait(1.0):
+                    return
+
     def run_physics(stop_event: Event) -> None:
         try:
-            acquirers["physics"].run(
-                stop_event, poll_interval_ns=max(1, round(1_000_000_000 / physics_poll_hz))
+            reconnecting_worker(
+                stop_event,
+                lambda stop: acquirers["physics"].run(
+                    stop, poll_interval_ns=max(1, round(1_000_000_000 / physics_poll_hz))
+                ),
+                physics_source.close,
             )
         finally:
             # The decoder drains the final acquired page before it exits.
@@ -355,16 +374,24 @@ def create_acc_acquisition_runtime(
         ),
         AcquisitionStream(
             "graphics",
-            lambda stop: acquirers["graphics"].run(
-                stop, poll_interval_ns=max(1, round(1_000_000_000 / graphics_poll_hz))
+            lambda stop: reconnecting_worker(
+                stop,
+                lambda event: acquirers["graphics"].run(
+                    event, poll_interval_ns=max(1, round(1_000_000_000 / graphics_poll_hz))
+                ),
+                graphics_source.close,
             ),
             graphics_source.close,
             acquirers["graphics"].health,
         ),
         AcquisitionStream(
             "static",
-            lambda stop: acquirers["static"].run(
-                stop, refresh_interval_ns=max(1, round(static_refresh_seconds * 1_000_000_000))
+            lambda stop: reconnecting_worker(
+                stop,
+                lambda event: acquirers["static"].run(
+                    event, refresh_interval_ns=max(1, round(static_refresh_seconds * 1_000_000_000))
+                ),
+                static_source.close,
             ),
             static_source.close,
             acquirers["static"].health,
