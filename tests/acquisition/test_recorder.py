@@ -294,6 +294,37 @@ class RecorderTests(unittest.TestCase):
             self.assertEqual(worker.metrics.last_persisted_capture_sequence, 1)
             self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
 
+    def test_one_time_initial_recorder_stall_is_measured_and_then_drains(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = AcquisitionRingBuffer[PhysicsSnapshot](8)
+            for sequence in range(1, 5):
+                self.assertTrue(queue.try_put(snapshot(sequence)))
+            worker = PhysicsRecorderWorker(
+                queue, Path(directory) / "initial_stall.accraw",
+                payload_size=8, batch_size=2,
+                simulated_initial_stall_seconds=0.05,
+            )
+            stop = Event()
+            stop.set()
+            worker.run(stop)
+
+            self.assertIsNone(worker.error)
+            self.assertEqual(worker.metrics.persisted_snapshot_count, 4)
+            self.assertGreaterEqual(worker.metrics.simulated_initial_stall_ns, 50_000_000)
+            self.assertIsNotNone(worker.metrics.simulated_initial_stall_started_ns)
+            self.assertIsNotNone(worker.metrics.simulated_initial_stall_finished_ns)
+            self.assertEqual(queue.size, 0)
+            self.assertEqual(recover_recording(worker.path).recovered_snapshot_count, 4)
+
+    def test_initial_recorder_stall_must_be_non_negative(self):
+        queue = AcquisitionRingBuffer[PhysicsSnapshot](1)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(ValueError):
+                PhysicsRecorderWorker(
+                    queue, Path(directory) / "invalid_initial_stall.accraw",
+                    simulated_initial_stall_seconds=-0.01,
+                )
+
     def test_fanout_recorder_acknowledges_only_successfully_persisted_samples(self):
         with tempfile.TemporaryDirectory() as directory:
             source = AcquisitionRingBuffer[PhysicsSnapshot](4)
