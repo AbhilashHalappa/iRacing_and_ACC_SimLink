@@ -64,11 +64,11 @@ class TelemetryBridge:
                                 snapshot = dict(bridge._snapshot)
                                 revision = bridge._revision
                             if revision == last_revision:
-                                self.wfile.write(b": keep-alive\\n\\n")
+                                self.wfile.write(b": keep-alive\n\n")
                             else:
                                 snapshot["revision"] = revision
                                 payload = json.dumps(snapshot, separators=(",", ":"), allow_nan=False)
-                                self.wfile.write(f"data: {payload}\\n\\n".encode("utf-8"))
+                                self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
                                 last_revision = revision
                             self.wfile.flush()
                     except (BrokenPipeError, ConnectionResetError, OSError):
