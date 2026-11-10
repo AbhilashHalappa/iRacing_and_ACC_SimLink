@@ -215,6 +215,7 @@ def main() -> int:
     stall_backlog_at_release = None
     recovery_empty_since_ns = None
     recovery_elapsed_ns = None
+    recovery_pending_threshold = max(args.batch_size * 2, 16)
     recovery_while_acquisition_running = False
     timer.__enter__()
     try:
@@ -229,7 +230,7 @@ def main() -> int:
                 if stall_backlog_at_release is None:
                     stall_backlog_at_release = recorder_buffer.metrics.pending_count
                 pending_now = recorder_buffer.metrics.pending_count
-                if pending_now == 0:
+                if pending_now <= recovery_pending_threshold:
                     if recovery_empty_since_ns is None:
                         recovery_empty_since_ns = time.perf_counter_ns()
                     elif time.perf_counter_ns() - recovery_empty_since_ns >= 500_000_000:
@@ -417,9 +418,15 @@ def main() -> int:
             "pending": pending_recorder,
         },
         "recorder_metrics": asdict(recorder.metrics),
+        "recorder_average_snapshots_per_block": (
+            persisted / recorder.metrics.persisted_block_count
+            if recorder.metrics.persisted_block_count else 0
+        ),
         "stall_recovery_validation": {
             "requested": args.simulated_initial_recorder_stall_seconds > 0,
             "stall_backlog_at_release": stall_backlog_at_release,
+            "recovery_pending_threshold": recovery_pending_threshold,
+            "recovery_observation_window_ns": 500_000_000,
             "recovery_elapsed_ns": recovery_elapsed_ns,
             "recovery_deadline_ns": round(args.simulated_initial_recorder_stall_seconds * 1_000_000_000) if args.simulated_initial_recorder_stall_seconds else None,
             "recovered_while_acquisition_running": recovery_while_acquisition_running,
@@ -456,12 +463,15 @@ def main() -> int:
     print(f"Recorder queue rejects  : {recorder_rejected}")
     print(f"Recorder queue high-water: {consumer_final.high_water_mark}")
     print(f"Recorder processed       : {consumer_final.processed_count}")
+    print(f"Recorder blocks           : {recorder.metrics.persisted_block_count}")
+    print(f"Average snapshots/block   : {persisted / recorder.metrics.persisted_block_count:.2f}" if recorder.metrics.persisted_block_count else "Average snapshots/block   : 0")
     print(f"Recorder failed          : {consumer_final.failed_count}")
     print(f"Required delivery losses : {fanout.metrics.required_delivery_rejection_count}")
     print(f"Pending                 : {pending_acquisition + pending_recorder}")
     print(f"Simulated write delay   : {recorder.metrics.simulated_write_delay_ns / 1_000_000:.1f} ms")
     print(f"Initial recorder stall  : {recorder.metrics.simulated_initial_stall_ns / 1_000_000_000:.3f} s")
     print(f"Stall backlog at release: {stall_backlog_at_release}")
+    print(f"Recovery pending threshold: {recovery_pending_threshold}")
     print(f"Recovery elapsed        : {recovery_elapsed_ns / 1_000_000_000:.3f} s" if recovery_elapsed_ns is not None else "Recovery elapsed        : not recovered during acquisition")
     print(f"Recovered while acquiring: {recovery_while_acquisition_running}")
     print(f"Simulated disk full     : {recorder.metrics.simulated_disk_full_triggered}")
