@@ -256,3 +256,21 @@ button { cursor: pointer; }
   .electronics-primary { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .glance-position-hero strong { font-size:40px; }
 }
+
+
+/* Balanced tile interiors: field count determines the column rhythm. */
+.balanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:8px 0}
+.balanced-field{display:flex;flex-direction:column;justify-content:center;gap:7px;min-width:0;min-height:52px;padding:9px 10px;border:1px solid var(--outline);border-radius:9px;background:var(--surface-high)}
+.balanced-field span{color:var(--muted);font-size:9px;font-weight:750;letter-spacing:.55px}
+.balanced-field b{color:var(--on-surface);font-size:12px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.balanced-grid>.balanced-field:last-child:nth-child(odd){grid-column:1/-1;text-align:center}
+.balanced-hardware{grid-template-columns:repeat(2,minmax(0,1fr))}
+.balanced-hardware>div{min-width:0}
+.damage-layout{display:flex;flex-direction:column;gap:8px}
+.damage-summary{padding:0}
+.damage-corner-group{min-width:0;padding-top:5px;border-top:1px solid var(--outline)}
+.damage-corner-group h4{margin:2px 0 0;color:var(--muted);font-size:9px;letter-spacing:.7px}
+.damage-corner-group .glance-corners{padding:6px 0 0}
+.pressure-target-layout>p{margin:5px 0 0;color:var(--muted);font-size:9px;line-height:1.4}
+.race-control-grid .message-field{grid-column:1/-1;min-height:42px}
+@media(max-width:650px){.balanced-grid{gap:7px}.balanced-field{min-height:46px;padding:8px}.balanced-field b{font-size:11px}.balanced-hardware{grid-template-columns:repeat(2,minmax(0,1fr))}.damage-corner-group .glance-corners b{font-size:14px}}
