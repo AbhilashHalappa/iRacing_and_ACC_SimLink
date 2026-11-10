@@ -182,6 +182,6 @@ button { cursor: pointer; }
 .field-rows.compact>div { min-height:28px; }
 .extended-corners { flex-wrap:wrap; }
 .extended-corners>div { min-width:0; }
-.extended-corners p,.pressure-target-grid p { flex-basis:100%; margin:4px 0 0; color:var(--muted); font-size:9px; }
+.extended-corners p,.pressure-target-grid p { grid-column:1 / -1; margin:4px 0 0; color:var(--muted); font-size:9px; }
 .pressure-target-grid { flex-wrap:wrap; }
 @media (max-width:650px) { .field-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
