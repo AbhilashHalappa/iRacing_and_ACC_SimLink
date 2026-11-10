@@ -230,3 +230,29 @@ button { cursor: pointer; }
   .glance-inline-stats b { font-size:11px; }
   .sector-strip b { font-size:11px; }
 }
+
+
+/* Race-awareness tiles: prioritize the decision-making value, then supporting context. */
+.glance-weather { grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px 10px; }
+.glance-weather>div:first-child b { font-size:22px; }
+.glance-weather>div:first-child span { color:var(--primary); }
+.glance-fuel .fuel-main { align-items:center; justify-content:space-between; margin-bottom:10px; }
+.glance-fuel .fuel-main>b { font-size:42px; }
+.glance-fuel .glance-inline-stats { grid-template-columns:1fr 1fr; }
+.glance-position { padding:3px 0 2px; }
+.glance-position-hero { display:flex; flex-direction:column; align-items:center; gap:3px; padding:0 0 12px; }
+.glance-position-hero strong { font-size:48px; line-height:1; font-variant-numeric:tabular-nums; }
+.glance-position-hero span,.glance-position-hero small { color:var(--muted); font-size:9px; font-weight:750; letter-spacing:.7px; }
+.electronics-primary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin:4px 0 9px; }
+.electronics-primary>div { display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0; padding:10px 4px; border:1px solid var(--outline); border-radius:9px; background:var(--surface-high); }
+.electronics-primary span { color:var(--muted); font-size:9px; font-weight:750; letter-spacing:.55px; }
+.electronics-primary b { font-size:17px; font-variant-numeric:tabular-nums; }
+.glance-electronics .field-rows>div,.glance-pit .field-rows>div { min-height:28px; }
+.glance-electronics .field-rows span,.glance-pit .field-rows span { font-size:8px; }
+.glance-electronics .field-rows b,.glance-pit .field-rows b { font-size:10px; }
+@media (max-width:650px) {
+  .glance-weather { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .glance-weather>div:first-child b { font-size:18px; }
+  .electronics-primary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .glance-position-hero strong { font-size:40px; }
+}
