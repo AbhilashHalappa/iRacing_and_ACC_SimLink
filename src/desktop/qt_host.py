@@ -10,7 +10,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
-from ..race_engineer_acquisition.static_decoder import decode_car_model
+from ..race_engineer_acquisition.static_decoder import decode_static_candidate_b
 
 
 class ACCDesktopWindow(QMainWindow):
@@ -50,7 +50,7 @@ class ACCDesktopWindow(QMainWindow):
             if sample is None:
                 break
             try:
-                self._car_model = decode_car_model(sample.payload)
+                self._car_model = decode_static_candidate_b(sample.payload).car_model
             except ValueError:
                 # Keep the last known-good identity if a page is malformed.
                 continue
