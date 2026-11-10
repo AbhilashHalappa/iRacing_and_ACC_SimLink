@@ -215,8 +215,10 @@ def main() -> int:
             producer_thread.join(timeout=10)
         if producer_thread.is_alive():
             producer_error = "Acquisition thread did not stop within 10 seconds."
-        else:
-            dispatcher_stop.set()
+        # Whether producer stopped cleanly or timed out, close dispatch. In the
+        # timeout case the run is incomplete and any stranded samples are
+        # reconciled as loss/pending rather than leaving a daemon dispatcher.
+        dispatcher_stop.set()
         dispatcher_thread.join(timeout=30)
         if dispatcher_thread.is_alive():
             producer_error = producer_error or "Dispatcher did not finish draining acquisition buffer."
