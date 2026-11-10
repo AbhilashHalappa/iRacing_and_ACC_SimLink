@@ -292,6 +292,7 @@ class PhysicsRecorderWorker:
         simulated_write_delay_seconds: float = 0.0,
         simulated_initial_stall_seconds: float = 0.0,
         simulated_disk_full_after_batches: int | None = None,
+        max_batch_latency_seconds: float = 0.01,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
@@ -299,12 +300,15 @@ class PhysicsRecorderWorker:
             raise ValueError("simulated_write_delay_seconds cannot be negative")
         if simulated_initial_stall_seconds < 0:
             raise ValueError("simulated_initial_stall_seconds cannot be negative")
+        if max_batch_latency_seconds < 0:
+            raise ValueError("max_batch_latency_seconds cannot be negative")
         if simulated_disk_full_after_batches is not None and simulated_disk_full_after_batches <= 0:
             raise ValueError("simulated_disk_full_after_batches must be positive")
         self.buffer = buffer
         self.path = Path(path)
         self.payload_size = payload_size
         self.batch_size = batch_size
+        self.max_batch_latency_ns = round(max_batch_latency_seconds * 1_000_000_000)
         self.simulated_write_delay_seconds = simulated_write_delay_seconds
         self.simulated_initial_stall_seconds = simulated_initial_stall_seconds
         self._initial_stall_pending = simulated_initial_stall_seconds > 0
@@ -314,17 +318,30 @@ class PhysicsRecorderWorker:
 
     def run(self, stop_event: Event) -> None:
         batch: list[PhysicsSnapshot] = []
+        batch_started_ns: int | None = None
         try:
             with RawPhysicsRecordingWriter(self.path, payload_size=self.payload_size) as writer:
                 while not stop_event.is_set() or self.buffer.size > 0:
                     item = self.buffer.try_get()
                     if item is None:
                         if batch:
-                            self._persist(writer, batch)
-                            batch = []
+                            elapsed_ns = time.perf_counter_ns() - (batch_started_ns or 0)
+                            remaining_ns = self.max_batch_latency_ns - elapsed_ns
+                            if stop_event.is_set() or remaining_ns <= 0:
+                                self._persist(writer, batch)
+                                batch = []
+                                batch_started_ns = None
+                            else:
+                                # An empty nonblocking read may only mean the
+                                # producer has not supplied the next sample yet.
+                                # Briefly wait to assemble a useful batch rather
+                                # than fsyncing every partial batch immediately.
+                                stop_event.wait(min(remaining_ns / 1_000_000_000, 0.0005))
                         else:
                             stop_event.wait(0.0005)
                         continue
+                    if not batch:
+                        batch_started_ns = time.perf_counter_ns()
                     batch.append(item)
                     # The batch has left the queue but is not yet on disk. Keep
                     # its sequence range visible to the checkpoint observer.
@@ -334,6 +351,7 @@ class PhysicsRecorderWorker:
                     if len(batch) >= self.batch_size:
                         self._persist(writer, batch)
                         batch = []
+                        batch_started_ns = None
                 if batch:
                     self._persist(writer, batch)
         except Exception as exc:
