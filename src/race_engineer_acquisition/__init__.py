@@ -2,6 +2,7 @@
 
 from .models import PhysicsSnapshot, RawPhysicsRead
 from .physics_decoder import DecodedPhysics, decode_physics, WHEEL_ORDER
+from .physics_consumer import PhysicsDecodeConsumer, PhysicsConsumerSnapshot
 from .health import AcquisitionHealth, AcquisitionHealthSnapshot
 from .ring_buffer import AcquisitionRingBuffer
 from .fanout import BoundedConsumerQueue, FanOutDispatcher, ConsumerQueueMetrics, FanOutMetrics
@@ -18,6 +19,8 @@ __all__ = [
     "AcquisitionHealthSnapshot",
     "PhysicsSnapshot",
     "DecodedPhysics",
+    "PhysicsDecodeConsumer",
+    "PhysicsConsumerSnapshot",
     "decode_physics",
     "WHEEL_ORDER",
     "RawPhysicsRead",
