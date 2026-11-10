@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 from race_engineer_acquisition.static import StaticAcquirer, WindowsACCStaticSource
+from race_engineer_acquisition.recording_manifest import attach_recording_manifest
 from race_engineer_acquisition.static_recording import (
     StaticRecorderWorker, recover_static_recording,
 )
@@ -124,6 +125,8 @@ def main() -> int:
     in_flight = int(dispatcher_stats["in_flight"] is not None) + recorder.metrics.in_flight_snapshot_count
     delta = acquired - persisted - acquisition_rejected - recorder_rejected - failed - pending - in_flight
     report = {
+        "started_at_utc": started_utc.isoformat(),
+        "finished_at_utc": datetime.now(timezone.utc).isoformat(),
         "recording_file": recording_path.name,
         "format_version": 2,
         "page_size": page_size,
@@ -152,7 +155,6 @@ def main() -> int:
         "producer_errors": producer_errors,
         "recorder_error": recorder.error,
     }
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     validation_passed = (
         not producer_errors and recorder.error is None
         and persisted == acquired and acquisition_rejected == 0
@@ -160,6 +162,15 @@ def main() -> int:
         and delta == 0 and recovery.recovered_snapshot_count == persisted
         and recovery.truncated_bytes == 0
     )
+    report["status"] = "completed" if validation_passed else "failed"
+    report["completion_failure_reasons"] = [] if validation_passed else [
+        "Static recording validation did not pass all persistence, accounting, and recovery checks."
+    ]
+    report["recovery_validation_passed"] = (
+        recovery.recovered_snapshot_count == persisted and recovery.truncated_bytes == 0
+    )
+    attach_recording_manifest("static", report, recording_format_version=2)
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Status                  : {'completed' if validation_passed else 'failed'}")
     print(f"Recording               : {recording_path}")
     print(f"Report                  : {report_path}")
