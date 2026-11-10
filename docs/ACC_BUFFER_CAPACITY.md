@@ -128,6 +128,21 @@ The process working set/private usage are process-level observations and include
 
 The three validation scripts are independent and need not run simultaneously. The aggregate is a conservative topology-wide comparison, not a claim that all three scripts currently allocate this amount in one process.
 
+## Provisional stall and recovery objectives
+
+The following are proposed engineering service objectives derived from the configured default capacities. They are deliberately conservative planning targets with approximately 10% queue headroom for the continuous-rate streams. They are not yet validated guarantees and do not change production capacities.
+
+| Stream | Required queue | Arrival-rate basis | Provisional maximum downstream stall | Queue occupancy at target | Remaining capacity |
+|---|---:|---:|---:|---:|---:|
+| Physics | 100,000 | 480 snapshots/second | 180 seconds | 86,400 | 13,600 (13.6%) |
+| Graphics | 10,000 | 100 snapshots/second | 90 seconds | 9,000 | 1,000 (10%) |
+| Static | 64 changed-page snapshots | Change-driven; no validated continuous worst-case rate | 48 changed-page events | 48 | 16 events (25%) |
+
+For Physics and Graphics, the stall calculation is arrival rate multiplied by stall duration; the configured poll rate is used conservatively. For Static, the objective is event-count based. A time-based Static stall claim is prohibited until the maximum changed-page burst rate is measured or a source-level bound is established.
+
+**Recovery objective (provisional):** after the downstream writer becomes available again, the required recorder queue must drain back to zero within a period no longer than the preceding tolerated stall, while acquisition continues at its configured rate. During recovery there must be no new required-delivery rejection, no unexplained sequence gap, and final persisted/rejected/pending accounting must reconcile exactly. This requires sustained writer throughput above the live arrival rate; to meet the equal-duration recovery deadline, net drain throughput must at least match the backlog accumulated during the stall. The current tests do not yet establish this recovery rate, so it remains an acceptance target to measure, not a passed result.
+
+The 180-second Physics and 90-second Graphics objectives are below the nominal capacity coverage (208.3 and 100 seconds respectively) to retain headroom. They are selected as initial validation targets, not as proof that all real disk/OS pauses have these durations. If a future product requirement demands longer stalls, recalculate capacity from that requirement and revalidate memory and acquisition performance before changing defaults.
 ## What the evidence does and does not establish
 
 Established:
@@ -139,7 +154,7 @@ Established:
 - No production defaults were changed during this investigation.
 
 Not yet established:
-- A maximum tolerated real disk outage for each stream.
+- Validation of the provisional 180-second Physics / 90-second Graphics stall objectives and equal-duration backlog recovery objective under controlled downstream stalls; the current overload tests do not prove these targets.
 - A maximum tolerated real disk outage for each stream.
 - A worst-case Static page-change rate during a stalled recorder.
 - A production-load process working-set measurement while ACC is running and recording; the synthetic process-level measurement is available, but it is not a live workload measurement.
@@ -178,7 +193,7 @@ For each run, retain the JSON report and inspect both queue high-water marks, re
 
 ## Follow-up required before final capacity sign-off
 
-1. Specify a tolerated downstream stall/recovery objective for each required recorder.
+1. Validate the provisional Physics (180 seconds), Graphics (90 seconds), and Static (48 changed-page events) stall objectives, including backlog recovery to zero within the preceding stall duration while acquisition continues.
 2. The deliberate Physics overload test now verifies full-queue high-water, explicit rejection, exact reconciliation, and failed completion. A non-overload Physics stall/high-water profile at a specified tolerated delay is still needed only if a smaller Physics capacity is being considered.
 3. Define whether Static must tolerate a specified real-source burst of changed pages; the deterministic 64-entry queue boundary is tested, but source burst rate under ACC has not been measured.
 4. If a strict memory budget is required, measure process working set/private usage during a representative live ACC recording workload; the current synthetic process-level measurement is not a substitute.
