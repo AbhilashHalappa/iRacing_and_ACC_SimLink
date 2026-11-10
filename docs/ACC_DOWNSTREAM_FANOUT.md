@@ -1,6 +1,6 @@
 # ACC Downstream Fan-out Queues
 
-**Status:** Implemented and validated on \`feature/acquisition-foundation\`; required-consumer failure policy is defined in this document and enforced by the Physics recording validator.
+**Status:** Implemented on \`feature/acquisition-foundation\`; fan-out live validation passed. Required-consumer failure policy and fault-injection tests are implemented; validation is pending.
 
 ## Purpose
 
