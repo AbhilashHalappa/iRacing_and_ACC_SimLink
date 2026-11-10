@@ -298,3 +298,27 @@ button { cursor: pointer; }
 .settings-panel select{max-width:240px}.intensity-slider{width:min(100%,420px);accent-color:var(--primary)}
 .glow-legend{display:flex;gap:9px;flex-wrap:wrap}.glow-legend span{padding:7px 11px;border:1px solid var(--glow-colour);border-radius:8px;box-shadow:0 0 10px var(--glow-colour);font-size:9px;font-weight:800}
 @media(max-width:650px){.threshold-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* ACC vehicle lights, electronics-change feedback, and race-control flag glow. */
+.car-status-grid .light-status-field{transition:box-shadow .18s ease,border-color .18s ease,background-color .18s ease}
+.car-status-grid .light-on{--status-glow:#25c878;border-color:var(--status-glow);box-shadow:0 0 12px color-mix(in srgb,var(--status-glow) 62%,transparent)}
+.car-status-grid .light-off{--status-glow:#e8cf35;border-color:var(--status-glow);box-shadow:0 0 12px color-mix(in srgb,var(--status-glow) 58%,transparent)}
+.car-status-grid .light-unknown{border-color:var(--outline);box-shadow:none}
+.electronics-primary-box{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;padding:10px 4px;border:1px solid var(--outline);border-radius:9px;background:var(--surface-high)}
+.electronics-primary-box span{color:var(--muted);font-size:9px;font-weight:750;letter-spacing:.55px}
+.electronics-primary-box b{font-size:17px;font-variant-numeric:tabular-nums}
+.value-change-glow.is-changing{animation:electronics-value-pulse 1s ease-out}
+@keyframes electronics-value-pulse{0%,15%{border-color:#25c878;box-shadow:0 0 0 1px #25c878,0 0 18px 5px #25c878;background:color-mix(in srgb,#25c878 17%,var(--surface-high))}100%{border-color:var(--outline);box-shadow:0 0 0 transparent;background:var(--surface-high)}}
+.race-control-grid .race-flag-field{transition:box-shadow .18s ease,border-color .18s ease}
+.race-control-grid .flag-green{--flag-glow:#25c878}
+.race-control-grid .flag-yellow{--flag-glow:#e8cf35}
+.race-control-grid .flag-blue{--flag-glow:#3989ff}
+.race-control-grid .flag-white{--flag-glow:#f1f3f5}
+.race-control-grid .flag-red{--flag-glow:#ed4545}
+.race-control-grid .flag-black{--flag-glow:#777b84}
+.race-control-grid .flag-black-orange{--flag-glow:#f28a32}
+.race-control-grid .flag-checkered{--flag-glow:#f1f3f5}
+.race-control-grid .race-flag-field[class*="flag-"]:not(.flag-unknown){border-color:var(--flag-glow);box-shadow:0 0 12px color-mix(in srgb,var(--flag-glow) 62%,transparent)}
+.race-control-grid .flag-unknown{box-shadow:none}
+@media(prefers-reduced-motion:reduce){.value-change-glow.is-changing{animation:none;border-color:#25c878;box-shadow:0 0 12px #25c878}}
