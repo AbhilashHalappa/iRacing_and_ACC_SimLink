@@ -156,7 +156,7 @@ def build_recording_manifest(
             "acquisition_rejection_count": acq_reject,
             "recorder_rejection_count": rec_reject,
             "first_capture_sequence": 1 if acquired else None,
-            "last_capture_sequence": last_capture,
+            "last_capture_sequence": last_capture if acquired else None,
             "first_source_packet_id": first_packet,
             "last_source_packet_id": last_packet,
         },
