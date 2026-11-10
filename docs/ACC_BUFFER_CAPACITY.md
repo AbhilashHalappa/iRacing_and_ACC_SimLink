@@ -191,10 +191,29 @@ python scripts/record_acc_static.py --duration-seconds 120 --refresh-seconds 1
 
 For each run, retain the JSON report and inspect both queue high-water marks, rejection counts, pending/in-flight counts, reconciliation delta, writer failures, and recovery/checkpoint results. A `completed` status is necessary but queue sizing review should use the detailed report.
 
+## Controlled Physics stall-and-recovery validation
+
+`scripts/record_acc_physics.py` now supports the test-only `--simulated-initial-recorder-stall-seconds` option. It pauses the first recorder batch once, on the recorder worker only, while Physics acquisition and downstream dispatch continue. The runner observes the required recorder queue after the pause, then requires it to remain empty for 500 ms while acquisition is still running. Recovery time is measured from stall release to the first empty-queue observation. The run fails its completion gate if no backlog accumulated, recovery does not complete within the same duration as the injected stall, acquisition or recorder queues reject samples, or recovery does not happen while acquisition is active.
+
+The intended target-PC validation for the provisional Physics objective is:
+
+```powershell
+python scripts/record_acc_physics.py `
+    --duration-seconds 361 `
+    --poll-hz 480 `
+    --acquisition-buffer-capacity 100000 `
+    --recorder-buffer-capacity 100000 `
+    --batch-size 128 `
+    --simulated-initial-recorder-stall-seconds 180
+```
+
+The duration provides a 180-second stall plus an equal 180-second recovery window and a one-second margin. The runner may stop earlier after it observes a stable empty queue during live acquisition. Review `stall_recovery_validation`, recorder high-water, acquired/persisted counts, all rejection and pending counts, reconciliation delta, recovery/CRC, checkpoint, and the final completion reasons. This is a controlled software pause before recorder writes, not a physical disk outage; it validates bounded backlog and recovery throughput without claiming to emulate every storage fault.
+
+Focused unit coverage for the one-time stall injection is in `tests/acquisition/test_recorder.py` (`test_one_time_initial_recorder_stall_is_measured_and_then_drains` and negative-duration validation). These tests and the live target-PC run must pass before the provisional Physics objective can be marked validated.
 ## Follow-up required before final capacity sign-off
 
 1. Validate the provisional Physics (180 seconds), Graphics (90 seconds), and Static (48 changed-page events) stall objectives, including backlog recovery to zero within the preceding stall duration while acquisition continues.
-2. The deliberate Physics overload test now verifies full-queue high-water, explicit rejection, exact reconciliation, and failed completion. A non-overload Physics stall/high-water profile at a specified tolerated delay is still needed only if a smaller Physics capacity is being considered.
+2. Run the controlled 180-second Physics stall-and-recovery validation above. The deliberate Physics overload test verifies full-queue high-water, explicit rejection, exact reconciliation, and failed completion, but does not prove successful recovery from the provisional tolerated stall.
 3. Define whether Static must tolerate a specified real-source burst of changed pages; the deterministic 64-entry queue boundary is tested, but source burst rate under ACC has not been measured.
 4. If a strict memory budget is required, measure process working set/private usage during a representative live ACC recording workload; the current synthetic process-level measurement is not a substitute.
 5. Revisit capacities only if those objectives and measurements show a mismatch.
