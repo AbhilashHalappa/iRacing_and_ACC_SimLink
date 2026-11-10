@@ -38,6 +38,8 @@ class RecordingManifestTests(unittest.TestCase):
         self.assertEqual(manifest["stream_summary"]["last_source_packet_id"], 9001)
         self.assertEqual(manifest["session"]["track"], "monza")
         self.assertEqual(manifest["integrity"]["reconciliation_delta"], 0)
+        self.assertEqual(manifest["error_counts"]["recorder_write_failure_count"], 0)
+        self.assertTrue(any("Application version" in warning for warning in manifest["integrity"]["metadata_warnings"]))
 
     def test_graphics_failed_report_is_not_marked_completed(self):
         report = {
@@ -58,6 +60,7 @@ class RecordingManifestTests(unittest.TestCase):
         self.assertEqual(manifest["stream_summary"]["recorder_rejection_count"], 2)
         self.assertEqual(manifest["stream_summary"]["first_source_packet_id"], 90)
         self.assertFalse(manifest["integrity"]["recovery_valid"])
+        self.assertEqual(manifest["error_counts"]["recorder_write_failure_count"], 0)
 
     def test_static_never_invents_source_packet_metadata(self):
         report = {
@@ -73,6 +76,20 @@ class RecordingManifestTests(unittest.TestCase):
         self.assertIsNone(manifest["stream_summary"]["last_source_packet_id"])
         self.assertEqual(manifest["stream_summary"]["captured_count"], 1)
         self.assertTrue(manifest["integrity"]["recovery_valid"])
+
+    def test_shutdown_timeout_is_marked_incomplete(self):
+        manifest = build_recording_manifest(
+            "physics",
+            {
+                "recording_file": "p.accraw", "status": "failed",
+                "shutdown_timed_out": True,
+                "reconciliation": {},
+                "acquisition_metrics": {},
+                "recovery_validation": {},
+            },
+            recording_format_version=2,
+        )
+        self.assertEqual(manifest["completion_status"], "incomplete")
 
     def test_unknown_stream_rejected(self):
         with self.assertRaises(ValueError):
