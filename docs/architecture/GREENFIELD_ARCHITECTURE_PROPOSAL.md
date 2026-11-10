@@ -128,6 +128,16 @@ The desktop host owns orderly startup and shutdown of the local server, backend 
 
 Acquisition and raw recording health must be observable independently of frontend health. Non-critical page or hardware-service failures must not take down the entire application.
 
+## 3.6 Live Data Consumers and Selective Best-Lap Persistence
+
+**Authoritative runtime consumer and retention decision:** [ACC Live Data Consumers and Best-Lap Reference — Architecture Decision](../decisions/ACC_LIVE_DATA_CONSUMERS_AND_BEST_LAP_REFERENCE.md).
+
+The application is live-data driven. Overview, native Overlays, live processing and live coaching consume current live Physics, Graphics and Static data through independent downstream consumers and published application state. They do not read recorded session files to obtain current telemetry.
+
+Normal product runtime does not continuously archive every Physics, Graphics and Static sample or every lap/session. Candidate lap data is assembled temporarily from live observations. Only the best eligible lap for each car, track and weather-condition combination is retained as a coaching reference; a better eligible candidate replaces the existing reference.
+
+The existing raw acquisition/recording infrastructure remains available for explicit engineering validation, regression and diagnosis. It is not the normal product session archive and is not the source for live UI or coaching data. The linked decision defines consumer responsibilities, candidate capture, reference replacement, failure isolation and unresolved weather-compatibility details.
+
 ## 4. Acquisition Layer — Highest Priority
 
 This is the most important subsystem in the application.
