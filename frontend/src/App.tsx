@@ -77,7 +77,7 @@ function TileContent({ id }: { id: TileId }) {
 function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [active, setActive] = useState("Overview");
-  const [tiles, setTiles] = useState<Tile[]>(initial);
+  const [tiles, setTiles] = useState<Tile[]>(() => { try { const saved = window.localStorage.getItem("acc-overview-layout"); return saved ? JSON.parse(saved) as Tile[] : initial; } catch { return initial; } });
   const [draft, setDraft] = useState<Tile[]>(initial);
   const [editing, setEditing] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -86,7 +86,7 @@ function App() {
   const shown = editing ? draft : ordered;
   const startEdit = () => { setDraft(ordered.map(t => ({...t}))); setEditing(true); };
   const cancel = () => { setDraft(ordered.map(t => ({...t}))); setEditing(false); setLibraryOpen(false); };
-  const save = () => { setTiles(draft); setEditing(false); setLibraryOpen(false); };
+  const save = () => { try { window.localStorage.setItem("acc-overview-layout", JSON.stringify(draft)); } catch { /* Layout remains available for this session. */ } setTiles(draft); setEditing(false); setLibraryOpen(false); };
   const update = (id: TileId, patch: Partial<Tile>) => setDraft(prev => prev.map(t => t.id === id ? {...t, ...patch} : t));
   const add = (id: TileId) => setDraft(prev => [...prev, {id, size: "medium", pinned: false}]);
   const remove = (id: TileId) => setDraft(prev => prev.filter(t => t.id !== id));
