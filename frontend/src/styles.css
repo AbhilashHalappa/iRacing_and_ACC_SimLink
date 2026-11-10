@@ -37,7 +37,7 @@ button { cursor: pointer; }
 .rail-footer { width:100%; margin-top:auto; display:flex; align-items:center; justify-content:center; padding:14px 0 0; border-top:1px solid var(--outline); }
 .status-dot,.prototype-state span,.connection-chip span { width:8px; height:8px; border-radius:50%; background:var(--error); flex:none; }
 .main-content { min-height:100vh; margin-left:76px; display:flex; flex-direction:column; }
-.top-bar { min-height:84px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:14px 34px; border-bottom:1px solid var(--outline); background:var(--surface); }
+.top-bar { position:sticky; top:0; z-index:5; min-height:84px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:14px 34px; border-bottom:1px solid var(--outline); background:var(--surface); }
 .top-bar h1 { margin:4px 0 0; font-size:21px; font-weight:650; letter-spacing:-.35px; }
 .top-bar-actions,.overview-heading-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .prototype-state { display:flex; align-items:center; gap:8px; padding:8px 11px; border:1px solid var(--outline); border-radius:20px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.6px; }
