@@ -4,8 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 import time
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QStandardPaths, QTimer, QUrl
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
@@ -26,7 +27,23 @@ class ACCDesktopWindow(QMainWindow):
         self._car_model: str | None = None
         self._runtime.supervisor.start()
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
+
+        # Use a named, disk-backed profile: the implicit QWebEngineView profile
+        # is not a dependable store for settings that must survive app restarts.
+        app_data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
+        profile_data = app_data / "webengine"
+        cache_data = app_data / "webengine-cache"
+        profile_data.mkdir(parents=True, exist_ok=True)
+        cache_data.mkdir(parents=True, exist_ok=True)
+        self._web_profile = QWebEngineProfile("RaceEngineerACC", self)
+        self._web_profile.setPersistentStoragePath(str(profile_data))
+        self._web_profile.setCachePath(str(cache_data))
+        self._web_profile.setPersistentCookiesPolicy(
+            QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
+        )
         self._view = QWebEngineView(self)
+        self._web_page = QWebEnginePage(self._web_profile, self._view)
+        self._view.setPage(self._web_page)
         self.setCentralWidget(self._view)
         try:
             self._bridge_url = self._bridge.start()
