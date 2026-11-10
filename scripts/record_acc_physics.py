@@ -212,6 +212,10 @@ def main() -> int:
     wall_start_ns = time.perf_counter_ns()
     cpu_start_ns = time.process_time_ns()
     producer_error = None
+    stall_backlog_at_release = None
+    recovery_empty_since_ns = None
+    recovery_elapsed_ns = None
+    recovery_while_acquisition_running = False
     timer.__enter__()
     try:
         recorder_thread.start()
@@ -219,10 +223,6 @@ def main() -> int:
         producer_thread.start()
         checkpoint_thread.start()
         producer_deadline = time.monotonic() + args.duration_seconds
-        stall_backlog_at_release = None
-        recovery_empty_since_ns = None
-        recovery_elapsed_ns = None
-        recovery_while_acquisition_running = False
         while producer_thread.is_alive() and time.monotonic() < producer_deadline:
             stall_finished_ns = recorder.metrics.simulated_initial_stall_finished_ns
             if args.simulated_initial_recorder_stall_seconds and stall_finished_ns is not None:
@@ -336,6 +336,18 @@ def main() -> int:
         and checkpoint_worker.write_count > 0
         and not checkpoint_thread.is_alive()
     )
+    stall_recovery_passed = (
+        args.simulated_initial_recorder_stall_seconds == 0
+        or (
+            stall_backlog_at_release is not None
+            and stall_backlog_at_release > 0
+            and recovery_elapsed_ns is not None
+            and recovery_elapsed_ns <= round(args.simulated_initial_recorder_stall_seconds * 1_000_000_000)
+            and recovery_while_acquisition_running
+            and consumer_final.rejected_count == 0
+            and acquisition_rejected == 0
+        )
+    )
     completion = evaluate_recording_completion(
         acquired=acquired,
         persisted=persisted,
@@ -351,10 +363,13 @@ def main() -> int:
         checkpoint_valid=checkpoint_ok,
         shutdown_timed_out=shutdown_timed_out,
     )
+    completion_reasons = list(completion.reasons)
+    if args.simulated_initial_recorder_stall_seconds and not stall_recovery_passed:
+        completion_reasons.append("Simulated recorder stall did not recover to an empty queue within the stall duration while acquisition continued without rejection.")
     report = {
         "schema_version": 1,
-        "status": "completed" if completion.completed else "failed",
-        "completion_failure_reasons": list(completion.reasons),
+        "status": "completed" if completion.completed and stall_recovery_passed else "failed",
+        "completion_failure_reasons": completion_reasons,
         "shutdown_timed_out": shutdown_timed_out,
         "shutdown_threads_alive": shutdown_threads_alive,
         "recovery_validation_passed": recovery_ok,
@@ -408,18 +423,7 @@ def main() -> int:
             "recovery_elapsed_ns": recovery_elapsed_ns,
             "recovery_deadline_ns": round(args.simulated_initial_recorder_stall_seconds * 1_000_000_000) if args.simulated_initial_recorder_stall_seconds else None,
             "recovered_while_acquisition_running": recovery_while_acquisition_running,
-            "passed": (
-                args.simulated_initial_recorder_stall_seconds == 0
-                or (
-                    stall_backlog_at_release is not None
-                    and stall_backlog_at_release > 0
-                    and recovery_elapsed_ns is not None
-                    and recovery_elapsed_ns <= round(args.simulated_initial_recorder_stall_seconds * 1_000_000_000)
-                    and recovery_while_acquisition_running
-                    and recorder_buffer.metrics.rejected_count == 0
-                    and acquisition_rejected == 0
-                )
-            ),
+            "passed": stall_recovery_passed,
         },
         "recorder_error": recorder.error,
         "producer_error": producer_error,
