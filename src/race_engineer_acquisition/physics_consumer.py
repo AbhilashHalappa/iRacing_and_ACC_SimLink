@@ -7,6 +7,7 @@ latest good immutable sample for a future desktop/HTTP bridge.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import struct
 from threading import Event, Lock
 from typing import Any
 
@@ -96,7 +97,7 @@ class PhysicsDecodeConsumer:
                         "decoded packet ID does not match acquisition packet ID "
                         f"({decoded.packet_id} != {raw.acc_physics_packet_id})"
                     )
-            except (ValueError, struct_error_types()) as exc:
+            except (ValueError, struct.error) as exc:
                 with self._lock:
                     self._decode_error_count += 1
                     self._last_capture_sequence = raw.capture_sequence
@@ -123,8 +124,3 @@ class PhysicsDecodeConsumer:
             with self._lock:
                 self._lifecycle_state = "stopped"
 
-
-def struct_error_types() -> tuple[type[Exception], ...]:
-    # struct.error is not a ValueError; keep malformed binary pages isolated.
-    import struct
-    return (struct.error,)
