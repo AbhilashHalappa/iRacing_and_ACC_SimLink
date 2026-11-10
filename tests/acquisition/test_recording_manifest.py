@@ -45,7 +45,7 @@ class RecordingManifestTests(unittest.TestCase):
             "completion_failure_reasons": ["recorder queue overflow"],
             "recovery_validation_passed": False,
             "recovery_validation": {"recovered_snapshot_count": 8, "truncated_bytes": 0},
-            "acquisition_metrics": {"last_capture_sequence": 10, "last_packet_id": 99},
+            "acquisition_metrics": {"last_capture_sequence": 10, "first_packet_id": 90, "last_packet_id": 99},
             "reconciliation": {
                 "acquired": 10, "persisted": 8, "recorder_write_failures": 0,
                 "acquisition_buffer_rejections": 0,
@@ -56,6 +56,7 @@ class RecordingManifestTests(unittest.TestCase):
         self.assertEqual(manifest["completion_status"], "failed")
         self.assertEqual(manifest["completion_failure_reasons"], ["recorder queue overflow"])
         self.assertEqual(manifest["stream_summary"]["recorder_rejection_count"], 2)
+        self.assertEqual(manifest["stream_summary"]["first_source_packet_id"], 90)
         self.assertFalse(manifest["integrity"]["recovery_valid"])
 
     def test_static_never_invents_source_packet_metadata(self):
