@@ -6,7 +6,6 @@ recording workers have stopped. It performs no work in acquisition hot loops.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .static import WindowsACCStaticSource
@@ -44,6 +43,7 @@ def collect_static_session_metadata(
                 )
     return metadata, warnings
 
+
 def build_recording_manifest(
     stream: str,
     report: dict[str, Any],
@@ -72,7 +72,6 @@ def build_recording_manifest(
         rec_reject = int(report.get("reconciliation", {}).get("recorder_buffer_rejections", 0))
         last_capture = report.get("acquisition_metrics", {}).get("last_capture_sequence")
         first_packet = report.get("acquisition_metrics", {}).get("first_packet_id")
-        first_packet = report.get("acquisition_metrics", {}).get("first_packet_id")
         last_packet = report.get("acquisition_metrics", {}).get("last_packet_id")
         recovery = report.get("recovery_validation") or {}
         recovery_valid = bool(report.get("recovery_validation_passed"))
@@ -86,6 +85,7 @@ def build_recording_manifest(
         acq_reject = int(recon.get("acquisition_buffer_rejections", 0))
         rec_reject = int(recon.get("recorder_buffer_rejections", 0))
         last_capture = report.get("acquisition_metrics", {}).get("last_capture_sequence")
+        first_packet = report.get("acquisition_metrics", {}).get("first_packet_id")
         last_packet = report.get("acquisition_metrics", {}).get("last_packet_id")
         recovery = report.get("recovery_validation") or {}
         recovery_valid = bool(report.get("recovery_validation_passed"))
