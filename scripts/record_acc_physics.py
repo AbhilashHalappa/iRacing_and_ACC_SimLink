@@ -22,6 +22,7 @@ from race_engineer_acquisition.acquirer import PhysicsAcquirer
 from race_engineer_acquisition.checkpoint import PeriodicCheckpointWorker
 from race_engineer_acquisition.recorder import PhysicsRecorderWorker, recover_recording
 from race_engineer_acquisition.recording_policy import evaluate_recording_completion
+from race_engineer_acquisition.recording_manifest import attach_recording_manifest
 from race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 from race_engineer_acquisition.fanout import FanOutDispatcher
 from race_engineer_acquisition.timing_windows import WindowsTimerResolution
@@ -447,6 +448,7 @@ def main() -> int:
         },
         "recovery_validation": recovery,
     }
+    attach_recording_manifest("physics", report, recording_format_version=2)
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Status                  : {report['status']}")
     print(f"Recording               : {recording_path}")
