@@ -116,6 +116,15 @@ def build_recording_manifest(
     status = report.get("status", "failed")
     completed = status == "completed"
     reasons = list(report.get("completion_failure_reasons", []))
+    for key, label in (
+        ("producer_error", "Producer error"),
+        ("dispatcher_error", "Dispatcher error"),
+        ("recorder_error", "Recorder error"),
+        ("checkpoint_error", "Checkpoint error"),
+    ):
+        detail = report.get(key)
+        if detail:
+            reasons.append(f"{label}: {detail}")
     if not completed and not reasons:
         reasons.append("Stream-specific recording validation did not complete successfully.")
 
@@ -126,6 +135,8 @@ def build_recording_manifest(
                 session[field] = session_metadata[field]
 
     warnings = list(metadata_warnings or [])
+    if report.get("application_version") is None:
+        warnings.append("Application version is not declared by the repository; recorded as null.")
     return {
         "schema_version": 1,
         "recording_id": str(uuid.uuid4()),
@@ -148,6 +159,21 @@ def build_recording_manifest(
             "last_capture_sequence": last_capture,
             "first_source_packet_id": first_packet,
             "last_source_packet_id": last_packet,
+        },
+        "error_counts": {
+            "producer_error_count": (
+                len(report.get("producer_errors", []))
+                if isinstance(report.get("producer_errors"), list)
+                else int(bool(report.get("producer_error")))
+            ),
+            "dispatcher_error_count": int(bool(report.get("dispatcher_error"))),
+            "recorder_write_failure_count": int(
+                report.get("recorder_metrics", {}).get(
+                    "write_failure_count", report.get("recorder", {}).get("write_failures", 0)
+                )
+            ),
+            "recorder_error_count": int(bool(report.get("recorder_error"))),
+            "checkpoint_write_failure_count": int(report.get("checkpoint_write_failure_count", 0)),
         },
         "integrity": {
             "recovery_valid": recovery_valid,
