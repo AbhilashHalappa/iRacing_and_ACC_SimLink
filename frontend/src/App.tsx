@@ -4,9 +4,10 @@ import {
   Thermometer, CircleGauge, Cable, Settings, Radio, ChevronDown,
   Plus, RotateCcw, Save, X, GripVertical, Pin, PinOff, Moon, Sun,
   LayoutDashboard, Waves, TriangleAlert, Clock3, Zap, Droplets,
+  Timer, ChartNoAxesColumnIncreasing, Medal, SlidersHorizontal, Wrench, Target, Siren,
 } from "lucide-react";
 
-type TileId = "speed" | "gear" | "rpm" | "pedals" | "laps" | "lap_history" | "weather" | "map" | "session" | "brakes" | "tyres" | "fuel" | "warnings" | "hardware";
+type TileId = "speed" | "gear" | "rpm" | "pedals" | "laps" | "lap_history" | "weather" | "map" | "session" | "brakes" | "tyres" | "fuel" | "warnings" | "hardware" | "delta" | "sectors" | "position" | "electronics" | "pit_stint" | "damage" | "pressure_targets" | "race_control";
 type TileSize = "small" | "medium" | "large";
 type Tile = { id: TileId; size: TileSize; pinned: boolean };
 const definitions: { id: TileId; title: string; description: string }[] = [
@@ -24,6 +25,14 @@ const definitions: { id: TileId; title: string; description: string }[] = [
   { id: "fuel", title: "Fuel", description: "Remaining fuel and estimated range" },
   { id: "warnings", title: "Penalties & warnings", description: "Lap validity and race penalties" },
   { id: "hardware", title: "Hardware connections", description: "Connected sim-racing devices" },
+  { id: "delta", title: "Delta to best lap", description: "Live time difference to the reference lap" },
+  { id: "sectors", title: "Sector performance", description: "Current sector times and best-sector deltas" },
+  { id: "position", title: "Race position & gaps", description: "Position and gaps to cars ahead and behind" },
+  { id: "electronics", title: "Car electronics", description: "ABS, traction control and brake bias" },
+  { id: "pit_stint", title: "Pit stop & stint", description: "Pit status, stint duration and stop information" },
+  { id: "damage", title: "Vehicle damage", description: "ACC-reported vehicle damage status" },
+  { id: "pressure_targets", title: "Tyre pressure targets", description: "Actual pressures compared with target pressures" },
+  { id: "race_control", title: "Race control", description: "Flags, warnings and race-control messages" },
 ];
 const initial: Tile[] = [
   { id: "speed", size: "small", pinned: true },
@@ -40,6 +49,14 @@ const initial: Tile[] = [
   { id: "fuel", size: "medium", pinned: false },
   { id: "warnings", size: "medium", pinned: false },
   { id: "hardware", size: "large", pinned: false },
+  { id: "delta", size: "medium", pinned: false },
+  { id: "sectors", size: "medium", pinned: false },
+  { id: "position", size: "medium", pinned: false },
+  { id: "electronics", size: "medium", pinned: false },
+  { id: "pit_stint", size: "medium", pinned: false },
+  { id: "damage", size: "medium", pinned: false },
+  { id: "pressure_targets", size: "large", pinned: false },
+  { id: "race_control", size: "medium", pinned: false },
 ];
 const nav = [
   { name: "Overview", icon: LayoutDashboard, group: "WORKSPACE" },
@@ -52,6 +69,18 @@ const nav = [
   { name: "Settings", icon: Settings, group: "SYSTEM" },
 ];
 const fmt = (id: TileId) => definitions.find((d) => d.id === id)?.title ?? id;
+function loadLayout(): Tile[] {
+  try {
+    const raw = window.localStorage.getItem("acc-overview-layout");
+    if (!raw) return initial;
+    const saved = JSON.parse(raw) as Tile[];
+    if (!Array.isArray(saved)) return initial;
+    const valid = saved.filter((item): item is Tile => !!item && definitions.some(d => d.id === item.id) && ["small", "medium", "large"].includes(item.size) && typeof item.pinned === "boolean");
+    const unique = valid.filter((item, index, list) => list.findIndex(other => other.id === item.id) === index);
+    const missing = initial.filter(item => !unique.some(savedItem => savedItem.id === item.id));
+    return [...unique, ...missing];
+  } catch { return initial; }
+}
 
 function Meter({ label, value, tone = "purple" }: { label: string; value: number; tone?: string }) {
   return <div className="meter-row"><div className="meter-label"><span>{label}</span><b>{value}%</b></div><div className="meter-track"><i className={tone} style={{ width: value + "%" }} /></div></div>;
@@ -72,12 +101,20 @@ function TileContent({ id }: { id: TileId }) {
     case "fuel": return <div className="fuel-content"><div className="fuel-main"><b>— <small>L</small></b><span>REMAINING</span></div><div className="fuel-track"><i /></div><div className="fuel-stats"><span>Estimated range <b>— laps</b></span><span>Consumption <b>— L/lap</b></span></div></div>;
     case "warnings": return <div className="warning-list"><div><span>Lap validity</span><b>Not available</b></div><div><span>Penalty time</span><b>—</b></div><p>ACC-reported warnings will be displayed here.</p></div>;
     case "hardware": return <div className="hardware-list">{["Wheel USB link","Wheel device","Pedals device","Handbrake device","RPM LED Controller"].map((d) => <div key={d}><span>{d}</span><b><i />Not reported</b></div>)}</div>;
+    case "delta": return <div className="new-tile-content"><div className="new-tile-hero">—.---</div><span className="new-tile-caption">DELTA TO BEST LAP</span><p>Reference lap data will appear when available.</p></div>;
+    case "sectors": return <div className="new-tile-rows">{["SECTOR 1","SECTOR 2","SECTOR 3"].map((v) => <div key={v}><span>{v}</span><b>—:—.---</b><small>Delta —</small></div>)}</div>;
+    case "position": return <div className="position-grid"><div><span>POSITION</span><b>— / —</b></div><div><span>GAP AHEAD</span><b>—</b></div><div><span>GAP BEHIND</span><b>—</b></div></div>;
+    case "electronics": return <div className="new-tile-rows"><div><span>TRACTION CONTROL</span><b>TC —</b></div><div><span>ABS</span><b>ABS —</b></div><div><span>BRAKE BIAS</span><b>— %</b></div></div>;
+    case "pit_stint": return <div className="new-tile-rows"><div><span>PIT STATUS</span><b>Not in pit</b></div><div><span>STINT TIME</span><b>—:—</b></div><div><span>LAST PIT STOP</span><b>—</b></div></div>;
+    case "damage": return <div className="new-tile-rows"><div><span>BODY</span><b>—</b></div><div><span>SUSPENSION</span><b>—</b></div><div><span>ENGINE</span><b>—</b></div><p>Damage values depend on ACC telemetry availability.</p></div>;
+    case "pressure_targets": return <div className="pressure-target-grid">{["FL","FR","RL","RR"].map((v) => <div key={v}><strong>{v}</strong><b>— psi</b><span>Target — psi</span><small>Delta —</small></div>)}</div>;
+    case "race_control": return <div className="race-control-state"><span className="race-control-indicator" /><strong>No active message</strong><p>Flags and race-control notifications will appear here.</p></div>;
   }
 }
 function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [active, setActive] = useState("Overview");
-  const [tiles, setTiles] = useState<Tile[]>(() => { try { const saved = window.localStorage.getItem("acc-overview-layout"); return saved ? JSON.parse(saved) as Tile[] : initial; } catch { return initial; } });
+  const [tiles, setTiles] = useState<Tile[]>(loadLayout);
   const [draft, setDraft] = useState<Tile[]>(initial);
   const [editing, setEditing] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -101,7 +138,7 @@ function App() {
       {editing&&libraryOpen&&<div className="tile-library"><div className="tile-library-heading"><strong>Available tiles</strong><button className="text-action" onClick={()=>setLibraryOpen(false)}>Close</button></div><div className="tile-library-grid">{definitions.filter(d=>!draft.some(t=>t.id===d.id)).map(d=><button className="library-item" key={d.id} onClick={()=>add(d.id)}><strong><Plus size={14}/>{d.title}</strong><span>{d.description}</span></button>)}</div></div>}
       <div className="dashboard-grid" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const el=(e.target as HTMLElement).closest("[data-tile-id]");const to=el?.getAttribute("data-tile-id") as TileId|null;if(dragging&&to)move(dragging,to);setDragging(null);}}>
         {shown.map(tile=><div key={tile.id} data-tile-id={tile.id} draggable={editing&&!tile.pinned} onDragStart={()=>setDragging(tile.id)} onDragEnd={()=>setDragging(null)} className={`tile-drag-wrapper tile-slot-${tile.size} ${tile.id==="hardware"?"tile-slot-hardware":""}`}>
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id}/></div></article>
+          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id}/></div></article>
           {editing&&<div className="tile-size-control"><label>Size <select value={tile.size} onChange={e=>update(tile.id,{size:e.target.value as TileSize})}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="text-action" onClick={()=>update(tile.id,{pinned:!tile.pinned})}>{tile.pinned?<PinOff size={13}/>:<Pin size={13}/>} {tile.pinned?"Unpin":"Pin"}</button><button className="remove-tile" onClick={()=>remove(tile.id)} aria-label={`Remove ${fmt(tile.id)} tile`}><X size={14}/></button></div>}
         </div>)}
       </div></section> : <section className="workspace"><div className="page-placeholder"><div className="placeholder-mark">RE</div><h2>{active}</h2><p>This workspace will be added in a later implementation stage.</p><span className="pending-label">NOT INTEGRATED</span></div></section>}
