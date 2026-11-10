@@ -325,6 +325,32 @@ class RecorderTests(unittest.TestCase):
                     simulated_initial_stall_seconds=-0.01,
                 )
 
+    def test_worker_waits_briefly_to_assemble_partial_batches_during_live_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = AcquisitionRingBuffer[PhysicsSnapshot](32)
+            stop = Event()
+            worker = PhysicsRecorderWorker(
+                queue, Path(directory) / "live_batching.accraw",
+                payload_size=8, batch_size=128,
+                max_batch_latency_seconds=0.02,
+            )
+            worker_thread = Thread(target=worker.run, args=(stop,))
+            worker_thread.start()
+
+            for sequence in range(1, 11):
+                while not queue.try_put(snapshot(sequence)):
+                    time.sleep(0.0001)
+                time.sleep(0.002)
+            stop.set()
+            worker_thread.join(timeout=3)
+
+            self.assertFalse(worker_thread.is_alive())
+            self.assertIsNone(worker.error)
+            self.assertEqual(worker.metrics.persisted_snapshot_count, 10)
+            self.assertLess(worker.metrics.persisted_block_count, 10)
+            self.assertEqual(queue.size, 0)
+            self.assertEqual(recover_recording(worker.path).recovered_snapshot_count, 10)
+
     def test_fanout_recorder_acknowledges_only_successfully_persisted_samples(self):
         with tempfile.TemporaryDirectory() as directory:
             source = AcquisitionRingBuffer[PhysicsSnapshot](4)
