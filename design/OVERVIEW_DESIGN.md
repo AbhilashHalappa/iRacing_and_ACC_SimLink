@@ -230,6 +230,15 @@ The agreed default presentation is valid = green, invalid = red, out lap = orang
 - Provide a reset-to-defaults action if the settings UI supports it.
 - Verify persistence and reset behaviour in the application before marking them complete.
 
+### 4.8 Settings page — category tabs
+
+The Settings page contains two tabs:
+
+- **Visual Feedback:** lap-status colour preview and visual guide.
+- **Vehicle & Telemetry:** manually configured FL/FR/RL/RR target tyre pressures (PSI), tyre temperature thresholds, brake temperature thresholds, vehicle-damage severity thresholds, and glow intensity.
+
+Target pressures are blank/unset by default; no target PSI is invented. Values are saved automatically in browser local storage under the stable desktop application origin. The Overview Tyre Pressure Targets tile compares live ACC Physics pressure against a configured target only when one has been entered. The displayed target is explicitly labelled as configured by the user, not an ACC MFD value. The Settings page includes a reset-all-settings action. These controls are implemented but require local frontend build and desktop restart/persistence validation before being marked user-tested.
+
 ## 5. ACC data and implementation constraints
 
 - ACC Physics data is decoded in the acquisition/consumer pipeline and delivered to the frontend through the desktop bridge.
