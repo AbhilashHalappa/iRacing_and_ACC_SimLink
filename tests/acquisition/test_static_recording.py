@@ -81,6 +81,37 @@ class StaticRecordingTests(unittest.TestCase):
             self.assertEqual(worker.metrics.persisted_snapshot_count, 1)
             self.assertEqual(recover_static_recording(path).recovered_snapshot_count, 1)
 
+    def test_static_changed_page_burst_fills_64_entry_queue_and_rejects_65th_without_overwrite(self):
+        queue = AcquisitionRingBuffer[StaticSnapshot](64)
+
+        for sequence in range(1, 65):
+            payload = bytes([sequence]) * 8
+            self.assertTrue(queue.try_put(sample(sequence, payload)))
+
+        rejected = sample(65, b"\\x41" * 8)
+        self.assertFalse(queue.try_put(rejected))
+
+        self.assertEqual(queue.capacity, 64)
+        self.assertEqual(queue.size, 64)
+        self.assertEqual(queue.high_water_mark, 64)
+        self.assertEqual(queue.total_rejection_count, 1)
+        self.assertEqual(queue.full_buffer_rejection_count, 1)
+        self.assertEqual(queue.first_lost_sequence, 65)
+        self.assertEqual(queue.last_lost_sequence, 65)
+
+        accepted_sequences = []
+        accepted_payloads = []
+        while (item := queue.try_get()) is not None:
+            accepted_sequences.append(item.capture_sequence)
+            accepted_payloads.append(item.payload)
+
+        self.assertEqual(accepted_sequences, list(range(1, 65)))
+        self.assertEqual(
+            accepted_payloads,
+            [bytes([sequence]) * 8 for sequence in range(1, 65)],
+        )
+        self.assertEqual(queue.size, 0)
+
     def test_worker_reports_write_failure_and_recovery_keeps_valid_prefix(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "static.accraw"
