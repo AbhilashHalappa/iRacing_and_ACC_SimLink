@@ -366,7 +366,7 @@ def main() -> int:
     )
     completion_reasons = list(completion.reasons)
     if args.simulated_initial_recorder_stall_seconds and not stall_recovery_passed:
-        completion_reasons.append("Simulated recorder stall did not recover to an empty queue within the stall duration while acquisition continued without rejection.")
+        completion_reasons.append("Simulated recorder stall did not recover to the sustained low-backlog threshold within the stall duration while acquisition continued without rejection.")
     report = {
         "schema_version": 1,
         "status": "completed" if completion.completed and stall_recovery_passed else "failed",
