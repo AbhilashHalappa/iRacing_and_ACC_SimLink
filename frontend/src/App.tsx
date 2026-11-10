@@ -84,8 +84,9 @@ function loadLayout(): Tile[] {
   } catch { return initial; }
 }
 
-function Meter({ label, value, tone = "purple" }: { label: string; value: number; tone?: string }) {
-  return <div className="meter-row"><div className="meter-label"><span>{label}</span><b>{value}%</b></div><div className="meter-track"><i className={tone} style={{ width: value + "%" }} /></div></div>;
+function Meter({ label, value, tone = "purple" }: { label: string; value: number | null; tone?: string }) {
+  const shown=value===null?"—":`${Math.round(value)}%`;
+  return <div className="meter-row"><div className="meter-label"><span>{label}</span><b>{shown}</b></div><div className="meter-track"><i className={tone} style={{ width: (value??0) + "%" }} /></div></div>;
 }
 type GlowConfig = { tyre:[number,number,number,number]; brake:[number,number,number,number]; damage:[number,number,number]; intensity:number; lapStatus:"valid"|"invalid"|"out" };
 const defaultGlow:GlowConfig={tyre:[70,90,100,110],brake:[250,400,500,600],damage:[20,40,70],intensity:65,lapStatus:"valid"};
@@ -131,7 +132,7 @@ function TileContent({ id, glow, telemetry }: { id: TileId; glow:GlowConfig; tel
     case "speed": return <div className="hero-value glance-hero"><strong>{display(data?.speed_kph,0)}</strong><span>KM/H</span><small>VEHICLE SPEED · ACC PHYSICS</small></div>;
     case "gear": return <div className="hero-value gear-value glance-hero"><strong>{data?.gear_display ?? "—"}</strong><span>GEAR</span><small>ACC PHYSICS</small></div>;
     case "rpm": { const rpm=Number(data?.rpm??0); const max=Number(data?.current_max_rpm??9000); const lit=max>0?Math.max(0,Math.min(15,Math.round(rpm/max*15))):0; return <div className="rpm-content glance-rpm"><div className="rpm-number">{display(data?.rpm,0)} <small>RPM</small></div><div className="rpm-leds">{Array.from({ length: 15 }, (_, i) => <i key={i} className={i<lit?"active":""}/> )}</div><div className="rpm-scale"><span>0</span><span>{display(max/4,0)}</span><span>{display(max/2,0)}</span><span>{display(max,0)}</span></div><small className="glance-hint">ACC PHYSICS · MAX {display(max,0)} RPM</small></div>; }
-    case "pedals": return <div className="stacked-meters glance-pedals"><Meter label="THROTTLE" value={Math.max(0,Math.min(100,Number(data?.throttle??0)*100))}/><Meter label="BRAKE" value={Math.max(0,Math.min(100,Number(data?.brake??0)*100))} tone="red"/><Meter label="CLUTCH" value={Math.max(0,Math.min(100,Number(data?.clutch??0)*100))} tone="teal"/></div>;
+    case "pedals": return <div className="stacked-meters glance-pedals"><Meter label="THROTTLE" value={data?Math.max(0,Math.min(100,Number(data.throttle)*100)):null}/><Meter label="BRAKE" value={data?Math.max(0,Math.min(100,Number(data.brake)*100)):null} tone="red"/><Meter label="CLUTCH" value={data?Math.max(0,Math.min(100,Number(data.clutch)*100)):null} tone="teal"/></div>;
     case "laps": return <div className={`lap-metrics glance-laps lap-glow lap-${telemetry?.graphics?.lap_status??"unknown"}`} style={{"--glow-intensity":glow.intensity/100,"--glow-blur":`${5+12*glow.intensity/100}px`} as React.CSSProperties}><div className="lap-primary"><span>CURRENT</span><b>—:—.---</b><small>LAP — · VALIDITY —</small></div><div><span>LAST</span><b>—:—.---</b></div><div><span>BEST</span><b>—:—.---</b></div></div>;
     case "lap_history": return <div className="history-table"><div className="history-head"><span>LAP</span><span>TIME</span><span>DELTA</span><span>S1</span><span>S2</span><span>S3</span></div><div className="history-empty">Completed laps will appear here.</div></div>;
     case "weather": return <div className="field-grid balanced-grid glance-weather">{[["ROAD TEMP","— °C"],["AIR TEMP","— °C"],["TRACK GRIP","—"],["RAIN","—"],["RAIN FORECAST","—"],["WIND","— km/h"],["WIND DIRECTION","— °"]].map(([a,b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
