@@ -267,7 +267,7 @@ Target pressures are blank/unset by default; no target PSI is invented. Values a
 | ABS intervention | Not validated | Find a supported source before presenting a live state. |
 | Car-specific profiles | Partial design | Porsche 992 GT3 R is the starting profile; full profile management remains future work. |
 | Damage scale/units | Needs validation | Preserve raw values unless scale is verified. |
-| Fuel per lap / estimated laps remaining | Graphics integration pending | Decode and validate ACC Graphics `fuel_x_lap` and `fuel_estimated_laps`; do not build a duplicate Physics estimator. |
+| Fuel per lap / estimated laps remaining | Integrated; HUD validation pending | Decoded from Graphics offsets 0x504 and 0x584; direct HUD/refuelling/session-reset validation remains in issue #14. |
 | Out-lap menu-to-garage edge case | Known limitation | Direct mid-lap menu jump/rejoin is not currently marked as an out lap. |
 
 ### Brake-bias issue reference
@@ -323,7 +323,7 @@ A change to Overview is not complete merely because it compiles.
 
 - RPM segments now use green/yellow/orange/red bands as revs rise; at 95% of ACC-reported maximum RPM all 15 segments flash red.
 - Fuel bar now fills proportionally to the highest fuel level observed since the app started and the filled portion uses a red → orange → yellow → green gradient. This is a session-observed reference, not verified tank capacity.
-- Fuel-per-lap (`fuel_x_lap`) and estimated laps remaining (`fuel_estimated_laps`) are expected from ACC Graphics; decode and validate these fields there. Issue #14 should track this integration rather than a custom Physics estimator.
+- Fuel-per-lap (`fuel_x_lap`) and estimated laps remaining (`fuel_estimated_laps`) are decoded from ACC Graphics and displayed in Overview. Fuel per lap is in litres per lap; estimated laps is a floating-point lap estimate. Target-PC captures show both fields changing. Direct in-game HUD comparison, refuelling and session-reset validation remain under issue #14.
 - The local HTTP bridge now binds to `127.0.0.1:8765` rather than a random port, keeping the frontend origin stable so saved browser local-storage layout can be restored after restarts.
 - Physics, Graphics and Static acquisition workers now retry shared-memory opening after failures, allowing the dashboard to start before ACC and connect when ACC is launched. Retry interval is one second; verify with an ACC-off → app-on → ACC-on test.
 - These changes have been committed but require local frontend build and Windows/ACC runtime validation before marking them user-tested.
