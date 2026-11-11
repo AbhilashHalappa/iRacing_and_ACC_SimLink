@@ -25,6 +25,8 @@ class ACCDesktopWindow(QMainWindow):
 
         self._runtime = create_acc_acquisition_runtime()
         self._car_model: str | None = None
+        self._track: str | None = None
+        self._track_configuration: str | None = None
         self._runtime.supervisor.start()
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
 
@@ -67,7 +69,10 @@ class ACCDesktopWindow(QMainWindow):
             if sample is None:
                 break
             try:
-                self._car_model = decode_static_candidate_b(sample.payload).car_model
+                decoded = decode_static_candidate_b(sample.payload)
+                self._car_model = decoded.car_model
+                self._track = decoded.track
+                self._track_configuration = decoded.track_configuration
             except ValueError:
                 # Keep the last known-good identity if a page is malformed.
                 continue
@@ -85,7 +90,11 @@ class ACCDesktopWindow(QMainWindow):
             "source": "ACC Shared Memory / Physics + Graphics",
             "physics": physics,
             "graphics": graphics,
-            "vehicle": {"car_model": self._car_model},
+            "vehicle": {
+                "car_model": self._car_model,
+                "track": self._track,
+                "track_configuration": self._track_configuration,
+            },
             "acquisition": self._runtime.supervisor.status,
         }
         self._bridge.publish(snapshot)
