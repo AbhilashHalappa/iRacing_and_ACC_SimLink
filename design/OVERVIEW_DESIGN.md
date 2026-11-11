@@ -258,11 +258,11 @@ Target pressures are blank/unset by default; no target PSI is invented. Values a
 
 | Item | Status | Notes |
 |---|---|---|
-| Vehicle-light ON/OFF colours | Not working / investigate | Expected ON green, OFF yellow, unknown neutral. Validate source values and each indicator's mapping. |
+| Vehicle-light status colours | Integrated; live validation pending | Rain/flashing lights and left/right indicators now use Graphics booleans; wiper level and lights stage remain raw candidate values. Confirm each control and colour in ACC. |
 | Target PSI inputs | Implemented; persistence unverified | Four wheel-specific inputs and actual-vs-target comparison exist. Desktop restart persistence remains open under issue #15. |
 | Brake bias | Open issue #13 | Dashboard value does not match ACC. Remove speculative correction and verify field offset/type/units and car identity before fixing. |
-| TC setup level | Integrated; HUD validation pending | Decoded from Graphics offset 0x4F4; target-PC capture observed setting transitions. |
-| ABS setup level | Integrated; HUD validation pending | Decoded from Graphics offset 0x500; target-PC capture observed setting transitions. |
+| TC setup level | User live-tested | Decoded from Graphics offset 0x4F4; user confirmed the Overview value works. |
+| ABS setup level | User live-tested | Decoded from Graphics offset 0x500; user confirmed the Overview value works. |
 | TC intervention | Not validated | Find a supported source before presenting a live state. |
 | ABS intervention | Not validated | Find a supported source before presenting a live state. |
 | Car-specific profiles | Partial design | Porsche 992 GT3 R is the starting profile; full profile management remains future work. |
@@ -308,7 +308,7 @@ A change to Overview is not complete merely because it compiles.
 - Live tyre pressure from ACC Physics shown as actual PSI.
 - Four editable target PSI values are implemented in Settings → Vehicle & Telemetry; actual-vs-target comparison is implemented. Desktop restart persistence remains unverified (issue #15).
 - Vehicle damage shown as Front/Rear/Left/Right/Centre, with suspension damage separately by wheel.
-- Car Lights & Status owns pit limiter, engine running, ignition, starter, AI control, water temperature, rain light, wiper and left/right indicators. Boolean values display as ON/OFF.
+- Car Lights & Status owns pit limiter, engine running, ignition, starter, AI control, water temperature, rain light, flashing lights, wiper level, lights stage, left/right indicators, exhaust temperature and rain-tyre state. Graphics boolean values display as ON/OFF; numeric codes remain raw.
 - Water temperature appears only once, in Car Lights & Status. Car Electronics includes TC/ABS setup-level placeholders pending Graphics integration, brake bias, auto shifter and turbo boost. Duplicate status fields have been removed.
 - Vehicle-light ON/OFF colour mapping remains reported as not working and requires investigation.
 - TC/ABS setup levels and fuel-per-lap/laps-left are now decoded from the independent Graphics stream; direct HUD validation remains pending.
