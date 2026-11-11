@@ -598,7 +598,8 @@ The lap-history, sector-best and track-outline limitations are intentional: the 
 
 ### Candidate fields decoded but deliberately presented conservatively
 
-- `flag`, `penalty`, `track_grip_status`, rain intensity values, tyre-set IDs, MFD display indices, and related enum-like integers remain raw numeric codes. Their numeric mappings are not asserted.
+- `flag`, `penalty`, rain-intensity values, tyre-set IDs, MFD display indices, and related enum-like integers remain raw numeric codes where mappings are not established. `track_grip_status` is now the exception: it is rendered using the documented ACC mapping (0 Green, 1 Fast, 2 Optimum, 3 Greasy, 4 Damp, 5 Wet, 6 Flooded). This mapping is supported by the ACC shared-memory enum references; the candidate 1.9 ABI/offset qualification remains separate.
+- The legacy quantified `surface_grip` member is not displayed. ACC v1.7.4 release notes state that the old `surfaceGrip` item became null/obsolete when staged track-grip and rain-status fields were added. Its observed zero must not be interpreted as a physical grip measurement.
 - `gap_ahead_ms` / `gap_behind_ms`, wind fields, surface grip, stint timers and MFD pressure requests are exposed without speculative sign, unit or sentinel normalization. UI labels distinguish MFD pressure requests from user-configured target PSI.
 - Car IDs and coordinate triples are decoded for the reported active-car count (bounded to the candidate array capacity); player coordinates are associated only when the reported player ID matches a decoded car ID.
 - `replay_time_multiplier` remains reference-only/unused and is not emitted as application telemetry.
