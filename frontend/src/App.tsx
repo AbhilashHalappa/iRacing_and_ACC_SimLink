@@ -206,24 +206,39 @@ function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glo
   const fuelMaxSeen=useRef(0);
   if(fuelKg!==null) fuelMaxSeen.current=Math.max(fuelMaxSeen.current,fuelKg);
   const fuelFill=fuelKg!==null&&fuelMaxSeen.current>0?Math.max(0,Math.min(100,fuelKg/fuelMaxSeen.current*100)):0;
-  const sectorHistory=useRef<{lap:number|null;times:Record<number,string>;lastSector:number|null}>({lap:null,times:{},lastSector:null});
+  const sectorHistory=useRef<{lap:number|null;times:Record<number,string>;lastObservedMs:number|null;cumulativeMs:number}>({lap:null,times:{},lastObservedMs:null,cumulativeMs:0});
   const [,setSectorHistoryRevision]=useState(0);
   useEffect(()=>{
     const sector=typeof graphics?.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
     const completedLaps=typeof graphics?.completed_laps==="number"?graphics.completed_laps:null;
-    const last=sectorTimeDisplay(graphics?.last_sector_time_ms);
-    if(sector===null) return;
+    const cumulative=typeof graphics?.last_sector_time_ms==="number"&&Number.isInteger(graphics.last_sector_time_ms)&&graphics.last_sector_time_ms>0&&graphics.last_sector_time_ms<86400000?graphics.last_sector_time_ms:null;
+    if(sector===null||completedLaps===null||cumulative===null) return;
     const history=sectorHistory.current;
+    if(history.lap===null){
+      history.lap=completedLaps;
+      history.lastObservedMs=cumulative;
+      // At the start of a lap, the previous lap's sector value is stale.
+      // Mid-lap startup cannot reconstruct earlier sector boundaries.
+      history.cumulativeMs=sector===0?0:cumulative;
+      return;
+    }
     if(history.lap!==completedLaps){
       history.lap=completedLaps;
       history.times={};
-      history.lastSector=null;
+      history.cumulativeMs=0;
+      history.lastObservedMs=cumulative;
+      setSectorHistoryRevision(value=>value+1);
+      return;
     }
-    if(sector>0&&last!=="—:—.---"&&history.lastSector!==graphics?.last_sector_time_ms){
-      history.times[sector-1]=last;
-      history.lastSector=graphics?.last_sector_time_ms??null;
+    if(history.lastObservedMs===cumulative) return;
+    const completedSector=sector===0?2:sector-1;
+    const duration=cumulative-history.cumulativeMs;
+    if(duration>0&&duration<600000){
+      history.times[completedSector]=sectorTimeDisplay(duration);
       setSectorHistoryRevision(value=>value+1);
     }
+    history.cumulativeMs=cumulative;
+    history.lastObservedMs=cumulative;
   },[graphics?.sector,graphics?.completed_laps,graphics?.last_sector_time_ms]);
   switch (id) {
     case "speed": return <div className="hero-value glance-hero"><strong>{display(data?.speed_kph,0)}</strong><span>KM/H</span><small>VEHICLE SPEED · ACC PHYSICS</small></div>;
