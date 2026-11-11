@@ -136,7 +136,7 @@ function sectorTimeDisplay(value: unknown) {
 }
 function splitTimeDisplay(value: unknown) {
   if(typeof value!=="string") return "—:—.---";
-  const match=value.trim().match(/^(\\d{1,4}):(\\d{2}):(\\d{3})$/);
+  const match=value.trim().match(/^(\d{1,4}):(\d{2}):(\d{3})$/);
   if(match) return `${String(Number(match[1])).padStart(2,"0")}:${match[2]}.${match[3]}`;
   return lapTimeDisplay(value,null);
 }
