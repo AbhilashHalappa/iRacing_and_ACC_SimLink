@@ -189,6 +189,30 @@ function correctedBrakeBiasPercent(data: any, carModel: unknown): number | null 
   const isPorsche992 = model.includes("porsche") && model.includes("992");
   return raw * 100 + (isPorsche992 ? -21.0 : 0);
 }
+type LapHistoryEntry = { lap:number; timeMs:number; valid:boolean|null; s1Ms:number|null; s2Ms:number|null; s3Ms:number|null };
+const LAP_HISTORY_LIMIT = 10;
+function cumulativeSplitMs(value:unknown):number|null {
+  if(typeof value!=="string") return null;
+  const match=value.trim().match(/^(\\d{1,4}):(\\d{2}):(\\d{3})$/);
+  if(!match) return null;
+  const minutes=Number(match[1]), seconds=Number(match[2]), millis=Number(match[3]);
+  if(seconds>=60) return null;
+  return minutes*60000+seconds*1000+millis;
+}
+function readLapHistory(key:string):LapHistoryEntry[] {
+  try {
+    const raw=JSON.parse(window.localStorage.getItem(key)||"[]");
+    if(!Array.isArray(raw)) return [];
+    return raw.filter((lap:any)=>lap&&Number.isInteger(lap.lap)&&Number.isInteger(lap.timeMs)&&lap.timeMs>0)
+      .slice(-LAP_HISTORY_LIMIT);
+  } catch { return []; }
+}
+function lapDeltaDisplay(delta:number|null):string {
+  if(delta===null||!Number.isFinite(delta)) return "—";
+  const sign=delta>0?"+":delta<0?"−":"";
+  const absolute=Math.abs(Math.round(delta));
+  return sign+lapTimeDisplay(null,absolute);
+}
 function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glow:GlowConfig; telemetry:any; targetPressures:TargetPressureConfig }) {
   const data=telemetry?.physics?.data ?? null;
   const graphics=telemetry?.graphics?.data ?? null;
@@ -240,7 +264,7 @@ function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glo
     case "rpm": { const rpm=Number(data?.rpm??0); const max=Number(data?.current_max_rpm??9000); const ratio=max>0?Math.max(0,Math.min(1,rpm/max)):0; const shift=ratio>=0.95; const lit=shift?15:Math.max(0,Math.min(15,Math.round(ratio*15))); return <div className={"rpm-content glance-rpm"+(shift?" rpm-shift-active":"")}><div className="rpm-number">{display(data?.rpm,0)} <small>RPM</small></div><div className="rpm-leds">{Array.from({ length: 15 }, (_, i) => { const zone=i<5?"green":i<9?"yellow":i<12?"orange":"red"; return <i key={i} className={i<lit?("active zone-"+zone+(shift?" shift-flash":"")):""}/>; })}</div><div className="rpm-scale"><span>0</span><span>{display(max/4,0)}</span><span>{display(max/2,0)}</span><span>{display(max,0)}</span></div><small className="glance-hint">ACC PHYSICS · MAX {display(max,0)} RPM{shift?" · SHIFT":""}</small></div>; }
     case "pedals": { const steeringDeg=typeof data?.steering_angle==="number"?data.steering_angle*180/Math.PI:null; const steeringWidth=steeringDeg===null?0:Math.min(50,Math.abs(steeringDeg)/180*50); return <div className="stacked-meters glance-pedals"><div className="driver-steering-angle"><div className="steering-angle-heading"><span>STEERING ANGLE</span><b>{display(steeringDeg,1,"°")}</b></div><div className="steering-angle-track"><i className="steering-angle-center"/>{steeringDeg!==null&&<i className={`steering-angle-fill ${steeringDeg<0?"left":"right"}`} style={{width:`${steeringWidth}%`}}/>}</div><div className="steering-angle-scale"><span>LEFT</span><span>CENTER</span><span>RIGHT</span></div></div><Meter label="THROTTLE" value={data?Math.max(0,Math.min(100,Number(data.throttle)*100)):null}/><Meter label="BRAKE" value={data?Math.max(0,Math.min(100,Number(data.brake)*100)):null} tone="red"/><Meter label="CLUTCH" value={data?Math.max(0,Math.min(100,Number(data.clutch)*100)):null} tone="teal"/></div>; }
     case "laps": { const validity=graphics?.is_valid_lap===true?"VALID":graphics?.is_valid_lap===false?"INVALID":"—"; return <div className={`lap-metrics glance-laps lap-glow lap-${telemetry?.graphics?.lap_status??(validity==="VALID"?"valid":validity==="INVALID"?"invalid":"unknown")}`} style={{"--glow-intensity":glow.intensity/100,"--glow-blur":`${5+12*glow.intensity/100}px`} as React.CSSProperties}><div className="lap-primary"><span>CURRENT</span><b>{lapTimeDisplay(graphics?.current_time_str,graphics?.current_time_ms,true)}</b><small>LAP {typeof graphics?.completed_laps==="number"?graphics.completed_laps+1:"—"} · {validity}</small></div><div><span>LAST</span><b>{lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)}</b></div><div><span>BEST</span><b>{lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</b></div></div>; }
-    case "lap_history": return <div className="history-table"><div className="history-head"><span>RECORD</span><span>TIME</span><span>DELTA</span><span>S1</span><span>S2</span><span>S3</span></div><div className="history-empty">LAST LAP · {lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)}<br/>BEST LAP · {lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}<br/>Full per-lap rows and sector history require the session-history store.</div></div>;
+    case "lap_history": { const best=typeof graphics?.best_time_ms==="number"&&graphics.best_time_ms>0?graphics.best_time_ms:null; const history=(telemetry?.lap_history??[]) as LapHistoryEntry[]; return <div className="history-table"><div className="history-head"><span>RECORD</span><span>TIME</span><span>DELTA</span><span>S1</span><span>S2</span><span>S3</span></div>{history.length===0?<div className="history-empty">No completed timed laps recorded in this session yet.<br/>LAST · {lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)} · BEST · {lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</div>:<div className="history-rows">{[...history].reverse().map((lap)=> <div className="history-row" key={lap.lap}><span> LAP {lap.lap} · {lap.valid===true?"VALID":lap.valid===false?"INVALID":"REVIEW"}</span><b>{lapTimeDisplay(null,lap.timeMs)}</b><span>{lapDeltaDisplay(best===null?null:lap.timeMs-best)}</span><span>{lapTimeDisplay(null,lap.s1Ms)}</span><span>{lapTimeDisplay(null,lap.s2Ms)}</span><span>{lapTimeDisplay(null,lap.s3Ms)}</span></div>)}</div>}</div>; }
     case "weather": return <div className="field-grid balanced-grid glance-weather">{[["ROAD TEMP",display(data?.road_temp_c,1," °C")],["AIR TEMP",display(data?.air_temp_c,1," °C")],["TRACK GRIP",graphicsTrackGrip(graphics?.track_grip_status)],["NOW / +10 / +30",[graphics?.rain_intensity,graphics?.rain_10min,graphics?.rain_30min].map(graphicsRainIcon).join(" / ")],["WIND SPEED",display(graphics?.wind_speed,2," km/h")],["WIND DIRECTION",graphicsWindDirection(graphics?.wind_direction)]].map(([a,b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
     case "map": return <div className="map-placeholder"><svg viewBox="0 0 360 180" role="img" aria-label="Track map placeholder"><path d="M36 105 C20 48 80 24 124 47 S196 22 235 47 S325 45 315 100 S258 147 218 122 S142 156 106 126 S53 153 36 105Z" /><circle cx="36" cy="105" r="5" /></svg><span>Track layout pending · normalized progress {display(typeof graphics?.normalized_car_position==="number"?graphics.normalized_car_position*100:null,1,"%")}</span><small>Player XYZ: {Array.isArray(graphics?.player_world_position)?graphics.player_world_position.map((v:number|null)=>display(v,1)).join(" / "):"—"}</small></div>;
     case "session": { const position=typeof graphics?.position==="number"&&graphics.position>0?graphics.position:null; const activeCars=typeof graphics?.active_cars==="number"&&graphics.active_cars>0?graphics.active_cars:null; const positionDisplay=position!==null&&activeCars!==null?`${position} / ${activeCars}`:"—"; return <div className="balanced-grid">{[["TRACK",telemetry?.vehicle?.track??"—"],["SESSION TYPE",graphicsSession(graphics?.session)],["SESSION STATUS",graphicsStatus(graphics?.status)],["TIME LEFT",sessionTimeDisplay(graphics?.session_time_left_s)],["LAP COUNT",typeof graphics?.completed_laps==="number"?String(graphics.completed_laps):"—"],["POSITION",positionDisplay],["TYRE COMPOUND",tyreCompoundDisplay(graphics?.tyre_compound)]].map(([a,b]) => <div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}</div>; }
@@ -264,6 +288,58 @@ function App() {
   const [telemetry,setTelemetry]=useState<any>(null);
   useEffect(()=>{const events=new EventSource("/events");events.onmessage=event=>{try{setTelemetry(JSON.parse(event.data));}catch{/* Ignore malformed bridge frames. */}};events.onerror=()=>setTelemetry((current:any)=>current?{...current,connected:false}:current);return ()=>events.close();},[]);
   const connected=Boolean(telemetry?.connected);
+  const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
+  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;s1Ms:number|null;s2Ms:number|null}>({sessionKey:null,completedLaps:null,sector:null,s1Ms:null,s2Ms:null});
+  useEffect(()=>{
+    const graphics=telemetry?.graphics?.data;
+    if(!graphics) return;
+    const track=String(telemetry?.vehicle?.track??"unknown-track");
+    const configuration=String(telemetry?.vehicle?.track_configuration??"");
+    const sessionKey=[track,configuration,graphics.session_index,graphics.session].join("|");
+    const storageKey="acc-lap-history-v1:"+sessionKey;
+    const completed=typeof graphics.completed_laps==="number"?graphics.completed_laps:null;
+    const sector=typeof graphics.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
+    const tracker=lapCapture.current;
+    if(tracker.sessionKey!==sessionKey){
+      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null};
+      setLapHistory(readLapHistory(storageKey));
+      return;
+    }
+    if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
+      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null};
+      try{window.localStorage.removeItem(storageKey);}catch{}
+      setLapHistory([]);
+      return;
+    }
+    if(sector!==null&&tracker.sector!==null&&sector!==tracker.sector){
+      const boundary=cumulativeSplitMs(graphics.split_time_str);
+      if(boundary!==null){
+        if(tracker.sector===0&&sector===1) tracker.s1Ms=boundary;
+        if(tracker.sector===1&&sector===2) tracker.s2Ms=boundary;
+      }
+      tracker.sector=sector;
+    } else if(tracker.sector===null) tracker.sector=sector;
+    if(completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps){
+      const lapTime=typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
+      const outLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
+      if(lapTime!==null&&!outLap){
+        const s1=tracker.s1Ms;
+        const s2=tracker.s2Ms;
+        const validSectors=s1!==null&&s2!==null&&s1>0&&s2>s1&&lapTime>s2;
+        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null,s1Ms:validSectors?s1:null,s2Ms:validSectors?s2-s1:null,s3Ms:validSectors?lapTime-s2:null};
+        const next=[...readLapHistory(storageKey),entry].slice(-LAP_HISTORY_LIMIT);
+        setLapHistory(next);
+        try{window.localStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Keep the in-memory history if browser storage is unavailable. */}
+      }
+      tracker.completedLaps=completed;
+      tracker.s1Ms=null;
+      tracker.s2Ms=null;
+      tracker.sector=sector;
+      return;
+    }
+    if(completed!==null) tracker.completedLaps=completed;
+  },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration]);
+
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [active, setActive] = useState("Overview");
   const [tiles, setTiles] = useState<Tile[]>(loadLayout);
@@ -298,7 +374,7 @@ function App() {
       {editing&&libraryOpen&&<div className="tile-library"><div className="tile-library-heading"><strong>Available tiles</strong><button className="text-action" onClick={()=>setLibraryOpen(false)}>Close</button></div><div className="tile-library-grid">{definitions.filter(d=>!draft.some(t=>t.id===d.id)).map(d=><button className="library-item" key={d.id} onClick={()=>add(d.id)}><strong><Plus size={14}/>{d.title}</strong><span>{d.description}</span></button>)}</div></div>}
       <div className="dashboard-grid" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const el=(e.target as HTMLElement).closest("[data-tile-id]");const to=el?.getAttribute("data-tile-id") as TileId|null;if(dragging&&to)move(dragging,to);setDragging(null);}}>
         {shown.map(tile=><div key={tile.id} data-tile-id={tile.id} draggable={editing&&!tile.pinned} onDragStart={()=>setDragging(tile.id)} onDragEnd={()=>setDragging(null)} className={`tile-drag-wrapper tile-slot-${tile.size} ${tile.id==="hardware"?"tile-slot-hardware":""}`}>
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:tile.id==="car_status"?<Lightbulb/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id} glow={glow} telemetry={telemetry} targetPressures={targetPressures}/></div></article>
+          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:tile.id==="car_status"?<Lightbulb/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id} glow={glow} telemetry={{...telemetry,lap_history:lapHistory}} targetPressures={targetPressures}/></div></article>
           {editing&&<div className="tile-size-control"><label>Size <select value={tile.size} onChange={e=>update(tile.id,{size:e.target.value as TileSize})}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="text-action" onClick={()=>update(tile.id,{pinned:!tile.pinned})}>{tile.pinned?<PinOff size={13}/>:<Pin size={13}/>} {tile.pinned?"Unpin":"Pin"}</button><button className="remove-tile" onClick={()=>remove(tile.id)} aria-label={`Remove ${fmt(tile.id)} tile`}><X size={14}/></button></div>}
         </div>)}
       </div></section> : <section className="workspace"><div className="page-placeholder"><div className="placeholder-mark">RE</div><h2>{active}</h2><p>This workspace will be added in a later implementation stage.</p><span className="pending-label">NOT INTEGRATED</span></div></section>}
