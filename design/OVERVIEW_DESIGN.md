@@ -75,7 +75,7 @@ The following records work that has been discussed or implemented. A listed tile
 - Weather information.
 - Fuel remaining is read from ACC Physics in kg.
 - Fuel bar currently scales against the highest fuel level observed since app start and uses a red → orange → yellow → green fill gradient.
-- Fuel-per-lap (`fuel_x_lap`) and estimated laps remaining (`fuel_estimated_laps`) are expected from ACC Graphics shared memory, as identified during the UI audit. They are not to be calculated from Physics if the Graphics values are available. Graphics is currently raw-only; decode, map, and validate these fields before displaying them. Re-scope issue #14 to Graphics integration/validation rather than a custom Physics estimator.
+- Fuel per lap (`fuel_x_lap`) and estimated laps remaining (`fuel_estimated_laps`) are decoded from ACC Graphics and displayed in Overview. Fuel per lap is in litres per lap; estimated laps is a floating-point lap estimate. Live target-PC captures show both fields changing. Direct comparison against the in-game HUD, including refuelling/session-reset behaviour, remains pending under issue #14. Do not calculate a duplicate Physics estimator.
 - Verified tank capacity is not yet connected, so the bar is not an absolute tank-capacity percentage.
 - Session/lap history-related overview information where supported.
 - Keep the live map lightweight. Do not rewrite or rebuild the map on every lap unnecessarily.
@@ -141,8 +141,9 @@ Boolean values must be rendered as `ON` / `OFF`, never raw `true` / `false`. Unk
 
 The Car Electronics tile is limited to:
 
-- TC setup level (Graphics integration pending; do not use Physics slip-ratio threshold fields as the selected setup level).
-- ABS setup level (Graphics integration pending; do not use Physics slip-ratio threshold fields as the selected setup level).
+- TC setup level from ACC Graphics candidate offset 0x4F4 (int32); raw level is displayed without correction.
+- ABS setup level from ACC Graphics candidate offset 0x500 (int32); raw level is displayed without correction.
+- Direct live HUD comparison remains pending. Do not substitute Physics slip-ratio thresholds or intervention flags.
 - Brake bias (currently unresolved; see issue #13).
 - Auto shifter state, rendered as `ON` / `OFF`.
 - Turbo boost.
@@ -260,8 +261,8 @@ Target pressures are blank/unset by default; no target PSI is invented. Values a
 | Vehicle-light ON/OFF colours | Not working / investigate | Expected ON green, OFF yellow, unknown neutral. Validate source values and each indicator's mapping. |
 | Target PSI inputs | Implemented; persistence unverified | Four wheel-specific inputs and actual-vs-target comparison exist. Desktop restart persistence remains open under issue #15. |
 | Brake bias | Open issue #13 | Dashboard value does not match ACC. Remove speculative correction and verify field offset/type/units and car identity before fixing. |
-| TC setup level | Graphics integration pending | Use the ACC Graphics setup-level value; do not interpret Physics `tc` as the selected level. |
-| ABS setup level | Graphics integration pending | Use the ACC Graphics setup-level value; do not interpret Physics `abs` as the selected level. |
+| TC setup level | Integrated; HUD validation pending | Decoded from Graphics offset 0x4F4; target-PC capture observed setting transitions. |
+| ABS setup level | Integrated; HUD validation pending | Decoded from Graphics offset 0x500; target-PC capture observed setting transitions. |
 | TC intervention | Not validated | Find a supported source before presenting a live state. |
 | ABS intervention | Not validated | Find a supported source before presenting a live state. |
 | Car-specific profiles | Partial design | Porsche 992 GT3 R is the starting profile; full profile management remains future work. |
@@ -302,7 +303,7 @@ A change to Overview is not complete merely because it compiles.
 - Steering angle displayed in degrees with a centred left/right progress bar.
 - RPM LED progression green → yellow → orange → red, with all segments flashing red at the shift threshold; RPM LED tile retained, Motor Temperature tile removed.
 - Lap tile valid/invalid/out-lap colour behaviour.
-- Track map, weather and live fuel remaining; fuel bar uses a session-observed reference and red → orange → yellow → green fill. Fuel per lap and estimated laps remaining are pending Graphics decoding (`fuel_x_lap`, `fuel_estimated_laps`); issue #14 should be treated as Graphics integration/validation.
+- Track map, weather and live fuel remaining; fuel bar uses a session-observed reference and red → orange → yellow → green fill. Fuel per lap and estimated laps remaining are decoded from ACC Graphics; direct HUD/refuelling validation remains under issue #14.
 - Per-corner tyre/brake display and temperature colour progression.
 - Live tyre pressure from ACC Physics shown as actual PSI.
 - Four editable target PSI values are implemented in Settings → Vehicle & Telemetry; actual-vs-target comparison is implemented. Desktop restart persistence remains unverified (issue #15).
@@ -310,7 +311,7 @@ A change to Overview is not complete merely because it compiles.
 - Car Lights & Status owns pit limiter, engine running, ignition, starter, AI control, water temperature, rain light, wiper and left/right indicators. Boolean values display as ON/OFF.
 - Water temperature appears only once, in Car Lights & Status. Car Electronics includes TC/ABS setup-level placeholders pending Graphics integration, brake bias, auto shifter and turbo boost. Duplicate status fields have been removed.
 - Vehicle-light ON/OFF colour mapping remains reported as not working and requires investigation.
-- TC/ABS setup levels and fuel-per-lap/laps-left must be sourced from Graphics; current Graphics acquisition is raw-only.
+- TC/ABS setup levels and fuel-per-lap/laps-left are now decoded from the independent Graphics stream; direct HUD validation remains pending.
 - Brake-bias mismatch recorded in issue #13.
 
 ---
