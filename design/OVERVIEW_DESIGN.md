@@ -258,15 +258,15 @@ Target pressures are blank/unset by default; no target PSI is invented. Values a
 | Item | Status | Notes |
 |---|---|---|
 | Vehicle-light ON/OFF colours | Not working / investigate | Expected ON green, OFF yellow, unknown neutral. Validate source values and each indicator's mapping. |
-| Target PSI inputs | Not implemented | Add four editable wheel-specific values, persistence and actual-vs-target difference. |
+| Target PSI inputs | Implemented; persistence unverified | Four wheel-specific inputs and actual-vs-target comparison exist. Desktop restart persistence remains open under issue #15. |
 | Brake bias | Open issue #13 | Dashboard value does not match ACC. Remove speculative correction and verify field offset/type/units and car identity before fixing. |
-| TC setup level | Not validated | Do not substitute Physics slip threshold. |
-| ABS setup level | Not validated | Do not substitute Physics slip threshold. |
+| TC setup level | Graphics integration pending | Use the ACC Graphics setup-level value; do not interpret Physics `tc` as the selected level. |
+| ABS setup level | Graphics integration pending | Use the ACC Graphics setup-level value; do not interpret Physics `abs` as the selected level. |
 | TC intervention | Not validated | Find a supported source before presenting a live state. |
 | ABS intervention | Not validated | Find a supported source before presenting a live state. |
 | Car-specific profiles | Partial design | Porsche 992 GT3 R is the starting profile; full profile management remains future work. |
 | Damage scale/units | Needs validation | Preserve raw values unless scale is verified. |
-| Fuel-per-lap / laps-left estimate | Open issue #14 | Requires validated completed-lap boundaries and fuel deltas; Graphics is currently acquired raw-only. |
+| Fuel per lap / estimated laps remaining | Graphics integration pending | Decode and validate ACC Graphics `fuel_x_lap` and `fuel_estimated_laps`; do not build a duplicate Physics estimator. |
 | Out-lap menu-to-garage edge case | Known limitation | Direct mid-lap menu jump/rejoin is not currently marked as an out lap. |
 
 ### Brake-bias issue reference
@@ -302,7 +302,7 @@ A change to Overview is not complete merely because it compiles.
 - Steering angle displayed in degrees with a centred left/right progress bar.
 - RPM LED progression green → yellow → orange → red, with all segments flashing red at the shift threshold; RPM LED tile retained, Motor Temperature tile removed.
 - Lap tile valid/invalid/out-lap colour behaviour.
-- Track map, weather and live fuel remaining; fuel bar uses a session-observed reference and red → orange → yellow → green fill. Fuel-per-lap and laps-left remain pending issue #14.
+- Track map, weather and live fuel remaining; fuel bar uses a session-observed reference and red → orange → yellow → green fill. Fuel per lap and estimated laps remaining are pending Graphics decoding (`fuel_x_lap`, `fuel_estimated_laps`); issue #14 should be treated as Graphics integration/validation.
 - Per-corner tyre/brake display and temperature colour progression.
 - Live tyre pressure from ACC Physics shown as actual PSI.
 - Four editable target PSI values are implemented in Settings → Vehicle & Telemetry; actual-vs-target comparison is implemented. Desktop restart persistence remains unverified (issue #15).
