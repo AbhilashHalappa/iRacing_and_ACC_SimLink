@@ -618,6 +618,7 @@ No local frontend build, Python test run or live ACC test was performed as part 
 The Overview Weather tile now translates the ACC weather fields for readability:
 
 - Rain intensity values use the ACC enum: 0 No Rain, 1 Drizzle, 2 Light Rain, 3 Medium Rain, 4 Heavy Rain, 5 Thunderstorm. The three displayed values are labelled in order as now, +10 minutes and +30 minutes. For example, `1 / 1 / 2` is rendered as `Drizzle / Drizzle / Light Rain`.
-- `wind_speed` is displayed in **m/s**, the unit specified by the ACC shared-memory Graphics reference.
-- `wind_direction` is stored in radians. The UI converts radians to degrees, normalizes the bearing into the 0°–359.9° compass range (0° north, increasing clockwise), and displays a 16-point compass abbreviation plus bearing. For example, −0.438 rad is approximately **NNW (334.9°)**.
+- `wind_speed` is displayed in **km/h**, matching the unit shown by the ACC in-game weather display (the numeric Graphics value is shown without a conversion factor).
+- `wind_direction` is treated as radians. The UI converts radians to degrees, normalizes the bearing into the 0°–359.9° compass range (0° north, increasing clockwise), and displays a 16-point compass abbreviation plus bearing. For example, −0.438 rad is approximately **NNW (334.9°)**. Confirm the bearing against the in-game wind indicator during a live test before treating the reference convention as fully validated.
+- Rain forecast values retain the ACC enum mapping internally but are displayed as compact weather icons: 0 ☀️, 1 🌦️, 2–4 🌧️, 5 ⛈️. The order remains **NOW / +10 MIN / +30 MIN**; the icon sequence for raw values `1 / 1 / 2` is **🌦️ / 🌦️ / 🌧️**.
 - This is a presentation conversion only. Graphics acquisition, candidate offsets and raw recorded values are unchanged. The candidate v1.8.12-derived layout remains subject to the previously documented ABI qualification.
