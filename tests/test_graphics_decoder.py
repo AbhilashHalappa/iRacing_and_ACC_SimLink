@@ -12,7 +12,7 @@ from src.race_engineer_acquisition.ring_buffer import AcquisitionRingBuffer
 
 def _wide(page, offset, value, units):
     encoded = value.encode("utf-16-le")[: units * 2]
-    page[offset:offset + units * 2] = encoded.ljust(units * 2, b"\\x00")
+    page[offset:offset + units * 2] = encoded.ljust(units * 2, b"\x00")
 
 
 def _page(packet_id=23, tc=7, abs_level=6, fuel_lap=3.25, estimated=18.5):
