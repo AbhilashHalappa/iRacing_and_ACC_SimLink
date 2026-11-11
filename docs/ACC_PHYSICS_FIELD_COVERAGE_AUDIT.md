@@ -445,3 +445,71 @@ Their offset/size evidence for the 800-byte structure remains consistent with Gr
 - Remaining true limitation: no official version-matched Kunos v1.9 ABI/header evidence, plus field-specific semantics/units only where a future feature actually needs them.
 - No production code, ABI declaration, acquisition path, recorder, queue capacity or hot-loop behavior changed for this evidence update. No tests were run; this is a documentation-only update based on the user's completed capture and inspection.
 
+
+
+## Overview-facing Physics audit reconciliation — 11 November 2026
+
+This section reconciles the Physics field inventory with the current Overview implementation and the user's latest source-of-truth decisions. It does not change the decoder, acquisition path, raw recorder, or frontend code.
+
+### Scope boundary: Physics versus Graphics
+
+The following Overview fields are to be sourced from ACC Graphics, not inferred from Physics:
+
+| Overview field | Expected Graphics field | Current status |
+|---|---|---|
+| Fuel per lap | `fuel_x_lap` | Graphics decode/integration and live validation pending |
+| Estimated laps remaining | `fuel_estimated_laps` | Graphics decode/integration and live validation pending |
+| TC setup level | Graphics setup-level value | Graphics decode/integration and live validation pending |
+| ABS setup level | Graphics setup-level value | Graphics decode/integration and live validation pending |
+| Rain light | Graphics vehicle/light state | Graphics decode/integration and live validation pending |
+| Wiper | Graphics vehicle/light state | Graphics decode/integration and live validation pending |
+| Left/right indicators | Graphics vehicle/light state | Graphics decode/integration and live validation pending |
+
+The Physics fields named `tc` and `abs` are not accepted as selected TC/ABS setup levels. The Physics fields `tc_in_action` and `abs_in_action` are intervention indicators; they are distinct from setup levels and require controlled activation tests before they can be shown as trusted intervention states.
+
+ACC Graphics is currently acquired as raw data only. The values above must be decoded from the existing Graphics acquisition stream and passed through the established consumer/bridge path. Do not open another Physics SPSC reader or add Graphics decoding to the Physics consumer.
+
+### Current Overview Physics status
+
+| Feature | Current state | Remaining action |
+|---|---|---|
+| Speed, gear, RPM/max RPM | Implemented; user-confirmed live basics | Regression validation only |
+| Throttle, brake and clutch inputs | Implemented | Regression validation only |
+| Steering angle and centre-zero bar | Implemented; user confirmed steering works | No known feature gap |
+| Actual tyre pressure, FL/FR/RL/RR | Implemented; user confirmed live PSI appears | Regression validation only |
+| Brake pressure | Implemented; user confirmed it passes | Do not infer calibration for all four raw channels from this confirmation |
+| Tyre and brake temperatures | Implemented | Verify wheel mapping/units during regression |
+| Fuel remaining | Implemented from Physics | Fuel bar is relative to highest observed value since app start, not verified tank capacity |
+| Vehicle damage Front/Rear/Left/Right/Centre | Implemented | Preserve raw values; do not label as percentages |
+| Suspension damage FL/FR/RL/RR | Implemented/displayed | Meaning, wheel mapping and normalized scale still require validation |
+| Brake bias | Implemented but mismatched against ACC | Open issue #13; no speculative offset |
+| Brake pad/disc life and brake compounds | Decoder/audit candidates; semantics not fully established | Keep units/direction/mapping provisional; validate only if retained as user-facing fields |
+| TC/ABS setup levels | Must come from Graphics | Remove/replace any Physics-derived setup-level interpretation during Graphics integration |
+| TC/ABS intervention | Physics candidate flags at offsets 672/676 | Controlled independent TC and ABS activation required before display |
+| Auto shifter / turbo | UI fields exist; field-specific semantics not fully validated | Controlled state/load validation |
+| Ignition/starter/engine-running | UI fields exist; transitions not fully validated | Engine off → ignition → starter → running → stop capture |
+| Water temperature | Candidate at offset 712; units/semantic identity unresolved in the 10 Nov capture | Do not claim validated water temperature without transition/ABI evidence |
+
+### Settings and UI items that affect Physics presentation
+
+- Four editable target PSI values (FL, FR, RL, RR) exist in Settings → Vehicle & Telemetry. Overview compares actual Physics pressure with a configured target only when that wheel's target is set.
+- Tyre-temperature thresholds, brake-temperature thresholds, damage thresholds and glow intensity controls exist in the same settings tab.
+- User reports that settings persistence still fails in the desktop app. Track under [issue #15](https://github.com/AbhilashHalappa/Race-Engineer-ACC-New/issues/15); do not mark restart persistence as complete.
+- Brake-bias mismatch remains [issue #13](https://github.com/AbhilashHalappa/Race-Engineer-ACC-New/issues/13).
+- Existing issue #14 should be treated as a Graphics fuel-field integration/validation task because ACC's Graphics page exposes fuel per lap and estimated laps remaining. Do not implement a duplicate Physics lap-consumption estimator unless the Graphics values are proven unavailable or unsuitable.
+
+### Remaining Physics-specific work for Overview
+
+1. Resolve the brake-bias mismatch using authoritative field interpretation and controlled setup changes (issue #13).
+2. Validate suspension-damage component mapping and scale before labelling it as a percentage.
+3. Validate the intervention flags independently by deliberately triggering TC and ABS; do not confuse these with setup levels.
+4. Validate the semantics/units of any exposed pad-life, disc-life, brake-compound, turbo and engine-state fields that remain in the UI.
+5. Keep candidate/unknown fields out of trusted UI presentation until their meaning is supported.
+6. Re-test existing live fields after Graphics integration to ensure the single-consumer Physics architecture remains unchanged.
+
+### Audit conclusion
+
+The Physics acquisition and raw-recording layer was closed for its defined scope on 9 November 2026, with additional target-PC evidence recorded on 10 November 2026. This is not semantic sign-off for every Physics field. The Overview's core Physics telemetry is implemented; remaining Physics work is targeted validation/correction, not a broad new tile implementation phase.
+
+The next acquisition work is Graphics decoding and integration for fuel per lap, estimated laps, TC/ABS setup levels and vehicle light/wiper/indicator states. Static-page work remains separate.
+
