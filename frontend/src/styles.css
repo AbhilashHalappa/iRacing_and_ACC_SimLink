@@ -90,6 +90,11 @@ button { cursor: pointer; }
 .history-table { padding-top:10px; }
 .history-head { display:grid; grid-template-columns:.5fr 1.2fr 1fr 1fr 1fr 1fr; gap:8px; padding:9px 4px; border-bottom:1px solid var(--outline); color:var(--muted); font-size:14px; font-weight:700; letter-spacing:.7px; }
 .history-empty { display:grid; place-items:center; min-height:65px; color:var(--muted); font-size:16px; }
+.history-rows { display:flex; flex-direction:column; }
+.history-row { display:grid; grid-template-columns:.5fr 1.2fr 1fr 1fr 1fr 1fr; gap:8px; align-items:center; padding:10px 4px; border-bottom:1px solid var(--outline); font-size:14px; font-variant-numeric:tabular-nums; }
+.history-row>span:first-child { color:var(--muted); font-size:12px; font-weight:700; }
+.history-row>b { font-size:15px; }
+.history-empty { text-align:center; line-height:1.8; padding:10px; }
 .weather-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:17px 10px; padding:10px 0; }
 .weather-grid>div,.session-info>div { display:flex; flex-direction:column; gap:7px; }
 .weather-grid b { font-size:21px; font-variant-numeric:tabular-nums; }
