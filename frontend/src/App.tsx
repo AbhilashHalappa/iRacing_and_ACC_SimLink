@@ -193,7 +193,7 @@ type LapHistoryEntry = { lap:number; timeMs:number; valid:boolean|null; s1Ms:num
 const LAP_HISTORY_LIMIT = 10;
 function cumulativeSplitMs(value:unknown):number|null {
   if(typeof value!=="string") return null;
-  const match=value.trim().match(/^(\\d{1,4}):(\\d{2}):(\\d{3})$/);
+  const match=value.trim().match(/^(\d{1,4}):(\d{2}):(\d{3})$/);
   if(!match) return null;
   const minutes=Number(match[1]), seconds=Number(match[2]), millis=Number(match[3]);
   if(seconds>=60) return null;
@@ -289,7 +289,7 @@ function App() {
   useEffect(()=>{const events=new EventSource("/events");events.onmessage=event=>{try{setTelemetry(JSON.parse(event.data));}catch{/* Ignore malformed bridge frames. */}};events.onerror=()=>setTelemetry((current:any)=>current?{...current,connected:false}:current);return ()=>events.close();},[]);
   const connected=Boolean(telemetry?.connected);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
-  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;s1Ms:number|null;s2Ms:number|null}>({sessionKey:null,completedLaps:null,sector:null,s1Ms:null,s2Ms:null});
+  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;s1Ms:number|null;s2Ms:number|null;validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,s1Ms:null,s2Ms:null,validity:null});
   useEffect(()=>{
     const graphics=telemetry?.graphics?.data;
     if(!graphics) return;
@@ -301,12 +301,12 @@ function App() {
     const sector=typeof graphics.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
     const tracker=lapCapture.current;
     if(tracker.sessionKey!==sessionKey){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null};
+      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null,validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       setLapHistory(readLapHistory(storageKey));
       return;
     }
     if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null};
+      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null,validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       try{window.localStorage.removeItem(storageKey);}catch{}
       setLapHistory([]);
       return;
@@ -319,14 +319,17 @@ function App() {
       }
       tracker.sector=sector;
     } else if(tracker.sector===null) tracker.sector=sector;
-    if(completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps){
+    const completingLap=completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps;
+    if(graphics.is_valid_lap===false) tracker.validity=false;
+    else if(graphics.is_valid_lap===true&&tracker.validity===null&&!completingLap) tracker.validity=true;
+    if(completingLap){
       const lapTime=typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
       const outLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
       if(lapTime!==null&&!outLap){
         const s1=tracker.s1Ms;
         const s2=tracker.s2Ms;
         const validSectors=s1!==null&&s2!==null&&s1>0&&s2>s1&&lapTime>s2;
-        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null,s1Ms:validSectors?s1:null,s2Ms:validSectors?s2-s1:null,s3Ms:validSectors?lapTime-s2:null};
+        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,s1Ms:validSectors?s1:null,s2Ms:validSectors?s2-s1:null,s3Ms:validSectors?lapTime-s2:null};
         const next=[...readLapHistory(storageKey),entry].slice(-LAP_HISTORY_LIMIT);
         setLapHistory(next);
         try{window.localStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Keep the in-memory history if browser storage is unavailable. */}
@@ -334,6 +337,7 @@ function App() {
       tracker.completedLaps=completed;
       tracker.s1Ms=null;
       tracker.s2Ms=null;
+      tracker.validity=null;
       tracker.sector=sector;
       return;
     }
