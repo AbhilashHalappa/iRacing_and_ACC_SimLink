@@ -127,13 +127,7 @@ function ChangeGlowBox({label,value,primary=false}:{label:string;value:string;pr
 }
 function display(value: unknown, digits=1, suffix="") { return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits)+suffix : "—"; }
 function millisecondsDisplay(value: unknown, digits=3) { return typeof value === "number" && Number.isFinite(value) ? (value/1000).toFixed(digits)+" s" : "—"; }
-function sectorTimeDisplay(value: unknown) {
-  if(typeof value!=="number"||!Number.isInteger(value)||value<=0||value>=86400000) return "—:—.---";
-  const minutes=Math.floor(value/60000);
-  const seconds=Math.floor((value%60000)/1000);
-  const millis=value%1000;
-  return `${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}.${String(millis).padStart(3,"0")}`;
-}
+
 function splitTimeDisplay(value: unknown) {
   if(typeof value!=="string") return "—:—.---";
   const match=value.trim().match(/^(\d{1,4}):(\d{2}):(\d{3})$/);
@@ -206,40 +200,40 @@ function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glo
   const fuelMaxSeen=useRef(0);
   if(fuelKg!==null) fuelMaxSeen.current=Math.max(fuelMaxSeen.current,fuelKg);
   const fuelFill=fuelKg!==null&&fuelMaxSeen.current>0?Math.max(0,Math.min(100,fuelKg/fuelMaxSeen.current*100)):0;
-  const sectorHistory=useRef<{lap:number|null;times:Record<number,string>;lastObservedMs:number|null;cumulativeMs:number}>({lap:null,times:{},lastObservedMs:null,cumulativeMs:0});
+  const sectorHistory=useRef<{lap:number|null;sector:number|null;times:Record<number,string>;liveTime:string}>({lap:null,sector:null,times:{},liveTime:"—:—.---"});
   const [,setSectorHistoryRevision]=useState(0);
   useEffect(()=>{
     const sector=typeof graphics?.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
     const completedLaps=typeof graphics?.completed_laps==="number"?graphics.completed_laps:null;
-    const cumulative=typeof graphics?.last_sector_time_ms==="number"&&Number.isInteger(graphics.last_sector_time_ms)&&graphics.last_sector_time_ms>0&&graphics.last_sector_time_ms<86400000?graphics.last_sector_time_ms:null;
-    if(sector===null||completedLaps===null||cumulative===null) return;
+    if(sector===null) return;
+    const liveTime=splitTimeDisplay(graphics?.split_time_str);
+    const hasLiveTime=liveTime!=="—:—.---";
     const history=sectorHistory.current;
     if(history.lap===null){
       history.lap=completedLaps;
-      history.lastObservedMs=cumulative;
-      // At the start of a lap, the previous lap's sector value is stale.
-      // Mid-lap startup cannot reconstruct earlier sector boundaries.
-      history.cumulativeMs=sector===0?0:cumulative;
-      return;
-    }
-    if(history.lap!==completedLaps){
-      history.lap=completedLaps;
+      history.sector=sector;
       history.times={};
-      history.cumulativeMs=0;
-      history.lastObservedMs=cumulative;
+      history.liveTime=hasLiveTime?liveTime:"—:—.---";
+      return;
+    }
+    const newLap=(completedLaps!==null&&history.lap!==null&&completedLaps!==history.lap)||(history.sector===2&&sector===0);
+    if(newLap){
+      history.lap=completedLaps;
+      history.sector=sector;
+      history.times={};
+      history.liveTime=hasLiveTime?liveTime:"—:—.---";
       setSectorHistoryRevision(value=>value+1);
       return;
     }
-    if(history.lastObservedMs===cumulative) return;
-    const completedSector=sector===0?2:sector-1;
-    const duration=cumulative-history.cumulativeMs;
-    if(duration>0&&duration<600000){
-      history.times[completedSector]=sectorTimeDisplay(duration);
+    if(history.sector!==sector){
+      if(history.sector!==null&&history.liveTime!=="—:—.---") history.times[history.sector]=history.liveTime;
+      history.sector=sector;
+      if(hasLiveTime) history.liveTime=liveTime;
       setSectorHistoryRevision(value=>value+1);
+      return;
     }
-    history.cumulativeMs=cumulative;
-    history.lastObservedMs=cumulative;
-  },[graphics?.sector,graphics?.completed_laps,graphics?.last_sector_time_ms]);
+    if(hasLiveTime) history.liveTime=liveTime;
+  },[graphics?.sector,graphics?.completed_laps,graphics?.split_time_str]);
   switch (id) {
     case "speed": return <div className="hero-value glance-hero"><strong>{display(data?.speed_kph,0)}</strong><span>KM/H</span><small>VEHICLE SPEED · ACC PHYSICS</small></div>;
     case "gear": return <div className="hero-value gear-value glance-hero"><strong>{data?.gear_display ?? "—"}</strong><span>GEAR</span><small>ACC PHYSICS</small></div>;
@@ -256,7 +250,7 @@ function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glo
     case "warnings": return <div className="balanced-grid">{[["LAP VALIDITY",graphics?.is_valid_lap===true?"VALID":graphics?.is_valid_lap===false?"INVALID":"—"],["PENALTY",graphicsPenalty(graphics?.penalty)],["PENALTY TIME",millisecondsDisplay(graphics?.penalty_time_s,1)],["MISSING MANDATORY PITS",rawEnum(graphics?.missing_mandatory_pits)],["MANDATORY PIT DONE",onOff(graphics?.mandatory_pit_done)]].map(([a,b]) => <div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
     case "hardware": return <div className="hardware-list balanced-hardware">{["Wheel USB link","Wheel device","Pedals device","Handbrake device","RPM LED Controller"].map((d) => <div key={d}><span>{d}</span><b><i />Not reported</b></div>)}</div>;
     case "delta": { const deltaTone=graphics?.delta_positive===false?"delta-negative":graphics?.delta_positive===true?"delta-positive":""; return <div className="glance-delta"><div className={`glance-delta-primary ${deltaTone}`}><span>LIVE DELTA · ACC</span><strong>{graphics?.delta_lap_time_str||"—.---"}</strong><small>{graphics?.delta_positive===true?"POSITIVE":graphics?.delta_positive===false?"NEGATIVE":"SIGN UNKNOWN"}</small></div><div className="glance-inline-stats"><div><span>EST. LAP</span><b>{lapTimeDisplay(graphics?.estimated_lap_time_str,graphics?.estimated_lap_time_ms)}</b></div><div><span>BEST LAP</span><b>{lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</b></div></div><small className="glance-footnote">ACC Graphics delta and estimated lap fields; delta sign is shown as reported.</small></div>; }
-    case "sectors": { const sectorIndex=typeof graphics?.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null; const liveSplit=splitTimeDisplay(graphics?.split_time_str); const lastSector=sectorTimeDisplay(graphics?.last_sector_time_ms); const history=sectorHistory.current.times; return <div className="glance-sector"><div className="glance-inline-stats"><div><span>LIVE SECTOR TIME</span><b>{liveSplit}</b></div><div><span>LAST COMPLETED SECTOR</span><b>{lastSector}</b></div><div><span>CURRENT SECTOR</span><b>{sectorIndex!==null?sectorIndex+1:"—"} / 3</b></div></div><div className="sector-strip">{["S1","S2","S3"].map((s,i)=>{const isLive=i===sectorIndex;const recorded=history[i];return <div key={s}><span>{s}</span><b>{isLive?liveSplit:recorded??"—:—.---"}</b><small>{isLive?"LIVE":recorded?"LAST":"NOT RECORDED"}</small></div>;})}</div><small className="glance-footnote">Completed sector times are retained during the current lap as ACC reports each sector boundary. History resets when the completed-lap count changes; best-sector history is not stored.</small></div>; }
+    case "sectors": { const sectorIndex=typeof graphics?.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null; const liveSplit=splitTimeDisplay(graphics?.split_time_str); const history=sectorHistory.current.times; const previousSector=sectorIndex!==null&&sectorIndex>0?history[sectorIndex-1]:null; return <div className="glance-sector"><div className="glance-inline-stats"><div><span>LIVE SECTOR TIME</span><b>{liveSplit}</b></div><div><span>LAST COMPLETED SECTOR</span><b>{previousSector??"—:—.---"}</b></div><div><span>CURRENT SECTOR</span><b>{sectorIndex!==null?sectorIndex+1:"—"} / 3</b></div></div><div className="sector-strip">{["S1","S2","S3"].map((s,i)=>{const isLive=i===sectorIndex;const recorded=history[i];return <div key={s}><span>{s}</span><b>{isLive?liveSplit:recorded??"—:—.---"}</b><small>{isLive?"LIVE":recorded?"COMPLETED":"NOT RECORDED"}</small></div>;})}</div><small className="glance-footnote">The active sector time is held temporarily and copied into its sector slot when ACC advances to the next sector. All three temporary values reset when a new lap starts.</small></div>; }
     case "position": return <div className="glance-position"><div className="glance-position-hero"><strong>{rawEnum(graphics?.position)}</strong><span>POSITION</span><small>OF {rawEnum(graphics?.active_cars)} ACTIVE CARS</small></div><div className="glance-inline-stats"><div><span>GAP AHEAD</span><b>{millisecondsDisplay(graphics?.gap_ahead_ms)}</b></div><div><span>GAP BEHIND</span><b>{millisecondsDisplay(graphics?.gap_behind_ms)}</b></div></div><small className="glance-footnote">Gap values are converted from milliseconds to seconds; the ACC-provided sign is preserved.</small></div>;
     case "electronics": return <div className="glance-electronics"><div className="electronics-primary"><ChangeGlowBox primary label="TC LEVEL" value={display(graphics?.tc_level,0)}/><ChangeGlowBox primary label="ABS LEVEL" value={display(graphics?.abs_level,0)}/><ChangeGlowBox primary label="BRAKE BIAS" value={display(brakeBiasPercent,1,"%")}/></div><div className="balanced-grid electronics-secondary"><ChangeGlowBox label="TC CUT" value={rawEnum(graphics?.tc_cut)}/><ChangeGlowBox label="ENGINE MAP" value={rawEnum(graphics?.engine_map)}/><ChangeGlowBox label="AUTO SHIFTER" value={onOff(data?.autoshifter_on)}/><ChangeGlowBox label="TURBO BOOST" value={display(data?.turbo_boost,2)}/></div><small className="glance-footnote">TC/ABS setup levels are sourced from ACC Graphics. Brake bias remains under investigation in issue #13.</small></div>;
     case "pit_stint": return <div className="glance-pit"><div className="electronics-primary three-up"><div><span>PIT BOX</span><b>{onOff(graphics?.is_in_pit)}</b></div><div><span>PIT LANE</span><b>{onOff(graphics?.is_in_pit_lane)}</b></div><div><span>MANDATORY STOP</span><b>{onOff(graphics?.mandatory_pit_done)}</b></div></div><div className="balanced-grid pit-secondary"><div className="balanced-field"><span>STINT TOTAL TIME LEFT</span><b>{stintTimeDisplay(graphics?.driver_stint_total_ms)}</b></div><div className="balanced-field"><span>STINT TIME LEFT</span><b>{stintTimeDisplay(graphics?.driver_stint_left_ms)}</b></div><div className="balanced-field"><span>FUEL USED</span><b>{display(graphics?.used_fuel_l,1," L")}</b></div><div className="balanced-field"><span>MFD FUEL TO ADD</span><b>{display(graphics?.mfd_fuel_to_add,1," L")}</b></div><div className="balanced-field"><span>MFD TYRE SET</span><b>{tyreSetDisplay(graphics?.mfd_tyre_set)}</b></div><div className="balanced-field"><span>CURRENT / STRATEGY SET</span><b>{tyreSetDisplay(graphics?.current_tyre_set)} / {tyreSetDisplay(graphics?.strategy_tyre_set)}</b></div>{["FL","FR","RL","RR"].map((corner,i)=><div className="balanced-field" key={corner}><span>MFD {corner} PRESSURE REQUEST</span><b>{display(graphics?.mfd_tyre_pressures?.[i],1," psi")}</b></div>)}</div><small className="glance-footnote">Stint times are shown as mm:ss (or h:mm:ss); unavailable ACC sentinel values are hidden. MFD pressures are the requested tyre pressures in PSI, and MFD fuel is the requested fuel addition.</small></div>;
