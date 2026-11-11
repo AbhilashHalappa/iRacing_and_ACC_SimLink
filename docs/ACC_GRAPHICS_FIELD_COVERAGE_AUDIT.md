@@ -535,3 +535,37 @@ The earlier six-minute capture independently showed changes in all four MFD tyre
 The target-PC raw-only acquisition and recording path is **validated for the tested 4,096-byte mapping and the two live runs** (six minutes and ten minutes), with zero application-level recording loss/reconciliation delta in both. The planned live field-transition pass is complete: control settings, lights/wipers, tyre-set identifiers, pit states, weather/track-state fields, fuel estimates, wind, gaps and race-control flags now have live observations as detailed above.
 
 The **Graphics field-coverage audit is complete as an evidence inventory**, but it is not an official ABI or full semantic sign-off. Remaining work is limited to authoritative enum/unit/offset confirmation and the explicitly unexercised fields above; no further broad recording is justified by the current evidence. Do not repeat the completed capture or transition checks unless a specific, named unresolved field requires a targeted experiment.
+
+
+## Priority Graphics decoder implementation — 11 November 2026
+
+The first downstream Graphics decoder is now implemented for the four Overview priority fields. It reads from the existing independent Graphics acquisition ring; the acquisition worker, 4,096-byte mapping copy and raw recording format remain unchanged.
+
+| Field | Candidate offset | Type | Decoder output | Evidence / presentation |
+|---|---:|---|---|---|
+| TC setup level | `0x4F4` (1268) | `int32` | `tc_level` | Live target-PC capture changed 8→7→6→5→6→7→8 (observed range 5–8). Display raw ACC level; no +1 correction. |
+| ABS setup level | `0x500` (1280) | `int32` | `abs_level` | Live target-PC capture observed range 5–8 with seven transitions. Display raw ACC level; no scaling/correction. |
+| Fuel per lap | `0x504` (1284) | `float32` | `fuel_per_lap_l` | Live target-PC capture observed four values, range 2.7642–3.6600. Reference documentation describes this field as average fuel consumed per lap in litres. |
+| Estimated laps remaining | `0x584` (1412) | `float32` | `fuel_estimated_laps` | Live target-PC capture range 16.0850–21.2977. Reference documentation describes laps possible with current fuel. |
+
+### Implementation boundary
+
+- `graphics_decoder.py` decodes only these four fields plus packet ID. It requires the payload to extend through byte 1415, preserves finite float values without undocumented scaling/sentinels, and maps non-finite floats to unavailable.
+- `graphics_consumer.py` drains the Graphics ring downstream, verifies decoded packet ID against acquisition metadata, and retains the last good sample on decode errors.
+- The acquisition supervisor now owns a separate Graphics decode worker and producer-completion signal. Physics and Graphics remain separate streams and separate SPSC rings.
+- The Qt host publishes a `graphics` snapshot alongside `physics`; the bridge remains a transport only.
+- Overview Fuel now reads fuel per lap and estimated laps from Graphics while remaining fuel continues to come from Physics. The fuel bar remains the existing session-high reference, not tank capacity.
+- Overview TC/ABS setup levels now read from Graphics. Physics fields are no longer used as setup-level sources.
+- No +1 adjustment is applied to TC/ABS. Values are passed through as raw ACC setup levels.
+- Automated decoder/consumer tests were added in `tests/test_graphics_decoder.py`.
+
+### Validation status and caveats
+
+This is an initial implementation based on the candidate v1.8.12-derived field map, independent RaceIQ/Pro Engineer reference agreement, and target-PC raw transition evidence. The 4,096-byte acquisition mapping and 1,588-byte candidate structure are not an official Kunos Shared Memory 1.9 ABI certification.
+
+The target-PC captures establish that the four candidate locations contain dynamic values consistent with their names. They do not record a synchronized HUD-value comparison for every field. The user's next local ACC test should compare:
+1. TC and ABS values against the in-game electronics/MFD display while changing each setting independently.
+2. Fuel per lap against the in-game fuel-consumption figure.
+3. Estimated laps against the in-game laps-remaining figure, including after fuel changes/refuelling.
+
+No frontend build, Python test run or live ACC validation was performed as part of the remote source update. Keep the fields under runtime validation until those checks pass.
