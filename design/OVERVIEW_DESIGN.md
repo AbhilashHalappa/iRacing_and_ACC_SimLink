@@ -75,7 +75,7 @@ The following records work that has been discussed or implemented. A listed tile
 - Weather information.
 - Fuel remaining is read from ACC Physics in kg.
 - Fuel bar currently scales against the highest fuel level observed since app start and uses a red → orange → yellow → green fill gradient.
-- Fuel-per-lap and estimated laps remaining are pending a validated completed-lap fuel-consumption estimator; see issue #14. Do not fabricate these values.
+- Fuel-per-lap (`fuel_x_lap`) and estimated laps remaining (`fuel_estimated_laps`) are expected from ACC Graphics shared memory, as identified during the UI audit. They are not to be calculated from Physics if the Graphics values are available. Graphics is currently raw-only; decode, map, and validate these fields before displaying them. Re-scope issue #14 to Graphics integration/validation rather than a custom Physics estimator.
 - Verified tank capacity is not yet connected, so the bar is not an absolute tank-capacity percentage.
 - Session/lap history-related overview information where supported.
 - Keep the live map lightweight. Do not rewrite or rebuild the map on every lap unnecessarily.
@@ -94,16 +94,16 @@ The following records work that has been discussed or implemented. A listed tile
 
 **Current implementation:** The tile displays actual live tyre pressure from ACC Physics for FL, FR, RL and RR.
 
-**Not implemented yet:** User-configurable target PSI values and target comparison.
+**Implemented in the frontend:** User-configurable target PSI values are available under Settings → Vehicle & Telemetry for FL, FR, RL and RR. The tile reads actual pressure from Physics and compares it only when a target is configured. Persistence across desktop restarts remains unverified and is tracked in issue #15.
 
-Agreed design for the next implementation:
+Current behaviour and constraints:
 
 - Editable target PSI for Front Left.
 - Editable target PSI for Front Right.
 - Editable target PSI for Rear Left.
 - Editable target PSI for Rear Right.
 - Display actual PSI, configured target PSI, and actual-minus-target difference for each wheel.
-- Save the configured values persistently across application restarts.
+- Persist the configured values across application restarts; current desktop persistence is not confirmed.
 - Provide a clear way to edit the values from the Overview tile or its settings.
 - Label these as **configured target pressures**. Do not call them ACC MFD values unless a verified ACC data source actually provides the MFD setting.
 - Do not invent a target value or display a false comparison when no target has been configured.
@@ -141,8 +141,8 @@ Boolean values must be rendered as `ON` / `OFF`, never raw `true` / `false`. Unk
 
 The Car Electronics tile is limited to:
 
-- TC setup level.
-- ABS setup level.
+- TC setup level (Graphics integration pending; do not use Physics slip-ratio threshold fields as the selected setup level).
+- ABS setup level (Graphics integration pending; do not use Physics slip-ratio threshold fields as the selected setup level).
 - Brake bias (currently unresolved; see issue #13).
 - Auto shifter state, rendered as `ON` / `OFF`.
 - Turbo boost.
@@ -305,11 +305,12 @@ A change to Overview is not complete merely because it compiles.
 - Track map, weather and live fuel remaining; fuel bar uses a session-observed reference and red → orange → yellow → green fill. Fuel-per-lap and laps-left remain pending issue #14.
 - Per-corner tyre/brake display and temperature colour progression.
 - Live tyre pressure from ACC Physics shown as actual PSI.
-- Target-pressure tile currently lacks editable target values and comparison.
+- Four editable target PSI values are implemented in Settings → Vehicle & Telemetry; actual-vs-target comparison is implemented. Desktop restart persistence remains unverified (issue #15).
 - Vehicle damage shown as Front/Rear/Left/Right/Centre, with suspension damage separately by wheel.
 - Car Lights & Status owns pit limiter, engine running, ignition, starter, AI control, water temperature, rain light, wiper and left/right indicators. Boolean values display as ON/OFF.
-- Water temperature appears only once, in Car Lights & Status. Car Electronics is limited to TC/ABS setup, brake bias, auto shifter and turbo boost. Duplicate status fields have been removed.
-- Vehicle-light colour mapping remains broken and requires investigation.
+- Water temperature appears only once, in Car Lights & Status. Car Electronics includes TC/ABS setup-level placeholders pending Graphics integration, brake bias, auto shifter and turbo boost. Duplicate status fields have been removed.
+- Vehicle-light ON/OFF colour mapping remains reported as not working and requires investigation.
+- TC/ABS setup levels and fuel-per-lap/laps-left must be sourced from Graphics; current Graphics acquisition is raw-only.
 - Brake-bias mismatch recorded in issue #13.
 
 ---
@@ -321,7 +322,7 @@ A change to Overview is not complete merely because it compiles.
 
 - RPM segments now use green/yellow/orange/red bands as revs rise; at 95% of ACC-reported maximum RPM all 15 segments flash red.
 - Fuel bar now fills proportionally to the highest fuel level observed since the app started and the filled portion uses a red → orange → yellow → green gradient. This is a session-observed reference, not verified tank capacity.
-- Fuel-per-lap and estimated laps remaining are deliberately not guessed. Tracking is recorded in [issue #14](https://github.com/AbhilashHalappa/Race-Engineer-ACC-New/issues/14).
+- Fuel-per-lap (`fuel_x_lap`) and estimated laps remaining (`fuel_estimated_laps`) are expected from ACC Graphics; decode and validate these fields there. Issue #14 should track this integration rather than a custom Physics estimator.
 - The local HTTP bridge now binds to `127.0.0.1:8765` rather than a random port, keeping the frontend origin stable so saved browser local-storage layout can be restored after restarts.
 - Physics, Graphics and Static acquisition workers now retry shared-memory opening after failures, allowing the dashboard to start before ACC and connect when ACC is launched. Retry interval is one second; verify with an ACC-off → app-on → ACC-on test.
 - These changes have been committed but require local frontend build and Windows/ACC runtime validation before marking them user-tested.
