@@ -244,3 +244,17 @@ The reference cross-check has been followed by a separate raw-only implementatio
 - Runner: `scripts/record_acc_graphics.py`. Automated tests: `tests/acquisition/test_graphics_acquisition.py` and `tests/acquisition/test_graphics_recorder.py`.
 
 **Implementation is present; automated CI passed 60/60 tests on Ubuntu and 60/60 on Windows (run 42598727306); target-PC validation is pending.** The runner is currently standalone and is not yet wired into normal application startup. The candidate Shared Memory 1.9 field layout remains not signed off. This implementation preserves raw bytes and does not depend on that layout sign-off. Physics remains unchanged.
+
+
+## Priority field decoding status — 11 November 2026
+
+A first downstream decoder now consumes four candidate fields from the existing Graphics raw acquisition stream:
+
+- TC setup level: `int32` at `0x4F4`.
+- ABS setup level: `int32` at `0x500`.
+- Fuel consumed per lap: `float32` at `0x504`, in litres per lap per the v1.8.12 field description.
+- Estimated laps possible with current fuel: `float32` at `0x584`.
+
+These offsets/types agree across the pinned RaceIQ and Pro Engineer candidate layouts. The target-PC ten-minute capture observed TC and ABS setting transitions and dynamic fuel estimates at the corresponding candidate offsets. The values are now decoded downstream and published to the Overview; acquisition still copies and records the complete 4,096-byte Graphics mapping.
+
+This is not official Kunos v1.9 ABI sign-off. The next validation is a synchronized in-game comparison for each of the four values, including independent TC/ABS adjustments and fuel/laps-remaining comparison. No undocumented correction, scaling or sentinel interpretation is applied.
