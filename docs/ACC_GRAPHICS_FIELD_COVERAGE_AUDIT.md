@@ -611,3 +611,13 @@ The lap-history, sector-best and track-outline limitations are intentional: the 
 3. Treat values that have not been directly compared as candidate live data, not verified HUD-equivalent measurements. Record mismatches by field and do not patch enum meanings or units by guesswork.
 
 No local frontend build, Python test run or live ACC test was performed as part of this remote GitHub update.
+
+
+## Weather display interpretation — 11 November 2026
+
+The Overview Weather tile now translates the ACC weather fields for readability:
+
+- Rain intensity values use the ACC enum: 0 No Rain, 1 Drizzle, 2 Light Rain, 3 Medium Rain, 4 Heavy Rain, 5 Thunderstorm. The three displayed values are labelled in order as now, +10 minutes and +30 minutes. For example, `1 / 1 / 2` is rendered as `Drizzle / Drizzle / Light Rain`.
+- `wind_speed` is displayed in **m/s**, the unit specified by the ACC shared-memory Graphics reference.
+- `wind_direction` is stored in radians. The UI converts radians to degrees, normalizes the bearing into the 0°–359.9° compass range (0° north, increasing clockwise), and displays a 16-point compass abbreviation plus bearing. For example, −0.438 rad is approximately **NNW (334.9°)**.
+- This is a presentation conversion only. Graphics acquisition, candidate offsets and raw recorded values are unchanged. The candidate v1.8.12-derived layout remains subject to the previously documented ABI qualification.
