@@ -124,7 +124,7 @@ def _read_wide(payload: memoryview, offset: int, code_units: int) -> str:
     raw = bytes(payload[offset:offset + code_units * 2])
     if len(raw) != code_units * 2:
         raise ValueError(f"ACC Graphics string at {offset:#x} exceeds page")
-    raw = raw[:next((i for i in range(0, len(raw), 2) if raw[i:i + 2] == b"\\x00\\x00"), len(raw))]
+    raw = raw[:next((i for i in range(0, len(raw), 2) if raw[i:i + 2] == b"\x00\x00"), len(raw))]
     return raw.decode("utf-16-le", errors="replace").strip()
 
 
