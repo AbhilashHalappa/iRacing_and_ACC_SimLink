@@ -224,6 +224,10 @@ button { cursor: pointer; }
 .glance-delta-primary { display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px 0 13px; }
 .glance-delta-primary span,.glance-delta-primary small,.glance-inline-stats span,.sector-strip span { color:var(--muted); font-size:14px; font-weight:750; letter-spacing:.65px; }
 .glance-delta-primary strong { font-size:47px; line-height:1.05; font-variant-numeric:tabular-nums; }
+.glance-delta-primary.delta-negative { border-radius:12px; box-shadow:0 0 0 1px rgba(34,197,94,.42),0 0 18px rgba(34,197,94,.32),inset 0 0 18px rgba(34,197,94,.10); background:linear-gradient(180deg,rgba(34,197,94,.10),transparent); }
+.glance-delta-primary.delta-negative strong { color:#4ade80; text-shadow:0 0 12px rgba(34,197,94,.55); }
+.glance-delta-primary.delta-positive { border-radius:12px; box-shadow:0 0 0 1px rgba(239,68,68,.42),0 0 18px rgba(239,68,68,.32),inset 0 0 18px rgba(239,68,68,.10); background:linear-gradient(180deg,rgba(239,68,68,.10),transparent); }
+.glance-delta-primary.delta-positive strong { color:#f87171; text-shadow:0 0 12px rgba(239,68,68,.55); }
 .glance-inline-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:10px 0; border-top:1px solid var(--outline); }
 .glance-inline-stats>div { display:flex; flex-direction:column; gap:6px; min-width:0; }
 .glance-inline-stats b { font-size:18px; font-variant-numeric:tabular-nums; }
