@@ -295,7 +295,7 @@ function App() {
     if(!graphics) return;
     const track=String(telemetry?.vehicle?.track??"unknown-track");
     const configuration=String(telemetry?.vehicle?.track_configuration??"");
-    const sessionKey=[track,configuration,graphics.session_index,graphics.session].join("|");
+    const sessionKey=[track,configuration,telemetry?.vehicle?.car_model??"unknown-car",graphics.session_index,graphics.session].join("|");
     const storageKey="acc-lap-history-v1:"+sessionKey;
     const completed=typeof graphics.completed_laps==="number"?graphics.completed_laps:null;
     const sector=typeof graphics.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
@@ -338,7 +338,7 @@ function App() {
       return;
     }
     if(completed!==null) tracker.completedLaps=completed;
-  },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration]);
+  },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration,telemetry?.vehicle?.car_model,telemetry?.graphics?.data?.session_index,telemetry?.graphics?.data?.session,telemetry?.graphics?.lap_status]);
 
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [active, setActive] = useState("Overview");
