@@ -75,20 +75,23 @@ class ACCDesktopWindow(QMainWindow):
     def _publish_snapshot(self) -> None:
         self._refresh_static_identity()
         consumer = self._runtime.physics_consumer.snapshot
+        graphics_consumer = self._runtime.graphics_consumer.snapshot
         physics = consumer.to_payload()
+        graphics = graphics_consumer.to_payload()
         timestamp = consumer.latest_capture_timestamp_ns
         connected = timestamp is not None and (time.perf_counter_ns() - timestamp) < 1_000_000_000
         snapshot = {
             "connected": connected,
-            "source": "ACC Shared Memory / Physics",
+            "source": "ACC Shared Memory / Physics + Graphics",
             "physics": physics,
+            "graphics": graphics,
             "vehicle": {"car_model": self._car_model},
             "acquisition": self._runtime.supervisor.status,
         }
         self._bridge.publish(snapshot)
         if connected:
             self.statusBar().showMessage(
-                f"ACC Physics LIVE · {consumer.processed_count:,} decoded · {consumer.decode_error_count} decode errors"
+                f"ACC LIVE · Physics {consumer.processed_count:,} decoded · Graphics {graphics_consumer.processed_count:,} decoded"
             )
         else:
             self.statusBar().showMessage("ACC Shared Memory · waiting for a valid Physics sample")
