@@ -211,7 +211,7 @@ function lapDeltaDisplay(delta:number|null):string {
   if(delta===null||!Number.isFinite(delta)) return "—";
   const sign=delta>0?"+":delta<0?"−":"";
   const absolute=Math.abs(Math.round(delta));
-  return sign+lapTimeDisplay(null,absolute);
+  return sign+lapTimeDisplay(null,absolute,true);
 }
 function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glow:GlowConfig; telemetry:any; targetPressures:TargetPressureConfig }) {
   const data=telemetry?.physics?.data ?? null;
