@@ -600,7 +600,7 @@ The lap-history, sector-best and track-outline limitations are intentional: the 
 
 - `flag`, `penalty`, rain-intensity values, tyre-set IDs, MFD display indices, and related enum-like integers remain raw numeric codes where mappings are not established. `track_grip_status` is now the exception: it is rendered using the documented ACC mapping (0 Green, 1 Fast, 2 Optimum, 3 Greasy, 4 Damp, 5 Wet, 6 Flooded). This mapping is supported by the ACC shared-memory enum references; the candidate 1.9 ABI/offset qualification remains separate.
 - The legacy quantified `surface_grip` member is not displayed. ACC v1.7.4 release notes state that the old `surfaceGrip` item became null/obsolete when staged track-grip and rain-status fields were added. Its observed zero must not be interpreted as a physical grip measurement.
-- `gap_ahead_ms` / `gap_behind_ms`, wind fields, surface grip, stint timers and MFD pressure requests are exposed without speculative sign, unit or sentinel normalization. UI labels distinguish MFD pressure requests from user-configured target PSI.
+- `gap_ahead_ms` / `gap_behind_ms` are decoded as millisecond integers and are now presented in seconds, preserving the ACC-provided sign. The sign convention (which side of the player is positive/negative) remains unqualified. Wind fields, surface grip, stint timers and MFD pressure requests remain exposed without speculative normalization. UI labels distinguish MFD pressure requests from user-configured target PSI.
 - Car IDs and coordinate triples are decoded for the reported active-car count (bounded to the candidate array capacity); player coordinates are associated only when the reported player ID matches a decoded car ID.
 - `replay_time_multiplier` remains reference-only/unused and is not emitted as application telemetry.
 
@@ -622,3 +622,13 @@ The Overview Weather tile now translates the ACC weather fields for readability:
 - `wind_direction` is treated as radians. The UI converts radians to degrees, normalizes the bearing into the 0°–359.9° compass range (0° north, increasing clockwise), and displays a 16-point compass abbreviation plus bearing. For example, −0.438 rad is approximately **NNW (334.9°)**. Confirm the bearing against the in-game wind indicator during a live test before treating the reference convention as fully validated.
 - Rain forecast values retain the ACC enum mapping internally but are displayed as compact weather icons: 0 ☀️, 1 🌦️, 2–4 🌧️, 5 ⛈️. The order remains **NOW / +10 MIN / +30 MIN**; the icon sequence for raw values `1 / 1 / 2` is **🌦️ / 🌦️ / 🌧️**.
 - This is a presentation conversion only. Graphics acquisition, candidate offsets and raw recorded values are unchanged. The candidate v1.8.12-derived layout remains subject to the previously documented ABI qualification.
+
+
+## Gap and penalty time presentation — 11 November 2026
+
+A live ACC comparison by the user confirmed that the Graphics penalty-time value `10000.0` corresponds to a **10-second** penalty shown in ACC. Despite the decoder property name `penalty_time_s`, this value is therefore treated as milliseconds for display.
+
+- Overview **Penalty Time** converts the decoded value from milliseconds to seconds and displays one decimal place: `10000.0` → `10.0 s`.
+- Overview **Gap Ahead** and **Gap Behind** convert their integer millisecond values to seconds with three decimal places: `39134` → `39.134 s`; `-56375` → `-56.375 s`.
+- Gap signs are preserved exactly as supplied by ACC. The meaning of the positive/negative sign convention remains unverified; the UI does not relabel the values as absolute distances or infer which sign means a car is ahead/behind.
+- These are presentation-only conversions. The Graphics decoder, raw acquisition and recorded values are unchanged.
