@@ -569,3 +569,44 @@ The target-PC captures establish that the four candidate locations contain dynam
 3. Estimated laps against the in-game laps-remaining figure, including after fuel changes/refuelling.
 
 No frontend build, Python test run or live ACC validation was performed as part of the remote source update. Keep the fields under runtime validation until those checks pass.
+
+
+## Expanded Graphics decoder and Overview coverage — 11 November 2026
+
+The four-field priority decoder has been expanded to read **86 of the 87 candidate structure members** from the complete 1,588-byte candidate page. The one intentionally omitted member is `replay_time_multiplier`, retained as a reference/layout field and not used by the previous application. The full 4,096-byte raw acquisition/recording path is unchanged.
+
+This expands the downstream decoder; it does **not** upgrade the candidate layout to official Kunos Shared Memory 1.9 ABI status. The decoder preserves raw integer enum values, does not invent enum labels for unresolved codes, does not apply undocumented scaling/sentinel corrections, maps non-finite floats to unavailable, and bounds the car-coordinate/ID arrays to 60 entries while preserving the reported active-car count.
+
+### Overview fields now populated from Graphics
+
+| Overview tile | Graphics values now consumed |
+|---|---|
+| Lap times | Current/last/best/split strings, completed laps, direct candidate lap-validity flag |
+| Session | Session type/status, session time remaining, lap count/limit, active cars, position, tyre compound, session index and clock |
+| Weather | Surface grip, track-grip code, rain intensity/current forecast fields and wind speed/direction; Physics continues to supply air/road temperatures |
+| Delta | Delta string/value, delta sign, estimated lap time and best lap |
+| Sector performance | Current sector, split and last-sector time |
+| Position & gaps | Position, active-car count, ahead/behind gap values |
+| Electronics | TC, ABS, TC cut and engine map; Physics remains the source for brake bias, auto-shifter and turbo |
+| Pit stop & stint | In-pit and pit-lane states, mandatory-pit status/count, stint total/remaining fields, used fuel, MFD fuel-to-add, tyre-set identifiers and four MFD pressure requests |
+| Race control | Raw flag/penalty codes, penalty time, track-status string, global flag booleans and missing mandatory pit count |
+| Car lights & status | Rain lights, flashing lights, lights stage, wiper level, left/right indicators, exhaust temperature and rain-tyre state |
+| Track map | Normalized track progress and player world-coordinate triple are exposed; an actual circuit outline still requires track-map geometry and is not fabricated |
+| Lap time history | Last/best lap strings are shown; a full list of completed laps and stored best-sector history still requires the session-history store |
+
+The lap-history, sector-best and track-outline limitations are intentional: the Graphics page does not itself provide a full historical lap table or circuit geometry. No placeholder values are presented as if they were live measurements.
+
+### Candidate fields decoded but deliberately presented conservatively
+
+- `flag`, `penalty`, `track_grip_status`, rain intensity values, tyre-set IDs, MFD display indices, and related enum-like integers remain raw numeric codes. Their numeric mappings are not asserted.
+- `gap_ahead_ms` / `gap_behind_ms`, wind fields, surface grip, stint timers and MFD pressure requests are exposed without speculative sign, unit or sentinel normalization. UI labels distinguish MFD pressure requests from user-configured target PSI.
+- Car IDs and coordinate triples are decoded for the reported active-car count (bounded to the candidate array capacity); player coordinates are associated only when the reported player ID matches a decoded car ID.
+- `replay_time_multiplier` remains reference-only/unused and is not emitted as application telemetry.
+
+### Validation required after pulling this change
+
+1. Run the focused Graphics decoder/consumer tests and the frontend production build.
+2. In ACC, compare session/lap strings, sector, lap validity, pit states, weather values, lights/wipers/indicators, TC cut/engine map, stint values, MFD requests, gaps and race-control flags against their in-game displays or controlled state transitions.
+3. Treat values that have not been directly compared as candidate live data, not verified HUD-equivalent measurements. Record mismatches by field and do not patch enum meanings or units by guesswork.
+
+No local frontend build, Python test run or live ACC test was performed as part of this remote GitHub update.
