@@ -335,3 +335,13 @@ A change to Overview is not complete merely because it compiles.
 - The Qt host now creates a named `QWebEngineProfile` with explicit persistent storage and cache directories under the application's Windows AppLocalDataLocation, and attaches an explicit `QWebEnginePage` to the view.
 - `QApplication` organization and application names are set to `RaceEngineerACC` before creating the window, keeping the profile directory stable between launches.
 - The Overview layout remains saved only when the user clicks **Save** in Edit dashboard mode. This change makes that localStorage value disk-backed across app restarts.
+
+
+### Expanded ACC Graphics coverage — 11 November 2026
+
+- Expanded the downstream Graphics decoder from the four priority fields to 86 of the 87 members in the 1,588-byte candidate layout. The unused replay multiplier remains reference-only.
+- Overview now consumes Graphics session/lap timing and validity, weather/track conditions, delta/estimated lap, current sector/split, position/gaps, TC cut/engine map, pit/stint/MFD request fields, race-control flags, and car lights/wiper/indicator/exhaust fields.
+- Candidate enum values and uncertain units/sentinels are kept raw; no speculative enum labels or corrections are introduced.
+- Map progress/player coordinates are exposed, but a real circuit outline still requires track geometry. Full lap history and best-sector history still require the session-history store.
+- The complete 4,096-byte raw Graphics acquisition and recorder are unchanged. This remains a v1.8.12-derived candidate layout cross-checked against independent implementations, not official Kunos Shared Memory 1.9 ABI certification.
+- Local frontend build, focused Python tests and live ACC validation are pending. See the expanded field mapping and validation checklist in docs/ACC_GRAPHICS_FIELD_COVERAGE_AUDIT.md.
