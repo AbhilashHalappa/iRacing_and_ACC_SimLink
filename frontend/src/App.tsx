@@ -98,10 +98,8 @@ function band(value:number, thresholds:number[], prefix:string) { return prefix+
 function onOff(value: unknown) { return typeof value === "boolean" ? (value ? "ON" : "OFF") : "—"; }
 function statusTone(value:string) {
   const v=value.trim().toLowerCase();
-  if (["on","true","1","enabled","active"].includes(v)) return "light-on";
-  if (["off","false","0","disabled","inactive"].includes(v)) return "light-off";
-  const numeric=Number(v);
-  if (v!=="" && Number.isFinite(numeric)) return numeric>0?"light-on":"light-off";
+  if (["on","true","enabled","active"].includes(v)) return "light-on";
+  if (["off","false","disabled","inactive"].includes(v)) return "light-off";
   return "light-unknown";
 }
 function flagTone(value:string) {
