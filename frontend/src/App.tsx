@@ -313,14 +313,13 @@ function App() {
     }
     const liveSectorMs=cumulativeSplitMs(graphics.split_time_str);
     const completingLap=completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps;
+    let completedS3Ms:number|null=null;
     // ACC resets the live split at a sector boundary. Commit the previously
     // cached value before accepting the new sector's live value.
     if(sector!==null&&tracker.sector!==null&&sector!==tracker.sector){
       if(tracker.sector===0&&sector===1&&tracker.liveSectorMs!==null) tracker.s1Ms=tracker.liveSectorMs;
       if(tracker.sector===1&&sector===2&&tracker.liveSectorMs!==null) tracker.s2Ms=tracker.liveSectorMs;
-      if(tracker.sector===2&&sector===0&&tracker.liveSectorMs!==null) {
-        // The final sector is captured directly below when the lap completes.
-      }
+      if(tracker.sector===2&&sector===0&&tracker.liveSectorMs!==null) completedS3Ms=tracker.liveSectorMs;
       tracker.sector=sector;
     } else if(tracker.sector===null) tracker.sector=sector;
     if(graphics.is_valid_lap===false) tracker.validity=false;
@@ -331,7 +330,7 @@ function App() {
       if(lapTime!==null&&!outLap){
         const s1=tracker.s1Ms;
         const s2=tracker.s2Ms;
-        const s3=tracker.sector===2?tracker.liveSectorMs:null;
+        const s3=completedS3Ms??(tracker.sector===2?tracker.liveSectorMs:null);
         const validSectors=s1!==null&&s2!==null&&s3!==null&&s1>0&&s2>0&&s3>0&&Math.abs((s1+s2+s3)-lapTime)<=2000;
         const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,s1Ms:validSectors?s1:null,s2Ms:validSectors?s2:null,s3Ms:validSectors?s3:null};
         const next=[...readLapHistory(storageKey),entry].slice(-LAP_HISTORY_LIMIT);
