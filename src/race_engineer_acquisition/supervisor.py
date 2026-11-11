@@ -1,9 +1,8 @@
-"""Supervise the independent ACC Physics, Graphics and Static readers.
+"""Supervise independent ACC Physics, Graphics and Static readers.
 
-The supervisor owns worker threads, stop events and source closure. Physics
-acquisition remains raw-only; a separate supervised downstream worker drains
-its ring and decodes samples. Graphics and Static remain independent/raw-only.
-A worker failure is isolated to that stream and remains visible in status.
+Each high-frequency shared-memory stream has its own acquisition ring and
+downstream decoder consumer. Acquisition workers only copy raw pages; decoding
+never runs on the acquisition hot path.
 """
 from __future__ import annotations
 
@@ -291,6 +290,7 @@ class ACCAcquisitionRuntime:
     buffers: dict[str, object]
     acquirers: dict[str, object]
     physics_consumer: object
+    graphics_consumer: object
 
 
 def create_acc_acquisition_runtime(
@@ -307,7 +307,8 @@ def create_acc_acquisition_runtime(
 
     Shared-memory handles are opened lazily by each worker. The returned
     buffers are separate SPSC queues. A dedicated Physics decoder consumer is
-    attached downstream; Graphics and Static remain unconsumed raw streams.
+    attached downstream. Graphics has an independent decoder consumer; Static
+    remains an independently acquired raw stream.
     """
     if min(physics_poll_hz, graphics_poll_hz, static_refresh_seconds) <= 0:
         raise ValueError("poll rates and Static refresh interval must be positive")
@@ -317,6 +318,7 @@ def create_acc_acquisition_runtime(
     from .graphics import GraphicsAcquirer, WindowsACCGraphicsSource
     from .ring_buffer import AcquisitionRingBuffer
     from .physics_consumer import PhysicsDecodeConsumer
+    from .graphics_consumer import GraphicsDecodeConsumer
     from .static import StaticAcquirer, WindowsACCStaticSource
     from .timing_windows import WindowsTimerResolution
 
@@ -335,7 +337,9 @@ def create_acc_acquisition_runtime(
         "static": StaticAcquirer(static_source, buffers["static"]),
     }
     physics_consumer = PhysicsDecodeConsumer(buffers["physics"])
+    graphics_consumer = GraphicsDecodeConsumer(buffers["graphics"])
     physics_producer_done = Event()
+    graphics_producer_done = Event()
 
     def reconnecting_worker(stop_event: Event, run_once, close_source) -> None:
         # ACC may not be running when the dashboard starts. Retry after
@@ -365,6 +369,19 @@ def create_acc_acquisition_runtime(
             # The decoder drains the final acquired page before it exits.
             physics_producer_done.set()
 
+    def run_graphics(stop_event: Event) -> None:
+        try:
+            reconnecting_worker(
+                stop_event,
+                lambda stop: acquirers["graphics"].run(
+                    stop, poll_interval_ns=max(1, round(1_000_000_000 / graphics_poll_hz))
+                ),
+                graphics_source.close,
+            )
+        finally:
+            # Keep the full-page recorder-independent ring drain orderly.
+            graphics_producer_done.set()
+
     streams = (
         AcquisitionStream(
             "physics",
@@ -374,13 +391,7 @@ def create_acc_acquisition_runtime(
         ),
         AcquisitionStream(
             "graphics",
-            lambda stop: reconnecting_worker(
-                stop,
-                lambda event: acquirers["graphics"].run(
-                    event, poll_interval_ns=max(1, round(1_000_000_000 / graphics_poll_hz))
-                ),
-                graphics_source.close,
-            ),
+            run_graphics,
             graphics_source.close,
             acquirers["graphics"].health,
         ),
@@ -401,9 +412,14 @@ def create_acc_acquisition_runtime(
             lambda stop: physics_consumer.run(stop, physics_producer_done),
             lambda: None,
         ),
+        AcquisitionStream(
+            "graphics-decode",
+            lambda stop: graphics_consumer.run(stop, graphics_producer_done),
+            lambda: None,
+        ),
     )
     return ACCAcquisitionRuntime(
         AcquisitionSupervisor(
             streams, timer_resolution=WindowsTimerResolution(timer_resolution_ms)
-        ), buffers, acquirers, physics_consumer
+        ), buffers, acquirers, physics_consumer, graphics_consumer
     )
