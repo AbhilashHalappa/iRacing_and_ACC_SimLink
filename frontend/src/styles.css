@@ -347,3 +347,8 @@ button { cursor: pointer; }
 .fuel-gradient-track i { background:linear-gradient(90deg,#e52332 0%,#f07824 35%,#e8d52a 68%,#18b85d 100%); box-shadow:inset -2px 0 0 rgba(255,255,255,.65); }
 .fuel-bar-caption { display:flex; justify-content:space-between; margin:-9px 0 13px; color:var(--muted); font-size:8px; font-weight:700; letter-spacing:.5px; }
 .glance-fuel .glance-inline-stats b { font-size:11px; }
+
+
+/* Keep the fuel gradient anchored to the full track while the filled width shrinks. */
+.fuel-gradient-track { container-type:inline-size; }
+.fuel-gradient-track i { background-size:100cqw 100%; background-repeat:no-repeat; }
