@@ -87,6 +87,9 @@ button { cursor: pointer; }
 .lap-metrics span,.weather-grid span,.session-info span,.corner-grid span { color:var(--muted); font-size:14px; font-weight:700; letter-spacing:.7px; }
 .lap-metrics b { font-size:22px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .lap-metrics small { color:var(--muted); font-size:14px; }
+.lap-limit-strip { grid-column:1/-1; display:flex; flex-direction:row!important; align-items:center; justify-content:space-between; gap:12px!important; margin-top:5px; padding-top:11px; border-top:1px solid var(--outline); }
+.lap-limit-strip span { font-size:12px!important; letter-spacing:.6px; }
+.lap-limit-strip b { font-size:17px!important; font-variant-numeric:tabular-nums; }
 .history-table { padding-top:10px; }
 .history-head { display:grid; grid-template-columns:.5fr 1.2fr 1fr 1fr 1fr 1fr; gap:8px; padding:9px 4px; border-bottom:1px solid var(--outline); color:var(--muted); font-size:14px; font-weight:700; letter-spacing:.7px; }
 .history-empty { display:grid; place-items:center; min-height:65px; color:var(--muted); font-size:16px; }
