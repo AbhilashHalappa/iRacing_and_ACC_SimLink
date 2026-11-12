@@ -1,7 +1,8 @@
 /** Display helpers for ACC Graphics time fields. */
 export function sessionTimeDisplay(value) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "—";
-  const totalSeconds = Math.floor(value);
+  // ACC Graphics exposes session_time_left_s in milliseconds despite the field suffix.
+  const totalSeconds = Math.floor(value / 1000);
   return `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
 
