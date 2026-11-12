@@ -100,7 +100,7 @@ test("track map is committed only after ACC confirms a completed valid lap", () 
   let state = capturedState;
   const result = advanceTrackMapCapture(state, {
     progress: 0.01,
-    point: { x: 1, z: 0 },
+    point: { x: Math.cos(0.01 * Math.PI * 2) * 100, z: Math.sin(0.01 * Math.PI * 2) * 100 },
     completedLaps: 1,
     isValidLap: true,
     lastTimeMs: 91234,
@@ -150,7 +150,7 @@ test("map candidate waits for ACC completed-lap confirmation", () => {
   assert.equal(crossing.committedPoints, null);
   const confirmed = advanceTrackMapCapture(crossing.state, {
     progress: 0.025,
-    point: { x: 2, z: 1 },
+    point: { x: Math.cos(0.025 * Math.PI * 2) * 100, z: Math.sin(0.025 * Math.PI * 2) * 100 },
     completedLaps: 1,
     isValidLap: true,
     lastTimeMs: 91234,
