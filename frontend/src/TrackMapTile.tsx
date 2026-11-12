@@ -93,7 +93,7 @@ export default function TrackMapTile({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [Boolean(layout)]);
 
   useEffect(() => {
     setLayout(readTrackLayout(identity));
