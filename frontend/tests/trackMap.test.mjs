@@ -128,7 +128,7 @@ test("out-laps cannot produce a cached track layout", () => {
   const { state } = captureOneLap({ outLapAt: 0.4 });
   const result = advanceTrackMapCapture(state, {
     progress: 0.01,
-    point: { x: 1, z: 0 },
+    point: { x: Math.cos(0.01 * Math.PI * 2) * 100, z: Math.sin(0.01 * Math.PI * 2) * 100 },
     completedLaps: 1,
     isValidLap: true,
     lastTimeMs: 91234,
@@ -141,7 +141,7 @@ test("map candidate waits for ACC completed-lap confirmation", () => {
   const { state } = captureOneLap();
   const crossing = advanceTrackMapCapture(state, {
     progress: 0.01,
-    point: { x: 1, z: 0 },
+    point: { x: Math.cos(0.01 * Math.PI * 2) * 100, z: Math.sin(0.01 * Math.PI * 2) * 100 },
     completedLaps: 0,
     isValidLap: true,
     lastTimeMs: null,
