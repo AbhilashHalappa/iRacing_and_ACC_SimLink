@@ -11,6 +11,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
+from ..race_engineer_acquisition.out_lap import ACCOutLapObserver
 from ..race_engineer_acquisition.static_decoder import decode_static_candidate_b
 
 
@@ -27,6 +28,7 @@ class ACCDesktopWindow(QMainWindow):
         self._car_model: str | None = None
         self._track: str | None = None
         self._track_configuration: str | None = None
+        self._out_lap_observer = ACCOutLapObserver()
         self._runtime.supervisor.start()
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
 
@@ -83,6 +85,25 @@ class ACCDesktopWindow(QMainWindow):
         graphics_consumer = self._runtime.graphics_consumer.snapshot
         physics = consumer.to_payload()
         graphics = graphics_consumer.to_payload()
+        graphics_latest = graphics_consumer.latest
+        physics_latest = consumer.latest
+        if graphics_latest is not None and physics_latest is not None:
+            session_key = (
+                self._track,
+                self._track_configuration,
+                self._car_model,
+                graphics_latest.session_index,
+                graphics_latest.session,
+            )
+            graphics["lap_status"] = (
+                "out"
+                if self._out_lap_observer.observe(
+                    graphics_latest, physics_latest.speed_kph, session_key
+                )
+                else None
+            )
+        else:
+            graphics["lap_status"] = None
         timestamp = consumer.latest_capture_timestamp_ns
         connected = timestamp is not None and (time.perf_counter_ns() - timestamp) < 1_000_000_000
         snapshot = {
