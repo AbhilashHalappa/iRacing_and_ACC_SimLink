@@ -337,7 +337,7 @@ function App() {
     if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTracePosition.current=null;previousTraceSample.current="";setDriverTrace([]);}
     const x=g.normalized_car_position, prev=previousTracePosition.current;
     if(prev!==null&&prev>0.85&&x<0.15){setDriverTrace([]);previousTraceSample.current="";}
-    const point:DriverTracePoint={x,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear==="number"?p.gear:typeof p.gear_display==="number"?p.gear_display:null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
+    const point:DriverTracePoint={x,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
     const signature=[x,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
     if(signature!==previousTraceSample.current&&(prev===null||Math.abs(x-prev)>=0.001||Math.abs(x-prev)>0.5)){
       previousTraceSample.current=signature;setDriverTrace(old=>[...old,point].slice(-1800));
