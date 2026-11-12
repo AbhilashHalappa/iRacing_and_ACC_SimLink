@@ -64,14 +64,28 @@ def test_stream_thresholds_are_explicit_and_static_allows_slow_refresh():
 
 
 def test_stream_recovers_to_fresh_when_new_sample_arrives():
-    result = build_stream_freshness(
-        now_ns=10_000_000_000,
+    now = 10_000_000_000
+    lifecycle = {"physics": "running", "graphics": "running", "static": "running"}
+    stale = build_stream_freshness(
+        now_ns=now,
+        timestamps_ns={
+            "physics": 9_900_000_000,
+            "graphics": 7_900_000_000,
+            "static": 9_900_000_000,
+        },
+        lifecycle_states=lifecycle,
+    )
+    assert stale["graphics"]["state"] == "stale"
+    assert stale["physics"]["state"] == "fresh"
+
+    recovered = build_stream_freshness(
+        now_ns=now,
         timestamps_ns={
             "physics": 9_900_000_000,
             "graphics": 9_900_000_000,
             "static": 9_900_000_000,
         },
-        lifecycle_states={"physics": "running", "graphics": "running", "static": "running"},
+        lifecycle_states=lifecycle,
     )
-
-    assert all(stream["state"] == "fresh" for stream in result.values())
+    assert recovered["graphics"]["state"] == "fresh"
+    assert recovered["physics"]["state"] == "fresh"
