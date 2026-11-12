@@ -438,3 +438,61 @@ button { cursor: pointer; }
 @media (max-width: 760px) {
   .stream-health-group { justify-content: flex-start; }
 }
+
+
+/* Live ACC track map learned from the player's world-coordinate path. */
+.track-map-tile { display:flex; flex-direction:column; gap:9px; min-width:0; }
+.track-map-identity { display:flex; align-items:baseline; justify-content:space-between; gap:10px; min-width:0; }
+.track-map-identity strong { overflow:hidden; color:var(--on-surface); font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
+.track-map-identity span { flex:none; color:var(--muted); font-size:11px; }
+.track-map-svg {
+  display:block;
+  width:100%;
+  height:auto;
+  min-height:130px;
+  max-height:190px;
+  overflow:visible;
+  border:1px solid var(--outline);
+  border-radius:10px;
+  background:radial-gradient(ellipse at center, color-mix(in srgb,var(--primary) 5%,var(--surface)), var(--surface));
+}
+.track-map-outline {
+  fill:none;
+  stroke:var(--primary);
+  stroke-width:4.5;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  opacity:.9;
+  vector-effect:non-scaling-stroke;
+}
+.track-map-car circle:first-child {
+  fill:var(--secondary);
+  stroke:var(--surface);
+  stroke-width:2.5;
+  filter:drop-shadow(0 0 5px color-mix(in srgb,var(--secondary) 75%,transparent));
+}
+.track-map-car circle:last-child { fill:var(--surface); }
+.track-map-empty {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:145px;
+  padding:15px;
+  border:1px dashed var(--outline);
+  border-radius:10px;
+  background:var(--surface-high);
+  text-align:center;
+}
+.track-map-empty-mark { color:var(--primary); font-size:36px; line-height:1; }
+.track-map-empty strong { color:var(--on-surface); font-size:13px; }
+.track-map-empty small { max-width:330px; color:var(--muted); font-size:11px; line-height:1.5; }
+.track-map-footer { display:flex; align-items:center; gap:7px; min-width:0; color:var(--muted); font-size:10px; letter-spacing:.045em; }
+.track-map-footer b { overflow:hidden; color:var(--on-surface); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.track-map-live-dot { width:7px; height:7px; flex:none; border-radius:50%; background:var(--muted); }
+.track-map-live-dot.is-live { background:#35c979; box-shadow:0 0 7px rgba(53,201,121,.55); }
+.track-map-progress { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+@media(prefers-reduced-motion:no-preference) {
+  .track-map-car { transition:transform .08s linear; }
+}
