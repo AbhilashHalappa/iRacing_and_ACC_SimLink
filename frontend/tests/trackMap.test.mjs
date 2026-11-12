@@ -25,6 +25,24 @@ test("track projection preserves aspect ratio and fits the SVG viewport", () => 
   assert.equal(projected.bounds.scale, Math.min(344 / 50, 264 / 100));
 });
 
+test("track projection recalculates for the resized tile viewport", () => {
+  const points = Array.from({ length: 120 }, (_, index) => {
+    const angle = index / 119 * Math.PI * 2;
+    return { progress: index / 119, x: Math.cos(angle) * 110, z: Math.sin(angle) * 45 };
+  });
+  const compact = projectTrackMap(points, 360, 280, 12);
+  const expanded = projectTrackMap(points, 720, 520, 12);
+  assert.ok(compact && expanded);
+  assert.equal(expanded.bounds.width, 720);
+  assert.equal(expanded.bounds.height, 520);
+  assert.ok(expanded.bounds.scale > compact.bounds.scale);
+  const coords = expanded.points.split(" ").map((pair) => pair.split(",").map(Number));
+  for (const [x, y] of coords) {
+    assert.ok(x >= 12 && x <= 708);
+    assert.ok(y >= 12 && y <= 508);
+  }
+});
+
 test("live world position uses the same transform as the stored circuit", () => {
   const projected = projectTrackMap([
     { progress: 0, x: -50, z: -25 },
