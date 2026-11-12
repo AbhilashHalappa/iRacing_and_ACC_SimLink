@@ -28,6 +28,7 @@ type TrackMapTileProps = {
 
 const CACHE_PREFIX = "acc-track-map-v2:";
 const MIN_LAYOUT_POINTS = 80;
+const DEFAULT_CANVAS_SIZE = { width: 360, height: 280 };
 
 function readTrackLayout(key: string | null): TrackLayout | null {
   if (!key) return null;
@@ -72,7 +73,27 @@ export default function TrackMapTile({
   ].join("|");
 
   const [layout, setLayout] = useState<TrackLayout | null>(() => readTrackLayout(identity));
+  const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS_SIZE);
   const capture = useRef(createTrackMapCaptureState(identity, sessionKey));
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const element = canvasRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect || rect.width < 1 || rect.height < 1) return;
+      const next = {
+        width: Math.max(1, Math.round(rect.width)),
+        height: Math.max(1, Math.round(rect.height)),
+      };
+      setCanvasSize((current) =>
+        current.width === next.width && current.height === next.height ? current : next
+      );
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setLayout(readTrackLayout(identity));
@@ -127,8 +148,10 @@ export default function TrackMapTile({
   ]);
 
   const projected = useMemo(
-    () => layout?.key === identity ? projectTrackMap(layout.points) : null,
-    [layout, identity],
+    () => layout?.key === identity
+      ? projectTrackMap(layout.points, canvasSize.width, canvasSize.height, 12)
+      : null,
+    [layout, identity, canvasSize],
   );
   const currentPosition = worldPoint(world);
   const marker = projected && currentPosition
@@ -148,8 +171,14 @@ export default function TrackMapTile({
         </span>}
       </div>
       {projected ? (
-        <div className="track-map-canvas">
-          <svg className="track-map-svg" viewBox="0 0 360 280" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
+        <div className="track-map-canvas" ref={canvasRef}>
+          <svg
+            className="track-map-svg"
+            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label={`ACC learned circuit for ${trackName}`}
+          >
             <polyline className="track-map-outline" points={`${projected.points} ${projected.points.split(" ")[0]}`}/>
             {marker && <g className="track-map-car" aria-label="Live car position">
               <circle cx={marker.x} cy={marker.y} r="6.5"/>
