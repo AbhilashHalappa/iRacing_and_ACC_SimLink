@@ -77,7 +77,7 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
       completedLaps === candidate.startCompletedLaps + 1 &&
       lastTimeMs !== null
     ) {
-      if (!outLapNow && validCandidate(candidate, state.key, minPoints)) {
+      if (validCandidate(candidate, state.key, minPoints)) {
         committedPoints = candidate.points;
       }
       state.pendingCandidate = null;
@@ -103,7 +103,7 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
         key: state.key,
         points: state.points,
         validity: state.validity,
-        outLap: state.outLap || outLapNow,
+        outLap: state.outLap,
         startCompletedLaps: state.startCompletedLaps,
       };
       // ACC can update the lap counter and last time on this same sample.
