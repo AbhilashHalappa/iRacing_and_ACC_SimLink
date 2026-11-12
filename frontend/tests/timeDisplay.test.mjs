@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { penaltyTimeDisplay, sessionTimeDisplay } from "../src/timeDisplay.mjs";
 
-test("session countdown is interpreted directly as seconds", () => {
-  assert.equal(sessionTimeDisplay(1200), "20:00");
-  assert.equal(sessionTimeDisplay(65.9), "01:05");
+test("session countdown converts ACC milliseconds to mm:ss", () => {
+  assert.equal(sessionTimeDisplay(1200000), "20:00");
+  assert.equal(sessionTimeDisplay(65900), "01:05");
+  assert.equal(sessionTimeDisplay(892512), "14:52");
   assert.equal(sessionTimeDisplay(0), "00:00");
 });
 
