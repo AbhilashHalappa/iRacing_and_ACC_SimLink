@@ -39,7 +39,7 @@ test("live world position uses the same transform as the stored circuit", () => 
 
 test("cached layouts must match the exact track/configuration identity", () => {
   const layout = {
-    version: 1,
+    version: 2,
     key: "spa--gp",
     track: "spa",
     configuration: "gp",
@@ -50,6 +50,7 @@ test("cached layouts must match the exact track/configuration identity", () => {
     })),
   };
   assert.equal(isTrackLayout(layout, "spa--gp"), true);
+  assert.equal(isTrackLayout({ ...layout, version: 1 }, "spa--gp"), false);
   assert.equal(isTrackLayout(layout, "spa--endurance"), false);
   assert.equal(isTrackLayout({ ...layout, points: layout.points.slice(0, 10) }, "spa--gp"), false);
 });
