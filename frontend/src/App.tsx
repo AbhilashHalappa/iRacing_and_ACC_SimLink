@@ -191,14 +191,6 @@ function correctedBrakeBiasPercent(data: any, carModel: unknown): number | null 
 }
 type LapHistoryEntry = { lap:number; timeMs:number; valid:boolean|null; s1Ms:number|null; s2Ms:number|null; s3Ms:number|null };
 const LAP_HISTORY_LIMIT = 10;
-function cumulativeSplitMs(value:unknown):number|null {
-  if(typeof value!=="string") return null;
-  const match=value.trim().match(/^(\d{1,4}):(\d{2}):(\d{3})$/);
-  if(!match) return null;
-  const minutes=Number(match[1]), seconds=Number(match[2]), millis=Number(match[3]);
-  if(seconds>=60) return null;
-  return minutes*60000+seconds*1000+millis;
-}
 function readLapHistory(key:string):LapHistoryEntry[] {
   try {
     const raw=JSON.parse(window.localStorage.getItem(key)||"[]");
@@ -289,7 +281,7 @@ function App() {
   useEffect(()=>{const events=new EventSource("/events");events.onmessage=event=>{try{setTelemetry(JSON.parse(event.data));}catch{/* Ignore malformed bridge frames. */}};events.onerror=()=>setTelemetry((current:any)=>current?{...current,connected:false}:current);return ()=>events.close();},[]);
   const connected=Boolean(telemetry?.connected);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
-  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;s1Ms:number|null;s2Ms:number|null;liveSectorMs:number|null;validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,s1Ms:null,s2Ms:null,liveSectorMs:null,validity:null});
+  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;sector1BoundaryMs:number|null;sector2BoundaryMs:number|null;validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:null});
   useEffect(()=>{
     const graphics=telemetry?.graphics?.data;
     if(!graphics) return;
@@ -301,7 +293,7 @@ function App() {
     const sector=typeof graphics.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
     const tracker=lapCapture.current;
     if(tracker.sessionKey!==sessionKey){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null,liveSectorMs:cumulativeSplitMs(graphics.split_time_str),validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
+      lapCapture.current={sessionKey,completedLaps:completed,sector,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       const savedHistory=readLapHistory(storageKey);
       // ACC can reuse track/car/session-type identity across separate sessions.
       // On app startup, a stored lap number ahead of ACC's current completed
@@ -316,20 +308,18 @@ function App() {
       return;
     }
     if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null,liveSectorMs:cumulativeSplitMs(graphics.split_time_str),validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
+      lapCapture.current={sessionKey,completedLaps:completed,sector,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       try{window.localStorage.removeItem(storageKey);}catch{}
       setLapHistory([]);
       return;
     }
-    const liveSectorMs=cumulativeSplitMs(graphics.split_time_str);
     const completingLap=completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps;
-    let completedS3Ms:number|null=null;
-    // ACC resets the live split at a sector boundary. Commit the previously
-    // cached value before accepting the new sector's live value.
+    // ACC exposes last_sector_time_ms as cumulative elapsed time at the
+    // completed sector boundary, not as the duration of that sector.
+    const lastSectorBoundaryMs=typeof graphics.last_sector_time_ms==="number"&&Number.isInteger(graphics.last_sector_time_ms)&&graphics.last_sector_time_ms>0?graphics.last_sector_time_ms:null;
     if(sector!==null&&tracker.sector!==null&&sector!==tracker.sector){
-      if(tracker.sector===0&&sector===1&&tracker.liveSectorMs!==null) tracker.s1Ms=tracker.liveSectorMs;
-      if(tracker.sector===1&&sector===2&&tracker.liveSectorMs!==null) tracker.s2Ms=tracker.liveSectorMs;
-      if(tracker.sector===2&&sector===0&&tracker.liveSectorMs!==null) completedS3Ms=tracker.liveSectorMs;
+      if(tracker.sector===0&&sector===1) tracker.sector1BoundaryMs=lastSectorBoundaryMs;
+      if(tracker.sector===1&&sector===2) tracker.sector2BoundaryMs=lastSectorBoundaryMs;
       tracker.sector=sector;
     } else if(tracker.sector===null) tracker.sector=sector;
     if(graphics.is_valid_lap===false) tracker.validity=false;
@@ -338,25 +328,24 @@ function App() {
       const lapTime=typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
       const outLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
       if(lapTime!==null&&!outLap){
-        const s1=tracker.s1Ms;
-        const s2=tracker.s2Ms;
-        const s3=completedS3Ms??(tracker.sector===2?tracker.liveSectorMs:null);
-        const validSectors=s1!==null&&s2!==null&&s3!==null&&s1>0&&s2>0&&s3>0&&Math.abs((s1+s2+s3)-lapTime)<=2000;
-        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,s1Ms:validSectors?s1:null,s2Ms:validSectors?s2:null,s3Ms:validSectors?s3:null};
+        const t1=tracker.sector1BoundaryMs;
+        const t2=tracker.sector2BoundaryMs;
+        const validBoundaries=t1!==null&&t2!==null&&t1>0&&t2>t1&&lapTime>t2;
+        const s1=validBoundaries?t1:null;
+        const s2=validBoundaries?t2-t1:null;
+        const s3=validBoundaries?lapTime-t2:null;
+        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,s1Ms:s1,s2Ms:s2,s3Ms:s3};
         const next=[...readLapHistory(storageKey),entry].slice(-LAP_HISTORY_LIMIT);
         setLapHistory(next);
         try{window.localStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Keep the in-memory history if browser storage is unavailable. */}
       }
       tracker.completedLaps=completed;
-      tracker.s1Ms=null;
-      tracker.s2Ms=null;
-      tracker.liveSectorMs=liveSectorMs;
+      tracker.sector1BoundaryMs=null;
+      tracker.sector2BoundaryMs=null;
       tracker.validity=null;
       tracker.sector=sector;
       return;
     }
-    // Keep the current sector's live time fresh on every telemetry update.
-    if(liveSectorMs!==null) tracker.liveSectorMs=liveSectorMs;
     if(completed!==null) tracker.completedLaps=completed;
   },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration,telemetry?.vehicle?.car_model,telemetry?.graphics?.data?.session_index,telemetry?.graphics?.data?.session,telemetry?.graphics?.lap_status]);
 
