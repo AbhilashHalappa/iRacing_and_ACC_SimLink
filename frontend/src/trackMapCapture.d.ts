@@ -4,6 +4,7 @@ export type TrackMapCaptureState = {
   key: string | null;
   sessionKey: string;
   previousProgress: number | null;
+  previousWorldPoint: { x: number; z: number } | null;
   capturing: boolean;
   points: TrackMapPoint[];
   validity: boolean | null;
