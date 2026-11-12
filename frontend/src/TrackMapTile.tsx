@@ -6,6 +6,10 @@ import {
   projectWorldPoint,
   type TrackMapPoint,
 } from "./trackMap.js";
+import {
+  advanceTrackMapCapture,
+  createTrackMapCaptureState,
+} from "./trackMapCapture.js";
 
 type TrackLayout = {
   version: 1;
@@ -15,22 +19,15 @@ type TrackLayout = {
   points: TrackMapPoint[];
 };
 
-type CaptureState = {
-  key: string | null;
-  previousProgress: number | null;
-  capturing: boolean;
-  points: TrackMapPoint[];
-};
-
 type TrackMapTileProps = {
   track: string | null | undefined;
   configuration: string | null | undefined;
   graphics: any;
+  lapStatus?: string | null;
 };
 
 const CACHE_PREFIX = "acc-track-map-v1:";
 const MIN_LAYOUT_POINTS = 80;
-const MIN_SAMPLE_PROGRESS_STEP = 0.001;
 
 function readTrackLayout(key: string | null): TrackLayout | null {
   if (!key) return null;
@@ -54,96 +51,83 @@ function worldPoint(value: unknown): { x: number; z: number } | null {
     : null;
 }
 
-export default function TrackMapTile({ track, configuration, graphics }: TrackMapTileProps) {
+export default function TrackMapTile({
+  track,
+  configuration,
+  graphics,
+  lapStatus,
+}: TrackMapTileProps) {
   const trackName = typeof track === "string" ? track.trim() : "";
   const configurationName = typeof configuration === "string" ? configuration.trim() : "";
   const identity = createTrackIdentity(trackName, configurationName);
   const progress = graphics?.normalized_car_position;
   const world = graphics?.player_world_position;
+  const completedLaps = graphics?.completed_laps;
+  const isValidLap = graphics?.is_valid_lap;
+  const lastTimeMs = graphics?.last_time_ms;
+  const sessionKey = [
+    identity ?? "",
+    graphics?.session_index ?? "",
+    graphics?.session ?? "",
+  ].join("|");
+
   const [layout, setLayout] = useState<TrackLayout | null>(() => readTrackLayout(identity));
-  const [captureProgress, setCaptureProgress] = useState<number | null>(null);
-  const capture = useRef<CaptureState>({
-    key: identity,
-    previousProgress: null,
-    capturing: false,
-    points: [],
-  });
+  const captureProgress = useRef<number | null>(null);
+  const capture = useRef(createTrackMapCaptureState(identity, sessionKey));
 
   useEffect(() => {
     setLayout(readTrackLayout(identity));
-    setCaptureProgress(null);
-    capture.current = {
-      key: identity,
-      previousProgress: null,
-      capturing: false,
-      points: [],
-    };
-  }, [identity]);
+    captureProgress.current = null;
+    capture.current = createTrackMapCaptureState(identity, sessionKey);
+  }, [identity, sessionKey]);
 
   useEffect(() => {
-    if (!identity || layout?.key === identity || capture.current.key !== identity) return;
+    if (!identity || capture.current.key !== identity || capture.current.sessionKey !== sessionKey) return;
     if (typeof progress !== "number" || !Number.isFinite(progress) || progress < 0 || progress > 1) return;
     const position = worldPoint(world);
     if (!position) return;
 
-    const point: TrackMapPoint = { progress, x: position.x, z: position.z };
-    const state = capture.current;
-    const previousProgress = state.previousProgress;
-    const crossedStartFinish = previousProgress !== null &&
-      previousProgress > 0.9 && progress < 0.1;
+    const result = advanceTrackMapCapture(capture.current, {
+      progress,
+      point: position,
+      completedLaps: typeof completedLaps === "number" ? completedLaps : null,
+      isValidLap: typeof isValidLap === "boolean" ? isValidLap : null,
+      lastTimeMs: typeof lastTimeMs === "number" ? lastTimeMs : null,
+      lapStatus: typeof lapStatus === "string" ? lapStatus : null,
+    }, { minPoints: MIN_LAYOUT_POINTS });
 
-    if (crossedStartFinish) {
-      if (state.capturing && state.points.length >= MIN_LAYOUT_POINTS) {
-        const candidate: TrackLayout = {
-          version: 1,
-          key: identity,
-          track: trackName,
-          configuration: configurationName,
-          points: state.points,
-        };
-        if (candidate.points[0].progress <= 0.05 &&
-            candidate.points[candidate.points.length - 1].progress >= 0.95 &&
-            isTrackLayout(candidate, identity)) {
-          try {
-            window.localStorage.setItem(CACHE_PREFIX + identity, JSON.stringify(candidate));
-          } catch {
-            // Keep the learned layout for this app session if storage is unavailable.
-          }
-          setLayout(candidate);
-        }
-      }
+    capture.current = result.state;
+    captureProgress.current = result.captureProgress;
 
-      capture.current = {
+    if (result.committedPoints) {
+      const candidate: TrackLayout = {
+        version: 1,
         key: identity,
-        previousProgress: progress,
-        capturing: true,
-        points: [point],
+        track: trackName,
+        configuration: configurationName,
+        points: result.committedPoints,
       };
-      setCaptureProgress(0);
-      return;
+      if (isTrackLayout(candidate, identity)) {
+        try {
+          window.localStorage.setItem(CACHE_PREFIX + identity, JSON.stringify(candidate));
+        } catch {
+          // Keep the confirmed valid layout in memory if browser storage is unavailable.
+        }
+        setLayout(candidate);
+      }
     }
-
-    if (!state.capturing) {
-      state.previousProgress = progress;
-      return;
-    }
-
-    const last = state.points[state.points.length - 1];
-    if (last && progress < last.progress - 0.02) {
-      // A teleport, session reset or discontinuity invalidates this candidate lap.
-      state.capturing = false;
-      state.points = [];
-      state.previousProgress = progress;
-      setCaptureProgress(null);
-      return;
-    }
-
-    if (!last || progress - last.progress >= MIN_SAMPLE_PROGRESS_STEP) {
-      state.points.push(point);
-    }
-    state.previousProgress = progress;
-    setCaptureProgress(progress);
-  }, [identity, layout, progress, world, trackName, configurationName]);
+  }, [
+    identity,
+    sessionKey,
+    progress,
+    world,
+    completedLaps,
+    isValidLap,
+    lastTimeMs,
+    lapStatus,
+    trackName,
+    configurationName,
+  ]);
 
   const projected = useMemo(
     () => layout?.key === identity ? projectTrackMap(layout.points) : null,
@@ -153,49 +137,33 @@ export default function TrackMapTile({ track, configuration, graphics }: TrackMa
   const marker = projected && currentPosition
     ? projectWorldPoint(currentPosition, projected.bounds)
     : null;
-  const progressLabel = typeof progress === "number" && Number.isFinite(progress)
-    ? `${(progress * 100).toFixed(1)}%`
-    : "—";
-
-  let status = "Waiting for ACC track identity";
-  if (identity && !projected) {
-    if (captureProgress !== null) {
-      status = `Capturing circuit · ${Math.round(captureProgress * 100)}%`;
-    } else {
-      status = "Waiting for start/finish crossing · then drive one complete lap";
-    }
-  } else if (projected) {
-    status = marker ? "LIVE CAR POSITION" : "Waiting for live car coordinates";
-  }
+  const learned = Boolean(projected);
 
   return (
     <div className="track-map-tile">
-      {identity && <div className="track-map-identity">
-        <strong>{trackName}</strong>
-        <span>{configurationName || "Default layout"}</span>
-      </div>}
+      <div className="track-map-identity">
+        <div className="track-map-name">
+          <strong>{trackName || "Track unavailable"}</strong>
+          {identity && <span>{configurationName || "Default layout"}</span>}
+        </div>
+        {identity && <span className={learned ? "track-map-state is-learned" : "track-map-state is-learning"}>
+          {learned ? "LEARNED" : "LEARNING"}
+        </span>}
+      </div>
       {projected ? (
-        <svg className="track-map-svg" viewBox="0 0 360 180" role="img" aria-label={`ACC circuit map for ${trackName}`}>
+        <svg className="track-map-svg" viewBox="0 0 360 180" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
           <polyline className="track-map-outline" points={projected.points}/>
-          {marker && <g className="track-map-car">
-            <circle cx={marker.x} cy={marker.y} r="8"/>
-            <circle cx={marker.x} cy={marker.y} r="3"/>
+          {marker && <g className="track-map-car" aria-label="Live car position">
+            <circle cx={marker.x} cy={marker.y} r="6.5"/>
+            <circle cx={marker.x} cy={marker.y} r="2.3"/>
           </g>}
         </svg>
       ) : (
         <div className="track-map-empty" role="status">
           <span className="track-map-empty-mark">⌁</span>
-          <strong>{identity ? "Circuit layout not cached yet" : "Track unavailable"}</strong>
-          <small>{identity
-            ? "The map is learned from ACC world coordinates during a complete lap. It is then cached for this exact track configuration."
-            : "ACC has not supplied a usable track identity."}</small>
+          <strong>{identity ? "Complete a valid lap to learn this circuit" : "Waiting for ACC track identity"}</strong>
         </div>
       )}
-      <div className="track-map-footer">
-        <span className={projected && marker ? "track-map-live-dot is-live" : "track-map-live-dot"}/>
-        <b>{status}</b>
-        <span className="track-map-progress">{progressLabel}</span>
-      </div>
     </div>
   );
 }
