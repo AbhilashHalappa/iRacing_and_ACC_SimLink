@@ -361,3 +361,19 @@ button { cursor: pointer; }
 /* Keep the fuel gradient anchored to the full track while the filled width shrinks. */
 .fuel-gradient-track { container-type:inline-size; }
 .fuel-gradient-track i { background-size:100cqw 100%; background-repeat:no-repeat; }
+
+
+/* Combined per-lap driver input trace */
+.driver-trace { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.trace-controls { display:flex; flex-wrap:wrap; gap:7px; }
+.trace-toggle { display:inline-flex; align-items:center; gap:7px; padding:6px 10px; border:1px solid var(--outline); border-radius:8px; background:var(--surface); color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; opacity:.58; }
+.trace-toggle.active { color:var(--text); border-color:var(--outline-strong); opacity:1; }
+.trace-toggle i,.trace-legend i { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+.trace-chart-wrap { width:100%; overflow:hidden; border:1px solid var(--outline); border-radius:9px; background:rgba(0,0,0,.08); }
+.trace-chart { display:block; width:100%; min-height:190px; }
+.trace-chart text { fill:var(--muted); font-size:12px; }
+.trace-gridline { stroke:var(--outline); stroke-width:1; opacity:.75; }
+.trace-legend { display:flex; flex-wrap:wrap; gap:9px 17px; }
+.trace-legend span { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
+.trace-legend b { color:var(--text); font-variant-numeric:tabular-nums; }
+.trace-footnote { color:var(--muted); font-size:11px; line-height:1.45; }
