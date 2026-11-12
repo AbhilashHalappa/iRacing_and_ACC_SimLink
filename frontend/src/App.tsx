@@ -333,15 +333,13 @@ function App() {
   const connected=Boolean(telemetry?.connected);
   const [driverTrace,setDriverTrace]=useState<DriverTracePoint[]>([]);
   const traceSession=useRef<string|null>(null);
-  const previousTracePosition=useRef<number|null>(null);
   const previousTraceDistance=useRef<number|null>(null);
   const previousTraceSample=useRef<string>("");
   useEffect(()=>{
     const g=telemetry?.graphics?.data, p=telemetry?.physics?.data;
     if(!g||!p||typeof g.normalized_car_position!=="number"||!Number.isFinite(g.normalized_car_position)||g.normalized_car_position<0||g.normalized_car_position>1) return;
     const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
-    if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTracePosition.current=null;previousTraceDistance.current=null;previousTraceSample.current="";setDriverTrace([]);}
-    const x=g.normalized_car_position;
+    if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTraceDistance.current=null;previousTraceSample.current="";setDriverTrace([]);}
     const distance=typeof g.distance_traveled_m==="number"&&Number.isFinite(g.distance_traveled_m)?g.distance_traveled_m:null;
     if(distance===null)return;
     const previousDistance=previousTraceDistance.current;
@@ -351,7 +349,6 @@ function App() {
     if(signature!==previousTraceSample.current){
       previousTraceSample.current=signature;setDriverTrace(old=>[...old.filter(sample=>point.t-sample.t<=15),point].slice(-1800));
     }
-    previousTracePosition.current=x;
     previousTraceDistance.current=distance;
   },[telemetry]);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
