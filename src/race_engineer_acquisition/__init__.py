@@ -6,6 +6,12 @@ from .physics_consumer import PhysicsDecodeConsumer, PhysicsConsumerSnapshot
 from .graphics_decoder import DecodedGraphics, decode_graphics
 from .graphics_consumer import GraphicsDecodeConsumer, GraphicsConsumerSnapshot
 from .health import AcquisitionHealth, AcquisitionHealthSnapshot
+from .engineering_snapshot import (
+    RaceEngineerSnapshotAggregator,
+    RaceEngineerTelemetrySnapshot,
+    TelemetryStreamView,
+    RawStreamHealthView,
+)
 from .ring_buffer import AcquisitionRingBuffer
 from .fanout import BoundedConsumerQueue, FanOutDispatcher, ConsumerQueueMetrics, FanOutMetrics
 from .acc_windows import WindowsACCPhysicsSource
@@ -19,6 +25,10 @@ from .supervisor import (
 __all__ = [
     "AcquisitionHealth",
     "AcquisitionHealthSnapshot",
+    "RaceEngineerSnapshotAggregator",
+    "RaceEngineerTelemetrySnapshot",
+    "TelemetryStreamView",
+    "RawStreamHealthView",
     "PhysicsSnapshot",
     "DecodedPhysics",
     "PhysicsDecodeConsumer",
