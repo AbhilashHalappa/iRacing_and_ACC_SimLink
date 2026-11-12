@@ -31,17 +31,19 @@ export function createTrackIdentity(track, configuration) {
  * @param {number} height
  * @param {number} padding
  */
-export function projectTrackMap(points, width = 360, height = 180, padding = 16) {
+export function projectTrackMap(points, width = 360, height = 280, padding = 8) {
   if (!Array.isArray(points) || points.length < 2) return null;
   const valid = points.filter((point) =>
     point && Number.isFinite(point.x) && Number.isFinite(point.z)
   );
   if (valid.length < 2) return null;
 
-  const minX = Math.min(...valid.map((point) => point.x));
-  const maxX = Math.max(...valid.map((point) => point.x));
-  const minZ = Math.min(...valid.map((point) => point.z));
-  const maxZ = Math.max(...valid.map((point) => point.z));
+  // Rotate the learned circuit 90 degrees clockwise for the taller Overview tile.
+  const rotated = valid.map((point) => ({ ...point, x: point.z, z: -point.x }));
+  const minX = Math.min(...rotated.map((point) => point.x));
+  const maxX = Math.max(...rotated.map((point) => point.x));
+  const minZ = Math.min(...rotated.map((point) => point.z));
+  const maxZ = Math.max(...rotated.map((point) => point.z));
   const rangeX = maxX - minX;
   const rangeZ = maxZ - minZ;
   if (rangeX < 0.01 || rangeZ < 0.01) return null;
@@ -55,7 +57,7 @@ export function projectTrackMap(points, width = 360, height = 180, padding = 16)
   const offsetY = (height - drawnHeight) / 2;
   const bounds = { minX, minZ, scale, offsetX, offsetY, width, height };
 
-  const projected = valid.map((point) => projectWorldPoint({ x: point.x, z: point.z }, bounds));
+  const projected = rotated.map((point) => projectWorldPoint({ x: point.x, z: point.z }, bounds, true));
   return {
     bounds,
     points: projected.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" "),
@@ -66,10 +68,12 @@ export function projectTrackMap(points, width = 360, height = 180, padding = 16)
  * @param {{x:number,z:number}} point
  * @param {{minX:number,minZ:number,scale:number,offsetX:number,offsetY:number,width:number,height:number}} bounds
  */
-export function projectWorldPoint(point, bounds) {
+export function projectWorldPoint(point, bounds, alreadyRotated = false) {
+  const rotatedX = alreadyRotated ? point.x : point.z;
+  const rotatedZ = alreadyRotated ? point.z : -point.x;
   return {
-    x: bounds.offsetX + (point.x - bounds.minX) * bounds.scale,
-    y: bounds.height - (bounds.offsetY + (point.z - bounds.minZ) * bounds.scale),
+    x: bounds.offsetX + (rotatedX - bounds.minX) * bounds.scale,
+    y: bounds.height - (bounds.offsetY + (rotatedZ - bounds.minZ) * bounds.scale),
   };
 }
 
