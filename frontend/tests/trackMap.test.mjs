@@ -180,3 +180,27 @@ test("teleport or incomplete progress cannot be committed as a lap", () => {
   assert.equal(teleported.state.capturing, false);
   assert.equal(teleported.committedPoints, null);
 });
+
+
+test("world-coordinate teleport cannot masquerade as a start-finish crossing", () => {
+  let state = createTrackMapCaptureState("spa--gp", "session");
+  const step = (progress, x, z) => {
+    const result = advanceTrackMapCapture(state, {
+      progress,
+      point: { x, z },
+      completedLaps: 0,
+      isValidLap: true,
+      lastTimeMs: null,
+      lapStatus: null,
+    }, { minPoints: 5 });
+    state = result.state;
+    return result;
+  };
+  step(0.95, 0, 0);
+  step(0.02, 4, 2);
+  step(0.2, 20, 10);
+  const teleported = step(0.03, 500, 500);
+  assert.equal(teleported.state.capturing, false);
+  assert.equal(teleported.state.pendingCandidate, null);
+  assert.equal(teleported.committedPoints, null);
+});
