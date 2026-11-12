@@ -12,7 +12,7 @@ import {
 } from "./trackMapCapture.js";
 
 type TrackLayout = {
-  version: 1;
+  version: 2;
   key: string;
   track: string;
   configuration: string;
@@ -26,7 +26,7 @@ type TrackMapTileProps = {
   lapStatus?: string | null;
 };
 
-const CACHE_PREFIX = "acc-track-map-v1:";
+const CACHE_PREFIX = "acc-track-map-v2:";
 const MIN_LAYOUT_POINTS = 80;
 
 function readTrackLayout(key: string | null): TrackLayout | null {
@@ -98,7 +98,7 @@ export default function TrackMapTile({
 
     if (result.committedPoints) {
       const candidate: TrackLayout = {
-        version: 1,
+        version: 2,
         key: identity,
         track: trackName,
         configuration: configurationName,
@@ -149,7 +149,7 @@ export default function TrackMapTile({
       </div>
       {projected ? (
         <svg className="track-map-svg" viewBox="0 0 360 180" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
-          <polyline className="track-map-outline" points={projected.points}/>
+          <polyline className="track-map-outline" points={`${projected.points} ${projected.points.split(" ")[0]}`}/>
           {marker && <g className="track-map-car" aria-label="Live car position">
             <circle cx={marker.x} cy={marker.y} r="6.5"/>
             <circle cx={marker.x} cy={marker.y} r="2.3"/>
