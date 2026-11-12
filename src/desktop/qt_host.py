@@ -89,9 +89,6 @@ class ACCDesktopWindow(QMainWindow):
         physics_latest = consumer.latest
         if graphics_latest is not None and physics_latest is not None:
             session_key = (
-                self._track,
-                self._track_configuration,
-                self._car_model,
                 graphics_latest.session_index,
                 graphics_latest.session,
             )
