@@ -66,7 +66,7 @@ function captureOneLap({ invalidateAt = null, outLapAt = null } = {}) {
   const sample = (progress, overrides = {}) => {
     const result = advanceTrackMapCapture(state, {
       progress,
-      point: { x: progress * 100, z: Math.sin(progress * Math.PI * 2) * 30 },
+      point: { x: Math.cos(progress * Math.PI * 2) * 100, z: Math.sin(progress * Math.PI * 2) * 100 },
       completedLaps: 0,
       isValidLap: true,
       lastTimeMs: null,
