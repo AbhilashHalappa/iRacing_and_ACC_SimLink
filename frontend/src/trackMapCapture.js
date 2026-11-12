@@ -155,6 +155,33 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
     return { state, committedPoints, captureProgress: null };
   }
 
+  // ACC may publish the completed-lap counter one Graphics sample after
+  // normalized progress wraps. That sample still carries the previous lap's
+  // validity/out-lap flags, so advance the new lap baseline without latching them.
+  const boundaryConfirmation = state.startCompletedLaps !== null &&
+    completedLaps === state.startCompletedLaps + 1 &&
+    progress <= 0.12 &&
+    lastTimeMs !== null;
+  if (boundaryConfirmation) {
+    state.startCompletedLaps = completedLaps;
+    state.validity = null;
+    state.outLap = false;
+  } else if (
+    state.startCompletedLaps !== null &&
+    completedLaps !== null &&
+    completedLaps > state.startCompletedLaps + 1
+  ) {
+    state.capturing = false;
+    state.points = [];
+    state.validity = false;
+    state.outLap = true;
+    state.startCompletedLaps = null;
+    state.previousProgress = progress;
+    state.previousWorldPoint = point;
+    state.pendingCandidate = null;
+    return { state, committedPoints: null, captureProgress: null };
+  }
+
   const last = state.points[state.points.length - 1];
   if (last && progress < last.progress - 0.02) {
     // Teleport/session reset/discontinuous progress invalidates this candidate.
@@ -171,9 +198,11 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
   if (!last || progress - last.progress >= minProgressStep) {
     state.points = [...state.points, { progress, x: point.x, z: point.z }];
   }
-  if (sample.isValidLap === false) state.validity = false;
-  else if (sample.isValidLap === true && state.validity === null) state.validity = true;
-  if (outLapNow) state.outLap = true;
+  if (!boundaryConfirmation) {
+    if (sample.isValidLap === false) state.validity = false;
+    else if (sample.isValidLap === true && state.validity === null) state.validity = true;
+    if (outLapNow) state.outLap = true;
+  }
   state.previousProgress = progress;
   state.previousWorldPoint = point;
 
