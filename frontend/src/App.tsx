@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import TrackMapTile from "./TrackMapTile";
-import { penaltyTimeDisplay, sessionTimeDisplay } from "./timeDisplay";
+import { penaltyTimeDisplay, sessionTimeDisplay } from "./timeDisplay.mjs";
 import {
   Activity, Gauge, Flag, ChartNoAxesCombined, CloudSun, Map, Fuel,
   Thermometer, CircleGauge, Cable, Settings, Radio, ChevronDown,
