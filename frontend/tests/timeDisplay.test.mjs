@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { penaltyTimeDisplay, sessionTimeDisplay } from "../src/timeDisplay.js";
+import { penaltyTimeDisplay, sessionTimeDisplay } from "../src/timeDisplay.ts";
 
 test("session countdown is interpreted directly as seconds", () => {
   assert.equal(sessionTimeDisplay(1200), "20:00");
