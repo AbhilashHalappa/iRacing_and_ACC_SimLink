@@ -333,23 +333,48 @@ function App() {
   const connected=Boolean(telemetry?.connected);
   const [driverTrace,setDriverTrace]=useState<DriverTracePoint[]>([]);
   const traceSession=useRef<string|null>(null);
+  const lapDistanceOrigin=useRef<number|null>(null);
   const previousTraceDistance=useRef<number|null>(null);
+  const previousTraceCompletedLaps=useRef<number|null>(null);
+  const previousTraceNormalizedPosition=useRef<number|null>(null);
   const previousTraceSample=useRef<string>("");
   useEffect(()=>{
     const g=telemetry?.graphics?.data, p=telemetry?.physics?.data;
     if(!g||!p||typeof g.normalized_car_position!=="number"||!Number.isFinite(g.normalized_car_position)||g.normalized_car_position<0||g.normalized_car_position>1) return;
     const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
-    if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTraceDistance.current=null;previousTraceSample.current="";setDriverTrace([]);}
     const distance=typeof g.distance_traveled_m==="number"&&Number.isFinite(g.distance_traveled_m)?g.distance_traveled_m:null;
     if(distance===null)return;
+    const completedLaps=typeof g.completed_laps==="number"&&Number.isFinite(g.completed_laps)?g.completed_laps:null;
+    if(traceSession.current!==sessionKey){
+      traceSession.current=sessionKey;
+      lapDistanceOrigin.current=distance;
+      previousTraceDistance.current=distance;
+      previousTraceCompletedLaps.current=completedLaps;
+      previousTraceNormalizedPosition.current=g.normalized_car_position;
+      previousTraceSample.current="";
+      setDriverTrace([]);
+    }
     const previousDistance=previousTraceDistance.current;
-    if(previousDistance!==null&&distance<previousDistance-100){setDriverTrace([]);previousTraceSample.current="";}
-    const point:DriverTracePoint={t:Date.now()/1000,distance,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
+    const previousCompletedLaps=previousTraceCompletedLaps.current;
+    const previousNormalized=previousTraceNormalizedPosition.current;
+    const completedLapChanged=completedLaps!==null&&previousCompletedLaps!==null&&completedLaps>previousCompletedLaps;
+    const normalizedPositionWrapped=previousNormalized!==null&&previousNormalized>0.9&&g.normalized_car_position<0.1;
+    const distanceCounterReset=previousDistance!==null&&distance<previousDistance-100;
+    if(completedLapChanged||normalizedPositionWrapped||distanceCounterReset){
+      lapDistanceOrigin.current=distance;
+      previousTraceSample.current="";
+      setDriverTrace([]);
+    }
+    if(lapDistanceOrigin.current===null)lapDistanceOrigin.current=distance;
+    const lapDistance=Math.max(0,distance-lapDistanceOrigin.current);
+    const point:DriverTracePoint={t:Date.now()/1000,distance:lapDistance,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
     const signature=[point.distance,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
     if(signature!==previousTraceSample.current){
       previousTraceSample.current=signature;setDriverTrace(old=>[...old.filter(sample=>point.t-sample.t<=15),point].slice(-1800));
     }
     previousTraceDistance.current=distance;
+    previousTraceCompletedLaps.current=completedLaps;
+    previousTraceNormalizedPosition.current=g.normalized_car_position;
   },[telemetry]);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
   const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;sector1BoundaryMs:number|null;sector2BoundaryMs:number|null;validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:null});
