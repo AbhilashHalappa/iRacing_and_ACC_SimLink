@@ -115,7 +115,7 @@ test("invalidity is latched for the whole lap and prevents map replacement", () 
   const { state } = captureOneLap({ invalidateAt: 0.45 });
   const result = advanceTrackMapCapture(state, {
     progress: 0.01,
-    point: { x: 1, z: 0 },
+    point: { x: Math.cos(0.01 * Math.PI * 2) * 100, z: Math.sin(0.01 * Math.PI * 2) * 100 },
     completedLaps: 1,
     isValidLap: true,
     lastTimeMs: 91234,
