@@ -217,7 +217,7 @@ function lapDeltaDisplay(delta:number|null):string {
   return sign+lapTimeDisplay(null,absolute,true);
 }
 
-type DriverTracePoint = { x:number; brake:number|null; throttle:number|null; gear:number|null; speed:number|null; rpm:number|null };
+type DriverTracePoint = { t:number; brake:number|null; throttle:number|null; gear:number|null; speed:number|null; rpm:number|null };
 const traceSeries = [
   {key:"brake",label:"Brake",color:"#ef6262",unit:"%"},
   {key:"throttle",label:"Throttle",color:"#54d889",unit:"%"},
@@ -232,21 +232,23 @@ function DriverTraceTile({points}:{points:DriverTracePoint[]}) {
   });
   const toggle=(key:string)=>setEnabled(prev=>{const next={...prev,[key]:!prev[key]};try{window.localStorage.setItem("acc-driver-trace-series",JSON.stringify(next));}catch{}return next;});
   const active=traceSeries.filter(s=>enabled[s.key]&&points.some(p=>typeof p[s.key]==="number"));
+  const latest=points.length?points[points.length-1].t:Date.now()/1000;
+  const windowStart=latest-15;
   const pathFor=(key:typeof traceSeries[number]["key"])=>{
     const valid=points.filter(p=>typeof p[key]==="number");
     if(valid.length<2)return "";
     const vals=valid.map(p=>p[key] as number),lo=Math.min(...vals),hi=Math.max(...vals),range=hi-lo||1;
-    return valid.map((p,i)=>`${i===0?"M":"L"} ${(p.x*960+20).toFixed(1)} ${(238-((p[key] as number)-lo)/range*208).toFixed(1)}`).join(" ");
+    return valid.map((p,i)=>`${i===0?"M":"L"} ${((Math.max(0,Math.min(15,p.t-windowStart))/15)*960+20).toFixed(1)} ${(238-((p[key] as number)-lo)/range*208).toFixed(1)}`).join(" ");
   };
   return <div className="driver-trace">
     <div className="trace-controls">{traceSeries.map(s=><button key={s.key} type="button" className={enabled[s.key]?"trace-toggle active":"trace-toggle"} aria-pressed={!!enabled[s.key]} onClick={()=>toggle(s.key)}><i style={{background:s.color}}/>{s.label}</button>)}</div>
-    <div className="trace-chart-wrap"><svg className="trace-chart" viewBox="0 0 1000 280" role="img" aria-label="Brake, throttle, gear, speed and RPM traces over lap progress">
+    <div className="trace-chart-wrap"><svg className="trace-chart" viewBox="0 0 1000 280" role="img" aria-label="Brake, throttle, gear, speed and RPM traces over the latest 15 seconds">
       {[30,82,134,186,238].map(y=><line key={y} x1="20" x2="980" y1={y} y2={y} className="trace-gridline"/>)}
-      {[0,0.2,0.4,0.6,0.8,1].map(x=><g key={x}><line x1={20+x*960} x2={20+x*960} y1="24" y2="238" className="trace-gridline"/><text x={20+x*960} y="260" textAnchor="middle">{Math.round(x*100)}%</text></g>)}
+      {[0,1/3,2/3,1].map(x=><g key={x}><line x1={20+x*960} x2={20+x*960} y1="24" y2="238" className="trace-gridline"/><text x={20+x*960} y="260" textAnchor="middle">{x===0?"−15s":x===1/3?"−10s":x===2/3?"−5s":"NOW"}</text></g>)}
       {active.map(s=><path key={s.key} d={pathFor(s.key)} fill="none" stroke={s.color} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round"><title>{s.label} trace</title></path>)}
     </svg></div>
     <div className="trace-legend">{active.map(s=>{const last=[...points].reverse().find(p=>typeof p[s.key]==="number");return <span key={s.key}><i style={{background:s.color}}/>{s.label}: <b>{last?(last[s.key] as number).toFixed(s.key==="gear"?0:s.key==="rpm"?0:1)+s.unit:"—"}</b></span>;})}</div>
-    <small className="trace-footnote">{points.length<2?"Waiting for a live lap. Traces begin as ACC telemetry arrives.":"Current lap trace · horizontal axis is normalized lap progress. Each enabled trace is scaled independently; live values are shown below."}</small>
+    <small className="trace-footnote">{points.length<2?"Waiting for live ACC telemetry. The graph fills as samples arrive.":"Rolling 15-second live window · each enabled trace is scaled independently; live values are shown below."}</small>
   </div>;
 }
 
@@ -335,12 +337,11 @@ function App() {
     if(!g||!p||typeof g.normalized_car_position!=="number"||!Number.isFinite(g.normalized_car_position)||g.normalized_car_position<0||g.normalized_car_position>1) return;
     const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
     if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTracePosition.current=null;previousTraceSample.current="";setDriverTrace([]);}
-    const x=g.normalized_car_position, prev=previousTracePosition.current;
-    if(prev!==null&&prev>0.85&&x<0.15){setDriverTrace([]);previousTraceSample.current="";}
-    const point:DriverTracePoint={x,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
+    const x=g.normalized_car_position;
+    const point:DriverTracePoint={t:Date.now()/1000,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
     const signature=[x,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
     if(signature!==previousTraceSample.current){
-      previousTraceSample.current=signature;setDriverTrace(old=>[...old,point].slice(-1800));
+      previousTraceSample.current=signature;setDriverTrace(old=>[...old.filter(sample=>point.t-sample.t<=15),point].slice(-1800));
     }
     previousTracePosition.current=x;
   },[telemetry]);
