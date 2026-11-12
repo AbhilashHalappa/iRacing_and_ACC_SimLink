@@ -345,7 +345,7 @@ function App() {
     const previousDistance=previousTraceDistance.current;
     if(previousDistance!==null&&distance<previousDistance-100){setDriverTrace([]);previousTraceSample.current="";}
     const point:DriverTracePoint={t:Date.now()/1000,distance,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
-    const signature=[x,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
+    const signature=[point.distance,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
     if(signature!==previousTraceSample.current){
       previousTraceSample.current=signature;setDriverTrace(old=>[...old.filter(sample=>point.t-sample.t<=15),point].slice(-1800));
     }
