@@ -15,14 +15,14 @@ test("track projection preserves aspect ratio and fits the SVG viewport", () => 
     { progress: 0.5, x: 100, z: 0 },
     { progress: 1, x: 100, z: 50 },
   ];
-  const projected = projectTrackMap(points, 360, 180, 16);
+  const projected = projectTrackMap(points, 360, 280, 8);
   assert.ok(projected);
   const coords = projected.points.split(" ").map((pair) => pair.split(",").map(Number));
   for (const [x, y] of coords) {
-    assert.ok(x >= 16 && x <= 344);
-    assert.ok(y >= 16 && y <= 164);
+    assert.ok(x >= 8 && x <= 352);
+    assert.ok(y >= 8 && y <= 272);
   }
-  assert.equal(projected.bounds.scale, Math.min(328 / 100, 148 / 50));
+  assert.equal(projected.bounds.scale, Math.min(344 / 50, 264 / 100));
 });
 
 test("live world position uses the same transform as the stored circuit", () => {
@@ -233,4 +233,19 @@ test("a delayed lap-counter update does not carry the previous lap's invalid sta
 
   const completed = sample(0.01, 2, true, 91400);
   assert.ok(completed.committedPoints);
+});
+
+
+test("track map rotates the circuit 90 degrees and applies the same transform to the live marker", () => {
+  const points = [
+    { progress: 0, x: 0, z: 0 },
+    { progress: 0.5, x: 100, z: 0 },
+    { progress: 1, x: 100, z: 50 },
+  ];
+  const projected = projectTrackMap(points, 360, 280, 8);
+  assert.ok(projected);
+  const start = projectWorldPoint({ x: 0, z: 0 }, projected.bounds);
+  const second = projectWorldPoint({ x: 100, z: 0 }, projected.bounds);
+  assert.ok(second.y > start.y, "90-degree rotation turns the original X direction vertically");
+  assert.ok(Math.abs(second.x - start.x) < 1);
 });
