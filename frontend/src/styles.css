@@ -496,3 +496,35 @@ button { cursor: pointer; }
 @media(prefers-reduced-motion:no-preference) {
   .track-map-car { transition:transform .08s linear; }
 }
+
+
+/* Compact Overview map tile: circuit first, with only identity and learning state. */
+.track-map-tile { gap: 6px; }
+.track-map-identity { align-items: center; gap: 8px; }
+.track-map-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; overflow: hidden; }
+.track-map-name strong { overflow: hidden; color: var(--on-surface); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.track-map-name span { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.track-map-state { flex: 0 0 auto; padding: 3px 6px; border: 1px solid var(--outline); border-radius: 5px; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .07em; }
+.track-map-state.is-learned { border-color: color-mix(in srgb, #35c979 48%, var(--outline)); color: #52d58b; }
+.track-map-state.is-learning { color: var(--muted); }
+.track-map-svg {
+  width: 100%;
+  height: clamp(88px, 12vw, 138px);
+  min-height: 88px;
+  max-height: 138px;
+  border: 0;
+  border-radius: 7px;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface));
+}
+.track-map-outline { stroke: var(--on-surface); stroke-width: 3.4; opacity: .88; }
+.track-map-car circle:first-child { fill: #35c979; stroke: var(--surface); stroke-width: 2; }
+.track-map-car circle:last-child { fill: #102018; }
+.track-map-empty { min-height: 88px; gap: 5px; padding: 10px; border-radius: 7px; }
+.track-map-empty-mark { font-size: 25px; }
+.track-map-empty strong { font-size: 11px; }
+.track-map-footer { display: none; }
+@media (max-width: 650px) {
+  .track-map-name { gap: 5px; }
+  .track-map-name strong { font-size: 11px; }
+  .track-map-name span { font-size: 9px; }
+}
