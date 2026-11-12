@@ -332,14 +332,14 @@ function App() {
   const previousTraceSample=useRef<string>("");
   useEffect(()=>{
     const g=telemetry?.graphics?.data, p=telemetry?.physics?.data;
-    if(!g||!p||g.status!==2||typeof g.normalized_car_position!=="number"||g.normalized_car_position<0||g.normalized_car_position>1) return;
+    if(!g||!p||typeof g.normalized_car_position!=="number"||!Number.isFinite(g.normalized_car_position)||g.normalized_car_position<0||g.normalized_car_position>1) return;
     const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
     if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTracePosition.current=null;previousTraceSample.current="";setDriverTrace([]);}
     const x=g.normalized_car_position, prev=previousTracePosition.current;
     if(prev!==null&&prev>0.85&&x<0.15){setDriverTrace([]);previousTraceSample.current="";}
     const point:DriverTracePoint={x,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear_raw==="number"?(p.gear_raw===0?-1:p.gear_raw-1):null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
     const signature=[x,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
-    if(signature!==previousTraceSample.current&&(prev===null||Math.abs(x-prev)>=0.001||Math.abs(x-prev)>0.5)){
+    if(signature!==previousTraceSample.current){
       previousTraceSample.current=signature;setDriverTrace(old=>[...old,point].slice(-1800));
     }
     previousTracePosition.current=x;
