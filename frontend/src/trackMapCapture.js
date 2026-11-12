@@ -2,6 +2,7 @@
 
 const DEFAULT_MIN_POINTS = 80;
 const DEFAULT_MIN_PROGRESS_STEP = 0.001;
+const MAX_WORLD_STEP_METERS = 80;
 
 function isOutLapStatus(value) {
   return ["out", "out_lap", "out-lap"].includes(String(value ?? "").trim().toLowerCase());
@@ -34,6 +35,7 @@ export function createTrackMapCaptureState(key, sessionKey) {
     key,
     sessionKey,
     previousProgress: null,
+    previousWorldPoint: null,
     capturing: false,
     points: [],
     validity: null,
@@ -67,6 +69,25 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
   let state = { ...current };
   let committedPoints = null;
   const outLapNow = isOutLapStatus(sample.lapStatus);
+  const previousWorldPoint = state.previousWorldPoint;
+  const worldJump = previousWorldPoint
+    ? Math.hypot(point.x - previousWorldPoint.x, point.z - previousWorldPoint.z)
+    : 0;
+  if (worldJump > MAX_WORLD_STEP_METERS) {
+    // A world-coordinate teleport must never be mistaken for a completed lap.
+    state = {
+      ...state,
+      previousProgress: progress,
+      previousWorldPoint: point,
+      capturing: false,
+      points: [],
+      validity: false,
+      outLap: true,
+      startCompletedLaps: null,
+      pendingCandidate: null,
+    };
+    return { state, committedPoints: null, captureProgress: null };
+  }
   const completedLaps = Number.isInteger(sample.completedLaps) ? sample.completedLaps : null;
   const lastTimeMs = Number.isFinite(sample.lastTimeMs) && sample.lastTimeMs > 0 ? sample.lastTimeMs : null;
 
@@ -113,6 +134,7 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
     state = {
       ...state,
       previousProgress: progress,
+      previousWorldPoint: point,
       capturing: true,
       points: [{ progress, x: point.x, z: point.z }],
       validity: null,
@@ -129,6 +151,7 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
 
   if (!state.capturing) {
     state.previousProgress = progress;
+    state.previousWorldPoint = point;
     return { state, committedPoints, captureProgress: null };
   }
 
@@ -141,6 +164,7 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
     state.outLap = true;
     state.startCompletedLaps = null;
     state.previousProgress = progress;
+    state.previousWorldPoint = point;
     return { state, committedPoints, captureProgress: null };
   }
 
@@ -151,6 +175,7 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
   else if (sample.isValidLap === true && state.validity === null) state.validity = true;
   if (outLapNow) state.outLap = true;
   state.previousProgress = progress;
+  state.previousWorldPoint = point;
 
   return { state, committedPoints, captureProgress: progress };
 }
