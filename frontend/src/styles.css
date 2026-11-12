@@ -509,9 +509,9 @@ button { cursor: pointer; }
 .track-map-state.is-learning { color: var(--muted); }
 .track-map-svg {
   width: 100%;
-  height: clamp(88px, 12vw, 138px);
-  min-height: 88px;
-  max-height: 138px;
+  height: clamp(150px, 17vw, 190px);
+  min-height: 150px;
+  max-height: 190px;
   border: 0;
   border-radius: 7px;
   background: radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface));
