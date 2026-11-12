@@ -115,8 +115,9 @@ export function advanceTrackMapCapture(current, sample, options = {}) {
       previousProgress: progress,
       capturing: true,
       points: [{ progress, x: point.x, z: point.z }],
-      validity: typeof sample.isValidLap === "boolean" ? sample.isValidLap : null,
-      outLap: outLapNow,
+      validity: null,
+      // The crossing sample still describes the lap that just ended; begin the next lap cleanly.
+      outLap: false,
       startCompletedLaps: completedLaps,
     };
     return {
