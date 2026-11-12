@@ -148,13 +148,15 @@ export default function TrackMapTile({
         </span>}
       </div>
       {projected ? (
-        <svg className="track-map-svg" viewBox="0 0 360 280" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
-          <polyline className="track-map-outline" points={`${projected.points} ${projected.points.split(" ")[0]}`}/>
-          {marker && <g className="track-map-car" aria-label="Live car position">
-            <circle cx={marker.x} cy={marker.y} r="6.5"/>
-            <circle cx={marker.x} cy={marker.y} r="2.3"/>
-          </g>}
-        </svg>
+        <div className="track-map-canvas">
+          <svg className="track-map-svg" viewBox="0 0 360 280" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
+            <polyline className="track-map-outline" points={`${projected.points} ${projected.points.split(" ")[0]}`}/>
+            {marker && <g className="track-map-car" aria-label="Live car position">
+              <circle cx={marker.x} cy={marker.y} r="6.5"/>
+              <circle cx={marker.x} cy={marker.y} r="2.3"/>
+            </g>}
+          </svg>
+        </div>
       ) : (
         <div className="track-map-empty" role="status">
           <span className="track-map-empty-mark">⌁</span>
