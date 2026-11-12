@@ -432,3 +432,35 @@ These source documents remain authoritative for their respective acquisition, AB
 - Fuel calculations requiring a physical current-fuel unit remain disabled/deferred. This does not block the Race Engineer foundation or independent live monitoring.
 - Stage 0 is therefore sufficiently closed to begin Stage 1 foundation work, with all unresolved semantic checks retained as explicit feature gates.
 - Stage 1 first task: inspect the existing decoded consumer APIs, timestamps/packet identifiers, and health/lifecycle surfaces. Design the aggregator around those existing contracts; do not add a second shared-memory reader, modify acquisition hot paths, or add Graphics/Static fan-out merely for the Race Engineer.
+
+
+## 11. Stage 1 implementation progress (2026-11-13)
+
+### Completed: first snapshot-aggregation slice
+
+Added `src/race_engineer_acquisition/engineering_snapshot.py` and exported its public types from the acquisition package.
+
+The aggregator:
+- Reads the existing `PhysicsDecodeConsumer.snapshot` and `GraphicsDecodeConsumer.snapshot` properties; it never drains or takes ownership of their queues.
+- Reads existing Physics, Graphics and Static acquisition health snapshots.
+- Preserves each decoded stream's capture timestamp, capture sequence and ACC packet ID.
+- Calculates sample age using the same process-local monotonic clock domain as acquisition timestamps.
+- Applies independent configurable freshness limits (defaults: Physics 500 ms, Graphics 1,000 ms, Static read-health 3,000 ms).
+- Requires both acquisition and decoder consumer lifecycle states to be running before a decoded stream is marked fresh.
+- Keeps the last good decoded value visible for diagnostics when stale, while exposing `is_fresh` so decision logic can fail closed.
+- Exposes Static as raw acquisition/read health only. It does not decode Static bytes or claim that a successful unchanged-page read is a new metadata snapshot.
+- Explicitly does not claim Physics and Graphics samples are synchronized. Combined freshness means both independently pass their freshness gates, not that they were captured at the same instant.
+
+Added `tests/test_engineering_snapshot.py` for independent freshness, stale-stream isolation, stopped consumers, missing samples, future timestamps, Static's raw-only status, and invalid thresholds.
+
+**Validation status:** implementation and test source committed; tests have not yet been executed in a Windows project environment. No live ACC validation has been performed. This slice does not modify acquisition workers, ring buffers, recorders, decoders, UI, TTS or ACC/game state.
+
+### Remaining Stage 1 work
+
+1. Run the new unit tests and the existing acquisition/consumer regression suites in the project's supported environment.
+2. Integrate the aggregator into the Race Engineer domain/service lifecycle without changing acquisition ownership.
+3. Add typed engineering observations (measured, calculated, inferred, warning, recommendation).
+4. Implement communication-mode state and warning/message priority, deduplication, escalation, resolution and cooldown.
+5. Add the single radio queue using existing TTS, then test it with a simulated session before UI integration.
+
+The current implementation is a standalone, testable aggregation boundary; it is not yet connected to the Race Engineer page or radio/TTS.
