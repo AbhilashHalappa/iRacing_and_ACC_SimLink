@@ -204,3 +204,33 @@ test("world-coordinate teleport cannot masquerade as a start-finish crossing", (
   assert.equal(teleported.state.pendingCandidate, null);
   assert.equal(teleported.committedPoints, null);
 });
+
+
+test("a delayed lap-counter update does not carry the previous lap's invalid state forward", () => {
+  let state = createTrackMapCaptureState("spa--gp", "session");
+  const sample = (progress, completedLaps, isValidLap, lastTimeMs = null, lapStatus = null) => {
+    const result = advanceTrackMapCapture(state, {
+      progress,
+      point: {
+        x: Math.cos(progress * Math.PI * 2) * 100,
+        z: Math.sin(progress * Math.PI * 2) * 100,
+      },
+      completedLaps,
+      isValidLap,
+      lastTimeMs,
+      lapStatus,
+    }, { minPoints: 80 });
+    state = result.state;
+    return result;
+  };
+
+  sample(0.95, 0, false);
+  sample(0.02, 0, false);
+  sample(0.03, 1, false, 90500, "out");
+  for (let index = 4; index <= 98; index += 1) {
+    sample(index / 100, 1, true);
+  }
+
+  const completed = sample(0.01, 2, true, 91400);
+  assert.ok(completed.committedPoints);
+});
