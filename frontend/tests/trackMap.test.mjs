@@ -34,7 +34,7 @@ test("live world position uses the same transform as the stored circuit", () => 
   const start = projectWorldPoint({ x: -50, z: -25 }, projected.bounds);
   const finish = projectWorldPoint({ x: 50, z: 25 }, projected.bounds);
   assert.ok(start.x < finish.x);
-  assert.ok(start.y > finish.y);
+  assert.ok(start.y < finish.y);
 });
 
 test("cached layouts must match the exact track/configuration identity", () => {
