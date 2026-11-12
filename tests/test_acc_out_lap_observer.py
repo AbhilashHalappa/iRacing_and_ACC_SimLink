@@ -77,3 +77,18 @@ def test_session_change_rearms_initial_out_lap_detection():
 
     assert observer.observe(frame(position=0.55), 60.0, ("qualify", 1)) is True
     assert observer.active is True
+
+
+def test_initial_out_lap_does_not_rearm_after_start_finish_even_if_counter_stays_zero():
+    observer = ACCOutLapObserver()
+    key = ("practice", 0)
+
+    assert observer.observe(frame(position=0.92), 100.0, key) is True
+    assert observer.observe(frame(position=0.02), 120.0, key) is False
+
+    # ACC may keep completed_laps at zero while the first timed lap is running.
+    assert observer.observe(
+        frame(position=0.30, in_pit=True), 0.0, key
+    ) is False
+    assert observer.observe(frame(position=0.34), 45.0, key) is False
+    assert observer.out_lap_completed is True
