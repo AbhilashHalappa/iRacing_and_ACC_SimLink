@@ -498,8 +498,10 @@ button { cursor: pointer; }
 }
 
 
-/* Compact Overview map tile: circuit first, with only identity and learning state. */
-.track-map-tile { gap: 6px; }
+/* Overview map uses the full tile body rather than a fixed-height preview. */
+.dashboard-tile:has(.track-map-tile) { display: flex; flex-direction: column; }
+.dashboard-tile:has(.track-map-tile) > .tile-body { display: flex; flex: 1 1 auto; min-height: 0; }
+.track-map-tile { display: flex; flex: 1 1 auto; flex-direction: column; gap: 6px; min-width: 0; min-height: 280px; }
 .track-map-identity { align-items: center; gap: 8px; }
 .track-map-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; overflow: hidden; }
 .track-map-name strong { overflow: hidden; color: var(--on-surface); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
@@ -508,10 +510,12 @@ button { cursor: pointer; }
 .track-map-state.is-learned { border-color: color-mix(in srgb, #35c979 48%, var(--outline)); color: #52d58b; }
 .track-map-state.is-learning { color: var(--muted); }
 .track-map-svg {
+  display: block;
+  flex: 1 1 auto;
   width: 100%;
-  height: clamp(150px, 17vw, 190px);
-  min-height: 150px;
-  max-height: 190px;
+  height: 250px;
+  min-height: 250px;
+  max-height: none;
   border: 0;
   border-radius: 7px;
   background: radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface));
