@@ -81,7 +81,7 @@ export function projectWorldPoint(point, bounds) {
 export function isTrackLayout(value, expectedKey) {
   return Boolean(
     value &&
-    value.version === 1 &&
+    value.version === 2 &&
     value.key === expectedKey &&
     typeof value.track === "string" &&
     typeof value.configuration === "string" &&
