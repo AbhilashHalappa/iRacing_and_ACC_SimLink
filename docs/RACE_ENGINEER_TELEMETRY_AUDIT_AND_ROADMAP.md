@@ -3,7 +3,7 @@
 **Repository:** AbhilashHalappa/Race-Engineer-ACC-New  
 **Target branch:** feature/race-engineer-page  
 **Audit baseline:** branch head b180a3094f78d26fa12a9417e2f1e97e3b8a2a17  
-**Document status:** Initial source-and-evidence audit completed; live feature validation and several semantic checks remain open  
+**Document status:** Stage 0 audit baseline documented; unresolved semantic checks are explicitly deferred where they do not block foundation work  
 **Implementation status:** Documentation only. No Race Engineer feature code has been implemented by this audit.
 
 ## 1. Purpose and audit method
@@ -74,7 +74,7 @@ The repository already has a useful read-only acquisition foundation:
 
 | Requirement | Current source / evidence | Status | Audit decision |
 |---|---|---|---|
-| Current fuel | Physics fuel_kg | **Available — candidate** | Decoded from Physics. Controlled fuel-change/HUD-unit correlation is still required before treating the value as authoritative litres or kilograms in driver-facing calculations. |
+| Current fuel | Physics fuel_kg | **Available — raw ACC-provided value; unit unconfirmed** | Preserve the decoded numeric value exactly as ACC provides it. Do not rename its unit, convert it, or assume kg/L. User will confirm the unit later. Fuel calculations that require a physical unit remain gated. |
 | Fuel per lap | Graphics fuel_per_lap_l | **Available — candidate / integrated** | Decoded and used by Overview. Target capture shows plausible dynamic values; direct synchronized comparison against ACC consumption display remains required. |
 | Estimated laps remaining | Graphics fuel_estimated_laps | **Available — candidate / integrated** | Decoded and used by Overview. Compare against ACC's laps-remaining display, including after refuelling. |
 | Fuel used | Graphics used_fuel_l | **Available — candidate** | Dynamic values observed, but semantics/units are not independently correlated. Do not use as the primary consumption estimator yet. |
@@ -86,7 +86,7 @@ The repository already has a useful read-only acquisition foundation:
 | Pit-stop refuelling recommendation | Fuel shortfall, MFD fuel-to-add and pit strategy | **Calculated — feasible** | Recommendation only. Never write to the MFD or initiate a stop. |
 | Safety fuel reserve | User requirement selected; reserve amount not yet decided | **Decision required** | Do not invent a reserve value. Make it configurable after the baseline fuel model is validated. |
 
-**Fuel release gate:** do not enable automatic spoken fuel-saving targets until current-fuel units and Graphics fuel-per-lap / estimated-laps values have been compared with ACC in a controlled session. The Engineer must show the projected shortfall, reserve and assumptions in the UI.
+**Fuel release gate:** current fuel remains an unconverted raw ACC-provided value with an unconfirmed unit. Do not calculate or announce physical fuel shortfall, finish-fuel, reserve or saving targets until the user confirms the unit and the Graphics fuel-per-lap / estimated-laps values are validated against ACC. This deferred fuel validation does not block Stage 1 foundation work or unrelated Stage 2 monitoring.
 
 ### 3.3 Tyre monitoring
 
@@ -206,7 +206,7 @@ The repository already has a useful read-only acquisition foundation:
 7. **Brake temperatures are usable; pad/disc life, brake pressure, brake compounds and several engine-tail fields are not yet trustworthy.**
 8. **Damage channels are real, but component labels/scales are incomplete.** Avoid claiming body, suspension or engine-specific damage without mapping evidence.
 9. **Race-control enums and gap sign convention need care.** Preserve raw values and do not guess meaning.
-10. **Fuel is the highest-value calculation but needs a final HUD comparison.** Current fuel, fuel per lap and estimated laps must agree with ACC before spoken saving targets are enabled.
+10. **Fuel is the highest-value calculation but remains gated.** Current fuel is retained exactly as ACC provides it with no conversion; the user will confirm its unit later. Current fuel, fuel per lap and estimated laps must be semantically compatible before spoken saving targets are enabled.
 11. **Setup recommendation scope must be restricted to supported settings.** Aero and suspension setup recommendations are not currently supported by the audited telemetry.
 12. **The driver-initiated interaction is not fully specified.** Hold-to-talk key is agreed, but the mechanism for entering the request remains open.
 13. **No game control is ever permitted.** This applies to every stage, including setup, MFD, pits and strategy.
@@ -217,11 +217,12 @@ The stages below are ordered by dependency and risk. A stage is not complete mer
 
 ### Stage 0 — Audit and requirements closure
 
-**Status:** Source/evidence audit documented; a few decisions and targeted validation items remain.
+**Status:** Foundation-readiness audit documented. Fuel-unit confirmation is explicitly deferred by the user; other unresolved telemetry semantics remain visible and gated. Stage 1 may proceed without fuel-dependent calculations.
 
 Tasks:
 - Maintain this field-to-feature matrix as the source of truth.
-- Confirm fuel units and Graphics fuel estimates against ACC.
+- Preserve current fuel as the raw ACC-provided value; defer unit/HUD confirmation until the user performs a later controlled check. Keep unit-dependent fuel calculations disabled.
+- Confirm Graphics fuel estimates against ACC before enabling fuel strategy.
 - Confirm gap sign and update behaviour.
 - Validate multi-car coordinate/ID mapping before traffic advice.
 - Resolve the brake-bias source/display mismatch.
@@ -367,7 +368,7 @@ Acceptance gate:
 
 After Stage 0 blockers are closed, implement the smallest end-to-end vertical slice:
 
-1. Freshness-aware snapshot aggregation for the existing Physics and Graphics consumers.
+1. Inspect and document the existing Physics/Graphics/Static consumer contracts and freshness metadata; add a Race Engineer snapshot aggregator without changing acquisition workers or stealing recorder queues.
 2. Race Engineer mode manager and warning/message priority queue.
 3. One completed-lap event with exact-once handling.
 4. Existing TTS output.
@@ -397,7 +398,7 @@ This proves the core event-to-radio architecture before adding complex fuel, tyr
 
 | Item | Why it matters | Required next action |
 |---|---|---|
-| Fuel unit and HUD equivalence | Controls every fuel projection and saving recommendation | Controlled ACC fuel comparison |
+| Fuel unit and HUD equivalence | Controls every fuel projection and saving recommendation | Deferred by user; preserve raw ACC value and confirm in a later controlled ACC session |
 | Fuel reserve amount | Changes finish-fuel target | Decide configurable reserve policy |
 | Graphics estimated laps / per-lap equivalence | Cross-checks fuel model | Compare against ACC display over a known stint |
 | Gap sign convention | Needed for position strategy | Compare values with known car ahead/behind |
@@ -422,3 +423,12 @@ This proves the core event-to-radio architecture before adding complex fuel, tyr
 - docs/ACC_RECORDING_MANIFEST.md
 
 These source documents remain authoritative for their respective acquisition, ABI, recording and field-evidence details. This Race Engineer document maps that evidence to feature readiness; it does not replace or rewrite the underlying audits.
+
+
+## 10. Current progression decision (2026-11-13)
+
+- Current fuel is retained as the raw numeric value exposed by the existing ACC Physics decoder. The application must not infer the unit from the internal field name, convert it, or label it kg/L until the user confirms the unit.
+- The user's ACC pit-stop MFD observation (remaining fuel plus refuel amount displayed as a simple sum) is not sufficient to establish the Physics shared-memory field's physical unit.
+- Fuel calculations requiring a physical current-fuel unit remain disabled/deferred. This does not block the Race Engineer foundation or independent live monitoring.
+- Stage 0 is therefore sufficiently closed to begin Stage 1 foundation work, with all unresolved semantic checks retained as explicit feature gates.
+- Stage 1 first task: inspect the existing decoded consumer APIs, timestamps/packet identifiers, and health/lifecycle surfaces. Design the aggregator around those existing contracts; do not add a second shared-memory reader, modify acquisition hot paths, or add Graphics/Static fan-out merely for the Race Engineer.
