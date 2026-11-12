@@ -13,6 +13,7 @@ from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
 from ..race_engineer_acquisition.out_lap import ACCOutLapObserver
 from ..race_engineer_acquisition.static_decoder import decode_static_candidate_b
+from .stream_health import build_stream_freshness
 
 
 class ACCDesktopWindow(QMainWindow):
@@ -101,10 +102,25 @@ class ACCDesktopWindow(QMainWindow):
             )
         else:
             graphics["lap_status"] = None
-        timestamp = consumer.latest_capture_timestamp_ns
-        connected = timestamp is not None and (time.perf_counter_ns() - timestamp) < 1_000_000_000
+        acquisition = self._runtime.supervisor.status
+        static_health = self._runtime.acquirers["static"].health.snapshot
+        now_ns = time.perf_counter_ns()
+        streams = build_stream_freshness(
+            now_ns=now_ns,
+            timestamps_ns={
+                "physics": consumer.latest_capture_timestamp_ns,
+                "graphics": graphics_consumer.latest_capture_timestamp_ns,
+                "static": static_health.last_successful_read_ns,
+            },
+            lifecycle_states={
+                name: str(acquisition.get(name, {}).get("state", "missing"))
+                for name in ("physics", "graphics", "static")
+            },
+        )
+        connected = streams["physics"]["state"] == "fresh"
         snapshot = {
             "connected": connected,
+            "streams": streams,
             "source": "ACC Shared Memory / Physics + Graphics",
             "physics": physics,
             "graphics": graphics,
@@ -113,7 +129,7 @@ class ACCDesktopWindow(QMainWindow):
                 "track": self._track,
                 "track_configuration": self._track_configuration,
             },
-            "acquisition": self._runtime.supervisor.status,
+            "acquisition": acquisition,
         }
         self._bridge.publish(snapshot)
         if connected:
