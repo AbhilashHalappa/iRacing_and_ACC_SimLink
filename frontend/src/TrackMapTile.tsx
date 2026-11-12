@@ -148,7 +148,7 @@ export default function TrackMapTile({
         </span>}
       </div>
       {projected ? (
-        <svg className="track-map-svg" viewBox="0 0 360 180" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
+        <svg className="track-map-svg" viewBox="0 0 360 280" role="img" aria-label={`ACC learned circuit for ${trackName}`}>
           <polyline className="track-map-outline" points={`${projected.points} ${projected.points.split(" ")[0]}`}/>
           {marker && <g className="track-map-car" aria-label="Live car position">
             <circle cx={marker.x} cy={marker.y} r="6.5"/>
