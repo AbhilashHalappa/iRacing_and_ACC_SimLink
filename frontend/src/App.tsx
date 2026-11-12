@@ -7,10 +7,11 @@ import {
   Timer, ChartNoAxesColumnIncreasing, Medal, SlidersHorizontal, Wrench, Target, Siren, Lightbulb,
 } from "lucide-react";
 
-type TileId = "speed" | "gear" | "rpm" | "pedals" | "laps" | "lap_history" | "weather" | "map" | "session" | "brakes" | "tyres" | "fuel" | "warnings" | "hardware" | "delta" | "sectors" | "position" | "electronics" | "pit_stint" | "damage" | "pressure_targets" | "race_control" | "car_status";
+type TileId = "driver_trace" | "speed" | "gear" | "rpm" | "pedals" | "laps" | "lap_history" | "weather" | "map" | "session" | "brakes" | "tyres" | "fuel" | "warnings" | "hardware" | "delta" | "sectors" | "position" | "electronics" | "pit_stint" | "damage" | "pressure_targets" | "race_control" | "car_status";
 type TileSize = "small" | "medium" | "large";
 type Tile = { id: TileId; size: TileSize; pinned: boolean };
 const definitions: { id: TileId; title: string; description: string }[] = [
+  { id: "driver_trace", title: "Driver inputs", description: "Brake, throttle, gear, speed and RPM plotted over one lap" },
   { id: "speed", title: "Speed", description: "Live vehicle speed" },
   { id: "gear", title: "Gear", description: "Current selected gear" },
   { id: "rpm", title: "Engine RPM", description: "Engine speed and shift-light progress" },
@@ -36,6 +37,7 @@ const definitions: { id: TileId; title: string; description: string }[] = [
   { id: "car_status", title: "Car lights & status", description: "ACC lights, wipers, engine and vehicle status" },
 ];
 const initial: Tile[] = [
+  { id: "driver_trace", size: "large", pinned: false },
   { id: "speed", size: "small", pinned: true },
   { id: "gear", size: "small", pinned: true },
   { id: "rpm", size: "medium", pinned: true },
@@ -214,7 +216,41 @@ function lapDeltaDisplay(delta:number|null):string {
   const absolute=Math.abs(Math.round(delta));
   return sign+lapTimeDisplay(null,absolute,true);
 }
-function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glow:GlowConfig; telemetry:any; targetPressures:TargetPressureConfig }) {
+
+type DriverTracePoint = { x:number; brake:number|null; throttle:number|null; gear:number|null; speed:number|null; rpm:number|null };
+const traceSeries = [
+  {key:"brake",label:"Brake",color:"#ef6262",unit:"%"},
+  {key:"throttle",label:"Throttle",color:"#54d889",unit:"%"},
+  {key:"gear",label:"Gear",color:"#f59e0b",unit:""},
+  {key:"speed",label:"Speed",color:"#4aa8ff",unit:" km/h"},
+  {key:"rpm",label:"RPM",color:"#b78aff",unit:" rpm"},
+] as const;
+function DriverTraceTile({points}:{points:DriverTracePoint[]}) {
+  const [enabled,setEnabled]=useState<Record<string,boolean>>(()=>{
+    try { const saved=JSON.parse(window.localStorage.getItem("acc-driver-trace-series")||"null"); return saved?{brake:true,throttle:true,gear:true,speed:true,rpm:true,...saved}:{brake:true,throttle:true,gear:true,speed:true,rpm:true}; }
+    catch { return {brake:true,throttle:true,gear:true,speed:true,rpm:true}; }
+  });
+  const toggle=(key:string)=>setEnabled(prev=>{const next={...prev,[key]:!prev[key]};try{window.localStorage.setItem("acc-driver-trace-series",JSON.stringify(next));}catch{}return next;});
+  const active=traceSeries.filter(s=>enabled[s.key]&&points.some(p=>typeof p[s.key]==="number"));
+  const pathFor=(key:typeof traceSeries[number]["key"])=>{
+    const valid=points.filter(p=>typeof p[key]==="number");
+    if(valid.length<2)return "";
+    const vals=valid.map(p=>p[key] as number),lo=Math.min(...vals),hi=Math.max(...vals),range=hi-lo||1;
+    return valid.map((p,i)=>`${i===0?"M":"L"} ${(p.x*960+20).toFixed(1)} ${(238-((p[key] as number)-lo)/range*208).toFixed(1)}`).join(" ");
+  };
+  return <div className="driver-trace">
+    <div className="trace-controls">{traceSeries.map(s=><button key={s.key} type="button" className={enabled[s.key]?"trace-toggle active":"trace-toggle"} aria-pressed={!!enabled[s.key]} onClick={()=>toggle(s.key)}><i style={{background:s.color}}/>{s.label}</button>)}</div>
+    <div className="trace-chart-wrap"><svg className="trace-chart" viewBox="0 0 1000 280" role="img" aria-label="Brake, throttle, gear, speed and RPM traces over lap progress">
+      {[30,82,134,186,238].map(y=><line key={y} x1="20" x2="980" y1={y} y2={y} className="trace-gridline"/>)}
+      {[0,0.2,0.4,0.6,0.8,1].map(x=><g key={x}><line x1={20+x*960} x2={20+x*960} y1="24" y2="238" className="trace-gridline"/><text x={20+x*960} y="260" textAnchor="middle">{Math.round(x*100)}%</text></g>)}
+      {active.map(s=><path key={s.key} d={pathFor(s.key)} fill="none" stroke={s.color} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round"><title>{s.label} trace</title></path>)}
+    </svg></div>
+    <div className="trace-legend">{active.map(s=>{const last=[...points].reverse().find(p=>typeof p[s.key]==="number");return <span key={s.key}><i style={{background:s.color}}/>{s.label}: <b>{last?(last[s.key] as number).toFixed(s.key==="gear"?0:s.key==="rpm"?0:1)+s.unit:"—"}</b></span>;})}</div>
+    <small className="trace-footnote">{points.length<2?"Waiting for a live lap. Traces begin as ACC telemetry arrives.":"Current lap trace · horizontal axis is normalized lap progress. Each enabled trace is scaled independently; live values are shown below."}</small>
+  </div>;
+}
+
+function TileContent({ id, glow, telemetry, targetPressures, trace }: { id: TileId; glow:GlowConfig; telemetry:any; targetPressures:TargetPressureConfig; trace:DriverTracePoint[] }) {
   const data=telemetry?.physics?.data ?? null;
   const graphics=telemetry?.graphics?.data ?? null;
   const wheels=data?.wheels ?? {};
@@ -260,6 +296,7 @@ function TileContent({ id, glow, telemetry, targetPressures }: { id: TileId; glo
     if(hasLiveTime) history.liveTime=liveTime;
   },[graphics?.sector,graphics?.completed_laps,graphics?.split_time_str]);
   switch (id) {
+    case "driver_trace": return <DriverTraceTile points={trace}/>;
     case "speed": return <div className="hero-value glance-hero"><strong>{display(data?.speed_kph,0)}</strong><span>KM/H</span><small>VEHICLE SPEED · ACC PHYSICS</small></div>;
     case "gear": return <div className="hero-value gear-value glance-hero"><strong>{data?.gear_display ?? "—"}</strong><span>GEAR</span><small>ACC PHYSICS</small></div>;
     case "rpm": { const rpm=Number(data?.rpm??0); const max=Number(data?.current_max_rpm??9000); const ratio=max>0?Math.max(0,Math.min(1,rpm/max)):0; const shift=ratio>=0.95; const lit=shift?15:Math.max(0,Math.min(15,Math.round(ratio*15))); return <div className={"rpm-content glance-rpm"+(shift?" rpm-shift-active":"")}><div className="rpm-number">{display(data?.rpm,0)} <small>RPM</small></div><div className="rpm-leds">{Array.from({ length: 15 }, (_, i) => { const zone=i<5?"green":i<9?"yellow":i<12?"orange":"red"; return <i key={i} className={i<lit?("active zone-"+zone+(shift?" shift-flash":"")):""}/>; })}</div><div className="rpm-scale"><span>0</span><span>{display(max/4,0)}</span><span>{display(max/2,0)}</span><span>{display(max,0)}</span></div><small className="glance-hint">ACC PHYSICS · MAX {display(max,0)} RPM{shift?" · SHIFT":""}</small></div>; }
@@ -289,6 +326,24 @@ function App() {
   const [telemetry,setTelemetry]=useState<any>(null);
   useEffect(()=>{const events=new EventSource("/events");events.onmessage=event=>{try{setTelemetry(JSON.parse(event.data));}catch{/* Ignore malformed bridge frames. */}};events.onerror=()=>setTelemetry((current:any)=>current?{...current,connected:false}:current);return ()=>events.close();},[]);
   const connected=Boolean(telemetry?.connected);
+  const [driverTrace,setDriverTrace]=useState<DriverTracePoint[]>([]);
+  const traceSession=useRef<string|null>(null);
+  const previousTracePosition=useRef<number|null>(null);
+  const previousTraceSample=useRef<string>("");
+  useEffect(()=>{
+    const g=telemetry?.graphics?.data, p=telemetry?.physics?.data;
+    if(!g||!p||g.status!==2||typeof g.normalized_car_position!=="number"||g.normalized_car_position<0||g.normalized_car_position>1) return;
+    const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
+    if(traceSession.current!==sessionKey){traceSession.current=sessionKey;previousTracePosition.current=null;previousTraceSample.current="";setDriverTrace([]);}
+    const x=g.normalized_car_position, prev=previousTracePosition.current;
+    if(prev!==null&&prev>0.85&&x<0.15){setDriverTrace([]);previousTraceSample.current="";}
+    const point:DriverTracePoint={x,brake:typeof p.brake==="number"?Math.max(0,Math.min(100,p.brake*100)):null,throttle:typeof p.throttle==="number"?Math.max(0,Math.min(100,p.throttle*100)):null,gear:typeof p.gear==="number"?p.gear:typeof p.gear_display==="number"?p.gear_display:null,speed:typeof p.speed_kph==="number"?p.speed_kph:null,rpm:typeof p.rpm==="number"?p.rpm:null};
+    const signature=[x,point.brake,point.throttle,point.gear,point.speed,point.rpm].join("|");
+    if(signature!==previousTraceSample.current&&(prev===null||Math.abs(x-prev)>=0.001||Math.abs(x-prev)>0.5)){
+      previousTraceSample.current=signature;setDriverTrace(old=>[...old,point].slice(-1800));
+    }
+    previousTracePosition.current=x;
+  },[telemetry]);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
   const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;sector1BoundaryMs:number|null;sector2BoundaryMs:number|null;validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:null});
   useEffect(()=>{
@@ -392,7 +447,7 @@ function App() {
       {editing&&libraryOpen&&<div className="tile-library"><div className="tile-library-heading"><strong>Available tiles</strong><button className="text-action" onClick={()=>setLibraryOpen(false)}>Close</button></div><div className="tile-library-grid">{definitions.filter(d=>!draft.some(t=>t.id===d.id)).map(d=><button className="library-item" key={d.id} onClick={()=>add(d.id)}><strong><Plus size={14}/>{d.title}</strong><span>{d.description}</span></button>)}</div></div>}
       <div className="dashboard-grid" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const el=(e.target as HTMLElement).closest("[data-tile-id]");const to=el?.getAttribute("data-tile-id") as TileId|null;if(dragging&&to)move(dragging,to);setDragging(null);}}>
         {shown.map(tile=><div key={tile.id} data-tile-id={tile.id} draggable={editing&&!tile.pinned} onDragStart={()=>setDragging(tile.id)} onDragEnd={()=>setDragging(null)} className={`tile-drag-wrapper tile-slot-${tile.size} ${tile.id==="hardware"?"tile-slot-hardware":""}`}>
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:tile.id==="car_status"?<Lightbulb/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id} glow={glow} telemetry={{...telemetry,lap_history:lapHistory}} targetPressures={targetPressures}/></div></article>
+          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="driver_trace"?<ChartNoAxesCombined/>:tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:tile.id==="car_status"?<Lightbulb/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id} glow={glow} telemetry={{...telemetry,lap_history:lapHistory}} targetPressures={targetPressures} trace={driverTrace}/></div></article>
           {editing&&<div className="tile-size-control"><label>Size <select value={tile.size} onChange={e=>update(tile.id,{size:e.target.value as TileSize})}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="text-action" onClick={()=>update(tile.id,{pinned:!tile.pinned})}>{tile.pinned?<PinOff size={13}/>:<Pin size={13}/>} {tile.pinned?"Unpin":"Pin"}</button><button className="remove-tile" onClick={()=>remove(tile.id)} aria-label={`Remove ${fmt(tile.id)} tile`}><X size={14}/></button></div>}
         </div>)}
       </div></section> : <section className="workspace"><div className="page-placeholder"><div className="placeholder-mark">RE</div><h2>{active}</h2><p>This workspace will be added in a later implementation stage.</p><span className="pending-label">NOT INTEGRATED</span></div></section>}
