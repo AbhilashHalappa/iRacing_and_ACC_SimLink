@@ -53,3 +53,129 @@ test("cached layouts must match the exact track/configuration identity", () => {
   assert.equal(isTrackLayout(layout, "spa--endurance"), false);
   assert.equal(isTrackLayout({ ...layout, points: layout.points.slice(0, 10) }, "spa--gp"), false);
 });
+
+
+import {
+  advanceTrackMapCapture,
+  createTrackMapCaptureState,
+} from "../src/trackMapCapture.js";
+
+function captureOneLap({ invalidateAt = null, outLapAt = null } = {}) {
+  let state = createTrackMapCaptureState("spa--gp", "spa--gp|session");
+  const sample = (progress, overrides = {}) => {
+    const result = advanceTrackMapCapture(state, {
+      progress,
+      point: { x: progress * 100, z: Math.sin(progress * Math.PI * 2) * 30 },
+      completedLaps: 0,
+      isValidLap: true,
+      lastTimeMs: null,
+      lapStatus: null,
+      ...overrides,
+    }, { minPoints: 80 });
+    state = result.state;
+    return result;
+  };
+
+  sample(0.95);
+  sample(0.02);
+  let invalidated = false;
+  let outLapMarked = false;
+  for (let index = 1; index <= 96; index += 1) {
+    const progress = 0.02 + index * 0.01;
+    const invalidate = invalidateAt !== null && !invalidated && progress >= invalidateAt;
+    const outLap = outLapAt !== null && !outLapMarked && progress >= outLapAt;
+    if (invalidate) invalidated = true;
+    if (outLap) outLapMarked = true;
+    sample(progress, {
+      isValidLap: invalidate ? false : true,
+      lapStatus: outLap ? "out" : null,
+    });
+  }
+  return { state, sample };
+}
+
+test("track map is committed only after ACC confirms a completed valid lap", () => {
+  const { state: capturedState } = captureOneLap();
+  let state = capturedState;
+  const result = advanceTrackMapCapture(state, {
+    progress: 0.01,
+    point: { x: 1, z: 0 },
+    completedLaps: 1,
+    isValidLap: true,
+    lastTimeMs: 91234,
+    lapStatus: null,
+  }, { minPoints: 80 });
+  assert.ok(result.committedPoints);
+  assert.ok(result.committedPoints.length >= 80);
+  assert.equal(result.state.capturing, true);
+});
+
+test("invalidity is latched for the whole lap and prevents map replacement", () => {
+  const { state } = captureOneLap({ invalidateAt: 0.45 });
+  const result = advanceTrackMapCapture(state, {
+    progress: 0.01,
+    point: { x: 1, z: 0 },
+    completedLaps: 1,
+    isValidLap: true,
+    lastTimeMs: 91234,
+    lapStatus: null,
+  }, { minPoints: 80 });
+  assert.equal(result.committedPoints, null);
+});
+
+test("out-laps cannot produce a cached track layout", () => {
+  const { state } = captureOneLap({ outLapAt: 0.4 });
+  const result = advanceTrackMapCapture(state, {
+    progress: 0.01,
+    point: { x: 1, z: 0 },
+    completedLaps: 1,
+    isValidLap: true,
+    lastTimeMs: 91234,
+    lapStatus: null,
+  }, { minPoints: 80 });
+  assert.equal(result.committedPoints, null);
+});
+
+test("map candidate waits for ACC completed-lap confirmation", () => {
+  const { state } = captureOneLap();
+  const crossing = advanceTrackMapCapture(state, {
+    progress: 0.01,
+    point: { x: 1, z: 0 },
+    completedLaps: 0,
+    isValidLap: true,
+    lastTimeMs: null,
+    lapStatus: null,
+  }, { minPoints: 80 });
+  assert.equal(crossing.committedPoints, null);
+  const confirmed = advanceTrackMapCapture(crossing.state, {
+    progress: 0.025,
+    point: { x: 2, z: 1 },
+    completedLaps: 1,
+    isValidLap: true,
+    lastTimeMs: 91234,
+    lapStatus: null,
+  }, { minPoints: 80 });
+  assert.ok(confirmed.committedPoints);
+});
+
+test("teleport or incomplete progress cannot be committed as a lap", () => {
+  let state = createTrackMapCaptureState("spa--gp", "session");
+  const step = (progress) => {
+    const result = advanceTrackMapCapture(state, {
+      progress,
+      point: { x: progress * 10, z: progress * 5 },
+      completedLaps: 0,
+      isValidLap: true,
+      lastTimeMs: null,
+      lapStatus: null,
+    }, { minPoints: 5 });
+    state = result.state;
+    return result;
+  };
+  step(0.95);
+  step(0.02);
+  step(0.2);
+  const teleported = step(0.1);
+  assert.equal(teleported.state.capturing, false);
+  assert.equal(teleported.committedPoints, null);
+});
