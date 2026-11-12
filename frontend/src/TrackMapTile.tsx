@@ -72,12 +72,10 @@ export default function TrackMapTile({
   ].join("|");
 
   const [layout, setLayout] = useState<TrackLayout | null>(() => readTrackLayout(identity));
-  const captureProgress = useRef<number | null>(null);
   const capture = useRef(createTrackMapCaptureState(identity, sessionKey));
 
   useEffect(() => {
     setLayout(readTrackLayout(identity));
-    captureProgress.current = null;
     capture.current = createTrackMapCaptureState(identity, sessionKey);
   }, [identity, sessionKey]);
 
@@ -97,7 +95,6 @@ export default function TrackMapTile({
     }, { minPoints: MIN_LAYOUT_POINTS });
 
     capture.current = result.state;
-    captureProgress.current = result.captureProgress;
 
     if (result.committedPoints) {
       const candidate: TrackLayout = {
