@@ -175,7 +175,7 @@ export default function TrackMapTile({
           <svg
             className="track-map-svg"
             viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-            preserveAspectRatio="none"
+            preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label={`ACC learned circuit for ${trackName}`}
           >
