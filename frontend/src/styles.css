@@ -377,3 +377,64 @@ button { cursor: pointer; }
 .trace-legend span { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
 .trace-legend b { color:var(--text); font-variant-numeric:tabular-nums; }
 .trace-footnote { color:var(--muted); font-size:11px; line-height:1.45; }
+
+
+/* Independent ACC Physics, Graphics and Static stream health. */
+.stream-health-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.stream-health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--outline);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .045em;
+  white-space: nowrap;
+}
+.stream-health-chip i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #8b929d;
+}
+.stream-health-chip b { color: var(--on-surface); font-size: 9px; font-weight: 700; }
+.stream-health-chip.stream-fresh i { background: #35c979; box-shadow: 0 0 7px rgba(53,201,121,.45); }
+.stream-health-chip.stream-stale i { background: #f0a33b; }
+.stream-health-chip.stream-missing i,
+.stream-health-chip.stream-unavailable i { background: #e05b62; }
+.tile-content-health { min-width: 0; }
+.tile-content-health.is-stale .tile-content-values {
+  opacity: .42;
+  filter: grayscale(.28);
+}
+.tile-stale-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin: 0 0 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(240,163,59,.35);
+  border-radius: 6px;
+  background: rgba(240,163,59,.08);
+  color: #e9ae5e;
+  font-size: 9px;
+  letter-spacing: .035em;
+}
+.tile-stale-banner strong { font-weight: 750; }
+.tile-stale-banner span { color: var(--muted); }
+@media (max-width: 760px) {
+  .stream-health-group { justify-content: flex-start; }
+}
