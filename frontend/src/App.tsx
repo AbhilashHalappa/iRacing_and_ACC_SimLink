@@ -302,7 +302,17 @@ function App() {
     const tracker=lapCapture.current;
     if(tracker.sessionKey!==sessionKey){
       lapCapture.current={sessionKey,completedLaps:completed,sector,s1Ms:null,s2Ms:null,liveSectorMs:cumulativeSplitMs(graphics.split_time_str),validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
-      setLapHistory(readLapHistory(storageKey));
+      const savedHistory=readLapHistory(storageKey);
+      // ACC can reuse track/car/session-type identity across separate sessions.
+      // On app startup, a stored lap number ahead of ACC's current completed
+      // lap counter proves this is a fresh session, not an app restart mid-session.
+      const belongsToEarlierSession=completed!==null&&savedHistory.some(entry=>entry.lap>completed);
+      if(belongsToEarlierSession){
+        try{window.localStorage.removeItem(storageKey);}catch{}
+        setLapHistory([]);
+      } else {
+        setLapHistory(savedHistory);
+      }
       return;
     }
     if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
