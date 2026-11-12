@@ -1,3 +1,5 @@
+import type { TrackMapPoint } from "./trackMap.js";
+
 export type TrackMapCaptureState = {
   key: string | null;
   sessionKey: string;
