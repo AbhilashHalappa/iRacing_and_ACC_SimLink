@@ -658,3 +658,34 @@ This document is authoritative for personal pace analysis, immediate-opponent fo
 - The next engineering step is to inspect existing decoded consumer APIs and validate these semantics before enabling opponent-aware calculations. Do not add another shared-memory reader.
 
 No application code was changed as part of this documentation update.
+
+
+## 18. Dedicated Traffic Strategy specification (2026-11-13)
+
+The dedicated Traffic Strategy specification has been created:
+
+- [Race Engineer Traffic Strategy](RACE_ENGINEER_TRAFFIC_STRATEGY.md)
+
+This document is authoritative for nearby-car awareness, catching slower traffic, being approached/lapped, proximity and overlap gating, traffic-affected pace context, communication, UI requirements and validation gates.
+
+### Agreed Traffic Strategy boundaries
+
+- Traffic Strategy focuses on physical traffic context and nearby-car interactions, not simply classified position.
+- Pace Strategy retains ownership of the immediate classified car one position ahead/behind, race-position chasing, passing that target, gap-building and defending.
+- Traffic Strategy may identify cars ahead, behind or alongside only when the existing car association and coordinate model support those statements.
+- Catching, being approached, relative movement and overlap must be based on fresh, correctly associated observations; a timing gap alone is not physical proximity.
+- Traffic-affected lap/sector context must be aligned with the relevant timing interval and must not overwrite measured lap times or automatically discard valid laps.
+- No fabricated distance, relative speed, time-to-contact, overlap, contact, blue-flag status, class priority, racing line or opponent intent.
+- Reuse existing decoded consumer APIs and telemetry acquisition. Do not add another shared-memory reader.
+- All recommendations remain informational and advisory; Race Engineer never controls the car or changes ACC state.
+
+### Current telemetry validation gates
+
+- Graphics car IDs, coordinates and normalized track position remain candidate inputs.
+- Player/opponent association, coordinate frame, units, update cadence, track wrap-around and stale-data behaviour require controlled multi-car ACC validation.
+- Opponent-specific speed or relative speed has not been established as a validated traffic input.
+- Overlap detection is not approved until car dimensions/reference points and coordinate geometry can support it reliably.
+- Race-control/blue-flag semantics must remain gated on explicit validation.
+- Until these gates pass, Traffic Strategy must use only the facts the available telemetry can reliably establish and clearly report unavailable information.
+
+No application code was changed as part of this documentation update.
