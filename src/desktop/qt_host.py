@@ -33,6 +33,7 @@ class ACCDesktopWindow(QMainWindow):
         self._track_configuration: str | None = None
         self._out_lap_observer = ACCOutLapObserver()
         self._runtime.supervisor.start()
+        self._race_engineer_service.start()
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
 
         # Use a named, disk-backed profile: the implicit QWebEngineView profile
@@ -55,6 +56,7 @@ class ACCDesktopWindow(QMainWindow):
         try:
             self._bridge_url = self._bridge.start()
         except Exception:
+            self._race_engineer_service.close()
             self._runtime.supervisor.stop(timeout=5.0)
             raise
         self._view.load(QUrl(self._bridge_url))
@@ -146,6 +148,7 @@ class ACCDesktopWindow(QMainWindow):
         self._publish_timer.stop()
         self._bridge.stop()
         alive = self._runtime.supervisor.stop(timeout=5.0)
+        self._race_engineer_service.close()
         if alive:
             QMessageBox.warning(
                 self,
