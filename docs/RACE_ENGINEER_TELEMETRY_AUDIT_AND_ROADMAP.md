@@ -986,3 +986,30 @@ Reuse its bounded-queue, acknowledgement and failure-accounting concepts. Before
 
 **Validation status:** source and test files were inspected only. Tests were not executed. No application code or Overview path was changed. No performance benchmark or live ACC validation was performed.
 
+
+
+## 28. Strategy broker architecture decision (2026-11-13)
+
+Following the detailed source audit of `FanOutDispatcher`, the initial strategy distribution approach is now **a lightweight decoded-state strategy broker**. The decision and detailed contract are recorded in [Race Engineer Strategy Consumer Architecture — Section 17](RACE_ENGINEER_STRATEGY_CONSUMER_ARCHITECTURE.md#17-strategy-distribution-implementation-choice--lightweight-decoded-state-broker-2026-11-13).
+
+### Decision
+
+- Do not attach `FanOutDispatcher` to Physics or Graphics acquisition rings. Those SPSC rings are already consumed by their decoder workers; a second reader would compete for and steal samples.
+- Do not force the existing raw-ring dispatcher to become the decoded strategy bus.
+- Introduce a small in-process broker at the decoded-data boundary. It distributes immutable decoded snapshots and typed domain events to independently subscribed strategy consumers.
+- Keep live state and history-critical events on separate delivery paths: latest-value slots coalesce obsolete snapshots; bounded event mailboxes preserve identity/order and expose gaps for reconciliation.
+- Reuse bounded-capacity, acknowledgement, failure-accounting and loss-metric concepts from `FanOutDispatcher`, without directly coupling it to raw acquisition.
+- Use bounded shared scheduling, per-subscriber isolation and asynchronous compact history. No strategy-specific shared-memory readers, high-frequency polling loops or decoder-thread strategy calculations.
+- The existing Overview Qt publisher, TelemetryBridge HTTP/SSE route and React consumer remain untouched and independent.
+
+### Remaining source-audit gates
+
+1. Identify the exact decoded Physics/Graphics publication point and engineering snapshot update cadence.
+2. Trace service lifecycle and determine a constant-time, bounded, failure-isolated handoff to the broker.
+3. Identify existing producers for completed laps, session changes, pit transitions, damage changes and weather transitions.
+4. Define collision-safe event identity, event ordering, duplicate handling and reconciliation source.
+5. Define broker subscription lifecycle, bounded shared scheduling, metrics and shutdown/restart behaviour.
+6. Add deterministic tests for coalescing, event gaps/recovery, independent subscribers, slow/failing consumers and bounded memory.
+7. Benchmark CPU, memory, event latency, acquisition health and Overview responsiveness before/after integration; then validate with Windows build and controlled ACC sessions.
+
+**Status:** Architecture choice approved and documented; source-level publication-hook audit, implementation, tests, build, benchmark and live ACC validation remain pending. No application code or Overview path was changed.
