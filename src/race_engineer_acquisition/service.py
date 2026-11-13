@@ -8,7 +8,6 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from .engineering_snapshot import RaceEngineerSnapshotAggregator
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
 
@@ -17,7 +16,6 @@ class RaceEngineerService:
     """Build detached, freshness-gated observations for the desktop bridge."""
 
     def __init__(self, runtime: Any) -> None:
-        self._aggregator = RaceEngineerSnapshotAggregator(runtime)
         self._broker = DecodedTelemetryBroker(runtime)
         self._fuel_subscription = self._broker.subscribe("fuel-engineer-observation")
 
@@ -47,7 +45,9 @@ class RaceEngineerService:
 
     def snapshot(self) -> dict[str, Any]:
         envelope = self._fuel_subscription.read_latest()
-        telemetry = envelope.telemetry if envelope is not None else self._aggregator.snapshot()
+        if envelope is None:
+            raise RuntimeError("decoded telemetry broker has not published its initial snapshot")
+        telemetry = envelope.telemetry
         fuel = build_fuel_engineer_snapshot(telemetry)
         return {
             "fuel_engineer": asdict(fuel),
