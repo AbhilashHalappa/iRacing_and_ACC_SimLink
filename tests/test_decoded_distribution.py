@@ -124,7 +124,7 @@ def test_latest_snapshot_subscription_coalesces_unread_updates():
     assert subscription.coalesced_updates == 2
 
 
-def test_subscriber_failure_or_close_does_not_affect_other_subscribers():
+def test_closed_subscriber_does_not_affect_other_subscribers():
     runtime = _Runtime()
     broker = DecodedTelemetryBroker(runtime)
     first = broker.subscribe("first")
@@ -136,6 +136,6 @@ def test_subscriber_failure_or_close_does_not_affect_other_subscribers():
         runtime.graphics_consumer.publish(2)
         assert _wait_for(lambda: second.latest is not None and second.latest.revision >= 2)
         assert first.latest is None
-        assert second.latest.telemetry.graphics.capture_sequence == 1
+        assert second.latest.telemetry.graphics.capture_sequence == 2
     finally:
         assert broker.close()
