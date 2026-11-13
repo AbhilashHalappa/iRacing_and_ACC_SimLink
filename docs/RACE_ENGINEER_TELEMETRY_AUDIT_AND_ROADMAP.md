@@ -1081,3 +1081,39 @@ Inspected on `feature/race-engineer-page`:
 ### Validation status
 
 This was a GitHub source inspection and documentation update only. No tests were executed, no Windows build was run, no benchmark or live ACC session was performed, and no application code or Overview path was changed.
+
+## 31. Implementation boundary clarification — Race Engineer consumes decoded data only (2026-11-13)
+
+See [Race Engineer Strategy Consumer Architecture — Section 20](RACE_ENGINEER_STRATEGY_CONSUMER_ARCHITECTURE.md#20-non-negotiable-race-engineer-input-boundary--decoded-data-only-2026-11-13). This section resolves a possible ambiguity in the two-stage fan-out roadmap.
+
+### Binding decision
+
+- **Race Engineer input is Stage 2 decoded-data distribution only.** It subscribes to immutable decoded Physics/Graphics snapshots, validated Static identity state where available, freshness/health metadata and typed domain events.
+- Stage 1 raw fan-out exists for acquisition infrastructure: raw recorder, the one decoder for each stream and optional raw diagnostics. It is not a Race Engineer subscription point.
+- Strategy code must never open ACC shared memory, read/drain raw acquisition rings, receive raw shared-memory pages as its business input, or decode telemetry itself.
+- Existing Physics and Graphics decoder consumers remain the single decoding owners. The new Race Engineer distribution boundary is downstream of their decoded publication.
+- The immediate implementation task is Stage 2 decoded snapshot/event distribution, then connection of the first consumer in the documented strategy implementation order.
+- Do not delay Race Engineer implementation for a Stage 1 raw-dispatcher migration. Stage 1 integration is a separate infrastructure workstream and must not be bundled into the first strategy implementation increment.
+- The existing raw Physics recorder and standalone recording fan-out pipeline already exist. Reuse them if/when raw runtime integration is separately undertaken; do not recreate a recorder. Be precise that an existing standalone component does not prove it is wired into the default live runtime.
+- Keep Overview's current Qt publisher, 20 Hz cadence, TelemetryBridge HTTP/SSE contract and React consumer untouched. Race Engineer subscribes independently through Stage 2.
+
+### Corrected implementation sequence
+
+1. Define Stage 2 snapshot/event contracts from existing decoded consumer outputs, including source identity, timestamps/sequences, freshness, validity and health.
+2. Implement bounded decoded-state publication with independent subscriber isolation. Coalesce replaceable latest-state snapshots; identify, order and reconcile history-critical events.
+3. Connect the first strategy consumer according to the approved strategy order.
+4. Add deterministic tests for coalescing, multiple subscribers, slow/failing subscriber isolation, event gaps/reconciliation, freshness and lifecycle.
+5. Implement shared calculations and remaining strategies incrementally.
+6. Keep Stage 1 raw fan-out migration separate; do not make it a prerequisite for steps 1–5.
+
+### Explicit non-goals for the first Race Engineer increment
+
+- No new ACC shared-memory reader.
+- No raw acquisition ring subscription from Race Engineer.
+- No raw decoder implementation inside Race Engineer.
+- No recorder rewrite or duplicate recorder.
+- No Overview UI/publisher/transport changes.
+- No strategy calculations, history writes or TTS calls on decoder threads.
+
+**Status:** This is a documentation clarification and implementation-direction correction only. It does not claim Stage 2 code has been implemented, tested or validated in a live ACC session.
+
