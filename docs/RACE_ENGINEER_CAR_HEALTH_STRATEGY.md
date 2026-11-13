@@ -204,6 +204,61 @@ Car Health Strategy is ready for implementation only when:
 - No new shared-memory reader or acquisition path is introduced.
 - All recommendations remain read-only and the driver retains control of every action.
 
+
+## 12. Damage assessment and pit-inspection decision boundary
+
+Damage assessment and the decision to make a pit stop are separate responsibilities.
+
+### 12.1 How Car Health uses the available damage data
+
+The initial damage implementation must use the five Physics `car_damage[5]` values as raw, general-damage observations only:
+
+1. Establish a fresh session/car baseline when the stream is stable.
+2. Preserve each channel's raw value and timestamp; do not assign a component name or unit that has not been validated.
+3. Detect a meaningful change from the baseline using a noise/deadband model only after that model is validated.
+4. Track whether the changed reading persists, changes again, or returns to the verified repaired/baseline state.
+5. Record pit entry/exit as context, not proof of repair. A repair is considered observed only when the relevant damage values actually return to the validated repaired state.
+6. Keep the observation separate from causal conclusions: a damage change does not prove a collision, identify a failed component, or establish a lap-time penalty.
+
+The current five channels therefore support damage-change tracking and repair-transition observation. They do not yet support component-specific diagnosis, percentage health, severity scoring, remaining life, handling-risk claims or a quantified performance-loss estimate.
+
+### 12.2 Evidence levels and driver advice
+
+Use graduated, evidence-based responses:
+
+- **Level 1 — changed reading only:** report the damage-reading change and continue monitoring. Do not recommend a pit stop solely from an uncalibrated value.
+- **Level 2 — persistent damage with repeatable corroborating behaviour:** report both observations separately and qualify their relationship. If the same abnormal behaviour repeats under comparable conditions, advise the driver to consider inspecting the car at a suitable pit opportunity. Do not claim the damage caused the behaviour unless causality is independently validated.
+- **Level 3 — validated ACC warning or confirmed critical condition:** announce the exact validated warning and its supported severity/lifecycle. Advise the driver to follow ACC instructions. Any urgency to stop must come from the validated warning/condition, not an invented threshold applied to the raw damage array.
+
+A single unusual lap, one sensor, stale data or an unexplained non-zero number cannot escalate the advice by itself.
+
+### 12.3 How abnormal behaviour may corroborate damage
+
+Only after its own telemetry gates pass, Car Health may consume specialist summaries and compare repeatable behaviour against a comparable baseline, for example:
+
+- Lap/sector pace changes, with traffic, weather, fuel, tyre state and driver variation considered.
+- Steering or vehicle-response changes, where the relevant signals and reference frame are validated.
+- Braking changes supplied by Brake Strategy.
+- Tyre behaviour supplied by Tyre Strategy.
+
+Describe correlation cautiously (for example, “the damage reading remains present and the same response change has repeated”). Do not say “damage is costing X seconds” or attribute a handling symptom to a specific component without validated evidence.
+
+### 12.4 Pit-stop ownership and integration
+
+Car Health owns detection, tracking and evidence assessment. It may recommend monitoring or inspection, but it does not make the final integrated stop-timing decision.
+
+Pit-Stop Strategy, which is intentionally specified last, owns whether and when to stop. It must combine validated Car Health urgency with the wider race context, including:
+
+- Whether a validated warning requires immediate action or permits continued running.
+- Whether the damage/behaviour evidence justifies inspection or repair.
+- Remaining race distance/time, current position and the cost of continuing.
+- Pit-lane loss and repair duration, once validated.
+- Whether a fuel/tyre stop is already planned and whether repair can be combined with it.
+- ACC repair availability and actual repair behaviour for the selected car/session.
+
+Avoid an unnecessary standalone stop when inspection/repair can reasonably be combined with an already-planned stop. Do not recommend a repair action or claim it is available unless ACC exposes and validates that option. The driver always decides and performs the stop and any repair manually.
+
+
 ## 11. Current implementation decision
 
 This document defines the strategy; it does not authorize or imply that the Car Health engine, UI, alerts or live diagnosis have been implemented. The current phase is strategy definition and shared telemetry auditing. Implementation should begin only after the remaining strategy specifications and the combined telemetry/data-ownership plan are complete.
