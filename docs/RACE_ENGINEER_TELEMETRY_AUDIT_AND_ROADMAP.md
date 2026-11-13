@@ -296,8 +296,7 @@ Tasks:
 - Compare front/rear and left/right behaviour.
 - Add conservative brake-temperature monitoring after car-specific limits are established.
 - Add tyre degradation estimates only as inferred trends.- Keep I/M/O temperatures, direct tyre wear, pad/disc life, brake pressure and brake compound out of trusted logic until their field issues are resolved.
-- Define next-stint pressure advice only after a supported target-window model exists.
-Acceptance gate:
+- Define next-stint pressure advice only after a supported target-window model exists.Acceptance gate:
 - Validate cold-to-hot pressure changes, pit resets, tyre changes, wet/dry transitions and brake-temperature trends.
 - Confirm no false warnings from initial zero/unpopulated samples.
 - Clearly distinguish measured pressure/temperature from inferred degradation.
@@ -517,7 +516,6 @@ The user completed a controlled live ACC check of the Race Engineer fuel observa
 - During the session, **Fuel Used increased to 1.1 L** while **Fuel Remaining was 60.9 L**. This confirms that the decoded Graphics `used_fuel_l` value changes as fuel is consumed.
 - After starting a **new session**, **Fuel Used reset to 0.0 L** and **Fuel Remaining reset to 62.0 L**.- In the new session, Fuel per Lap displayed **3.66 L/lap**, Estimated Laps Remaining displayed **16.9 laps**, and MFD Fuel to Add displayed **0.0 L**.
 - The observed fuel-used behaviour is therefore validated for live accumulation during a session and reset on a new session.
-
 **Scope limitation:** this test does not establish whether Fuel Used resets or accumulates across pit stops, refuelling events, driver swaps, or other in-session transitions. Keep Fuel Used observation-only until those semantics are separately tested. The display remains freshness-gated and read-only.
 
 **Strategy gate unchanged:** no finish-fuel, shortfall/surplus, or fuel-saving recommendation is enabled. A configurable safety reserve and validated remaining-race-distance inputs are still required. No ACC controls or MFD values are written by Race Engineer.
