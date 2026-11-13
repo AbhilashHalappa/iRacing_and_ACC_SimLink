@@ -21,7 +21,8 @@ class FuelEngineerSnapshot:
     fuel_per_lap_fresh: bool
     estimated_laps_candidate: float | None
     estimated_laps_fresh: bool
-    mfd_fuel_to_add_candidate_l: float | None
+    mfd_fuel_to_add_l: float | None
+    fuel_used_l: float | None
     graphics_fresh: bool
     strategy_calculations_enabled: bool
     blockers: tuple[str, ...]
@@ -75,6 +76,10 @@ def build_fuel_engineer_snapshot(
         if graphics_data is not None else None
     )
 
+    fuel_used = (
+        _nonnegative_finite(getattr(graphics_data, "used_fuel", None))
+        if graphics_data is not None else None
+    )
     reserve = _nonnegative_finite(safety_reserve_l)
     blockers: list[str] = []
     if current_fuel is None:
@@ -94,7 +99,8 @@ def build_fuel_engineer_snapshot(
         fuel_per_lap_fresh=per_lap is not None,
         estimated_laps_candidate=estimated_laps,
         estimated_laps_fresh=estimated_laps is not None,
-        mfd_fuel_to_add_candidate_l=mfd_to_add,
+        mfd_fuel_to_add_l=mfd_to_add,
+        fuel_used_l=fuel_used,
         graphics_fresh=graphics.is_fresh,
         strategy_calculations_enabled=calculations_enabled,
         blockers=tuple(blockers),
