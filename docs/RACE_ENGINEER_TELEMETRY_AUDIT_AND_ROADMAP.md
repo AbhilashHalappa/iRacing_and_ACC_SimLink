@@ -77,6 +77,7 @@ The repository already has a useful read-only acquisition foundation:
 | Current fuel | Physics fuel_kg (legacy internal field name) | **Available — validated unit: litres (L)** | User confirmed in ACC that fuel values are displayed in litres. Preserve the decoded numeric value exactly; interpret and display it as litres. The internal `fuel_kg` name is misleading and must not be used as the UI unit. |
 | Fuel per lap | Graphics fuel_per_lap_l | **Available — validated against ACC** | User confirmed 3.66 L/lap matches ACC's in-game display. Keep freshness and finite-value checks; this confirms the observed display, not every car/condition. |
 | Estimated laps remaining | Graphics fuel_estimated_laps | **Available — validated against ACC** | User confirmed 16.5 laps matches ACC's in-game display. Keep freshness and finite-value checks; recheck after refuelling and across relevant session states. |
+| MFD fuel-to-add | Graphics mfd_fuel_to_add | **Available — validated (L)** | User confirmed the live ACC MFD value, including an observed example of **10.0 L**. Present as read-only information; never operate the MFD. |
 | Fuel used | Graphics used_fuel_l | **Available — validated observation (L)** | User confirmed the live value is working in ACC. Expose it as an observation only; do not use it for projections until its accumulation/reset semantics are documented. |
 | Maximum tank capacity | Static max_fuel | **Available — candidate** | Static Variant B decoder exposes the field; verify against car and ACC before using as a hard limit. |
 | Fuel required to finish | Current fuel + validated consumption + race distance/time remaining | **Calculated — feasible** | Depends on validated current-fuel units, per-lap consumption and race-distance estimate. |
@@ -489,3 +490,14 @@ The user compared the live Race Engineer/Overview fuel values with ACC and confi
 - Fuel per lap: **3.66 L/lap**
 
 The fuel-observation builder defaults fuel-per-lap and estimated-laps semantics to validated, while continuing to reject stale, non-finite and negative samples. MFD fuel-to-add is also confirmed against ACC in litres. Fuel used is confirmed to be live/working, but its exact accumulation and reset semantics remain open; do not use it for strategy calculations. This is a validation of the observed ACC display values; future checks after refuelling and across session states remain useful. Finish-fuel and shortfall recommendations remain disabled until a safety reserve is configured and remaining-race-distance inputs are validated.
+
+
+### Fuel telemetry validation update (2026-11-13)
+
+The user confirmed the following fuel observations against the live ACC session:
+- Fuel per lap: **3.66 L/lap**.
+- Estimated laps remaining: **16.5 laps**.
+- MFD fuel to add: **10.0 L** in the observed example.
+- Fuel used: live value confirmed working; its accumulation/reset semantics remain undocumented, so it is observation-only for now.
+
+The fuel-observation snapshot exposes MFD fuel-to-add and fuel-used values only when the Graphics stream is fresh and the values are finite and non-negative. These observations do not enable finish-fuel or fuel-saving calculations; the safety reserve and remaining-race-distance gates remain in force. All values are advisory/read-only, and the application must not operate the ACC MFD.
