@@ -4,7 +4,7 @@
 **Target branch:** feature/race-engineer-page  
 **Audit baseline:** branch head b180a3094f78d26fa12a9417e2f1e97e3b8a2a17  
 **Document status:** Stage 0 audit baseline documented; unresolved semantic checks are explicitly deferred where they do not block foundation work  
-**Implementation status:** Stage 1 snapshot aggregator and unit tests are committed; service/UI integration and Windows/live-ACC validation remain pending.
+**Implementation status:** Stage 1 snapshot aggregator and initial Stage 3 fuel-observation slice are committed; service/UI integration, strategy calculations, and Windows/live-ACC validation remain pending.
 
 ## 1. Purpose and audit method
 
@@ -206,7 +206,7 @@ The repository already has a useful read-only acquisition foundation:
 7. **Brake temperatures are usable; pad/disc life, brake pressure, brake compounds and several engine-tail fields are not yet trustworthy.**
 8. **Damage channels are real, but component labels/scales are incomplete.** Avoid claiming body, suspension or engine-specific damage without mapping evidence.
 9. **Race-control enums and gap sign convention need care.** Preserve raw values and do not guess meaning.
-10. **Fuel is the highest-value calculation but remains gated.** Current fuel is retained exactly as ACC provides it with no conversion; the user will confirm its unit later. Current fuel, fuel per lap and estimated laps must be semantically compatible before spoken saving targets are enabled.
+10. **Fuel strategy remains gated, but current-fuel units are confirmed.** Current fuel is retained exactly as ACC provides it and interpreted/displayed in litres (L). Fuel per lap and estimated laps remain candidate Graphics values until compared with ACC; no finish-fuel or saving target is enabled yet.
 11. **Setup recommendation scope must be restricted to supported settings.** Aero and suspension setup recommendations are not currently supported by the audited telemetry.
 12. **The driver-initiated interaction is not fully specified.** Hold-to-talk key is agreed, but the mechanism for entering the request remains open.
 13. **No game control is ever permitted.** This applies to every stage, including setup, MFD, pits and strategy.
@@ -217,7 +217,7 @@ The stages below are ordered by dependency and risk. A stage is not complete mer
 
 ### Stage 0 — Audit and requirements closure
 
-**Status:** Foundation-readiness audit documented. Fuel-unit confirmation is explicitly deferred by the user; other unresolved telemetry semantics remain visible and gated. Stage 1 may proceed without fuel-dependent calculations.
+**Status:** Foundation-readiness audit documented. User confirmed current-fuel units as litres (L); remaining fuel telemetry semantics and reserve policy remain visible and gated.
 
 Tasks:
 - Maintain this field-to-feature matrix as the source of truth.
@@ -464,3 +464,19 @@ Added `tests/test_engineering_snapshot.py` for independent freshness, stale-stre
 5. Add the single radio queue using existing TTS, then test it with a simulated session before UI integration.
 
 The current implementation is a standalone, testable aggregation boundary; it is not yet connected to the Race Engineer page or radio/TTS.
+
+
+## 12. Initial Fuel Engineer implementation slice (2026-11-13)
+
+Added `src/race_engineer_acquisition/fuel_engineer.py` with a pure, read-only builder that consumes the existing freshness-aware aggregate snapshot.
+
+- Exposes Physics current fuel as litres (L), preserving the decoded numeric value without conversion. The legacy decoder member remains named `fuel_kg`; this slice does not rename the shared decoder API.
+- Exposes Graphics fuel-per-lap, estimated-laps and MFD fuel-to-add as candidate observations only, each gated by Graphics freshness and finite/non-negative value checks.
+- Never combines stale Physics or Graphics values into a current fuel view.
+- Keeps finish-fuel, shortfall/surplus, fuel-saving, and refuelling recommendations disabled by default.
+- Strategy calculations can only be enabled when both Graphics semantics are explicitly marked validated and a non-negative safety reserve is supplied. This is a guard, not a claim that those validations or reserve have already been selected.
+- Added `tests/test_race_engineer_fuel.py` covering unit-preserving current fuel, candidate-only status, validation/reserve gating, stale-stream suppression, and invalid values.
+
+**Validation status:** source and test files are committed to the branch. Tests have not been run in the user's Windows environment; no ACC live-session comparison has been performed. No UI, TTS, MFD, fuel setting, or game-control behaviour was changed.
+
+**Next fuel step:** wire this observation snapshot into the Race Engineer service/page after confirming the page/service integration point, then run a controlled ACC stint to compare the Graphics fuel-per-lap and estimated-laps values with ACC's own display. Keep safety reserve selection separate.
