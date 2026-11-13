@@ -4,7 +4,7 @@
 **Target branch:** feature/race-engineer-page  
 **Audit baseline:** branch head b180a3094f78d26fa12a9417e2f1e97e3b8a2a17  
 **Document status:** Stage 0 audit baseline documented; unresolved semantic checks are explicitly deferred where they do not block foundation work  
-**Implementation status:** Documentation only. No Race Engineer feature code has been implemented by this audit.
+**Implementation status:** Stage 1 snapshot aggregator and unit tests are committed; service/UI integration and Windows/live-ACC validation remain pending.
 
 ## 1. Purpose and audit method
 
@@ -74,7 +74,7 @@ The repository already has a useful read-only acquisition foundation:
 
 | Requirement | Current source / evidence | Status | Audit decision |
 |---|---|---|---|
-| Current fuel | Physics fuel_kg | **Available — raw ACC-provided value; unit unconfirmed** | Preserve the decoded numeric value exactly as ACC provides it. Do not rename its unit, convert it, or assume kg/L. User will confirm the unit later. Fuel calculations that require a physical unit remain gated. |
+| Current fuel | Physics fuel_kg (legacy internal field name) | **Available — validated unit: litres (L)** | User confirmed in ACC that fuel values are displayed in litres. Preserve the decoded numeric value exactly; interpret and display it as litres. The internal `fuel_kg` name is misleading and must not be used as the UI unit. |
 | Fuel per lap | Graphics fuel_per_lap_l | **Available — candidate / integrated** | Decoded and used by Overview. Target capture shows plausible dynamic values; direct synchronized comparison against ACC consumption display remains required. |
 | Estimated laps remaining | Graphics fuel_estimated_laps | **Available — candidate / integrated** | Decoded and used by Overview. Compare against ACC's laps-remaining display, including after refuelling. |
 | Fuel used | Graphics used_fuel_l | **Available — candidate** | Dynamic values observed, but semantics/units are not independently correlated. Do not use as the primary consumption estimator yet. |
@@ -86,7 +86,7 @@ The repository already has a useful read-only acquisition foundation:
 | Pit-stop refuelling recommendation | Fuel shortfall, MFD fuel-to-add and pit strategy | **Calculated — feasible** | Recommendation only. Never write to the MFD or initiate a stop. |
 | Safety fuel reserve | User requirement selected; reserve amount not yet decided | **Decision required** | Do not invent a reserve value. Make it configurable after the baseline fuel model is validated. |
 
-**Fuel release gate:** current fuel remains an unconverted raw ACC-provided value with an unconfirmed unit. Do not calculate or announce physical fuel shortfall, finish-fuel, reserve or saving targets until the user confirms the unit and the Graphics fuel-per-lap / estimated-laps values are validated against ACC. This deferred fuel validation does not block Stage 1 foundation work or unrelated Stage 2 monitoring.
+**Fuel release gate:** the current-fuel unit uncertainty is closed: ACC fuel values are litres (L), as confirmed by the user in-game. Keep the decoded numeric value unchanged and display it as litres. Fuel shortfall, finish-fuel and saving projections remain gated until the Graphics fuel-per-lap and estimated-laps values are validated against ACC; a safety reserve also remains undecided. This does not block unrelated Stage 1/Stage 2 work.
 
 ### 3.3 Tyre monitoring
 
@@ -427,9 +427,9 @@ These source documents remain authoritative for their respective acquisition, AB
 
 ## 10. Current progression decision (2026-11-13)
 
-- Current fuel is retained as the raw numeric value exposed by the existing ACC Physics decoder. The application must not infer the unit from the internal field name, convert it, or label it kg/L until the user confirms the unit.
-- The user's ACC pit-stop MFD observation (remaining fuel plus refuel amount displayed as a simple sum) is not sufficient to establish the Physics shared-memory field's physical unit.
-- Fuel calculations requiring a physical current-fuel unit remain disabled/deferred. This does not block the Race Engineer foundation or independent live monitoring.
+- User confirmed by checking the ACC game UI that fuel values are in litres (L). This resolves the current-fuel unit uncertainty; the Physics decoder's internal `fuel_kg` field name is misleading and must not determine presentation.
+- Preserve the existing decoded numeric value without conversion. Overview and Race Engineer displays must label current fuel in litres (L), consistent with ACC.
+- Fuel projections remain gated only on validation of the Graphics fuel-per-lap / estimated-laps semantics and selection of a safety reserve; the current-fuel unit itself is no longer a blocker.
 - Stage 0 is therefore sufficiently closed to begin Stage 1 foundation work, with all unresolved semantic checks retained as explicit feature gates.
 - Stage 1 first task: inspect the existing decoded consumer APIs, timestamps/packet identifiers, and health/lifecycle surfaces. Design the aggregator around those existing contracts; do not add a second shared-memory reader, modify acquisition hot paths, or add Graphics/Static fan-out merely for the Race Engineer.
 
