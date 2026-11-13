@@ -625,3 +625,36 @@ This update supersedes the earlier §3.4 statements that pad-life and disc-life 
 - Race Engineer remains read-only; all setup, component and pit decisions remain with the driver.
 
 No application code was changed as part of this documentation update.
+
+
+## 17. Dedicated Pace Strategy specification and opponent-focus decision (2026-11-13)
+
+The dedicated Pace Strategy specification has been created:
+
+- [Race Engineer Pace Strategy](RACE_ENGINEER_PACE_STRATEGY.md)
+
+This document is authoritative for personal pace analysis, immediate-opponent focus, chase/overtake preparation, post-pass gap management, defensive awareness, communication, UI requirements and validation gates.
+
+### User-confirmed Pace Strategy design
+
+- Pace Strategy may compare the player's pace with other cars, but its primary focus is **one classified position ahead at a time**.
+- The goal while chasing is to understand how to close on and prepare to overtake the immediate car ahead.
+- The immediate car behind is also monitored so the driver can maintain a gap and defend a position when necessary.
+- After a confirmed pass, the former target becomes the immediate car behind (subject to updated classification), and the next car ahead becomes the new target.
+- Both adjacent cars may be observed, but only one is the primary tactical focus at a time: chase, defend, gap-building or personal pace.
+- Personal valid-lap and sector pace remains part of the strategy.
+- Opponent-specific pace comparisons and catch-time estimates are permitted only when the corresponding ACC timing/gap source, car association, units, sign convention and freshness are validated.
+- Do not invent opponent timing, passing thresholds, opponent intent, passing zones or likely manoeuvres.
+- If opponent telemetry is unavailable or unreliable, fall back to personal pace and explicitly report the limitation.
+- Keep detailed corner-by-corner driving coaching with Performance Coach and Corner Coach.
+- All recommendations remain advisory; Race Engineer never controls the car or changes ACC state.
+
+### Current telemetry validation gates
+
+- Graphics position and active-car count remain candidate inputs for opponent strategy.
+- Gap-ahead and gap-behind are decoded in milliseconds, but sign convention and immediate-neighbour association must be confirmed.
+- Multi-car identity/coordinate mapping remains candidate and requires controlled live validation.
+- Opponent-specific lap/sector timing availability has not yet been established as a validated input.
+- The next engineering step is to inspect existing decoded consumer APIs and validate these semantics before enabling opponent-aware calculations. Do not add another shared-memory reader.
+
+No application code was changed as part of this documentation update.
