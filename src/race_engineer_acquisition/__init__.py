@@ -7,6 +7,7 @@ from .graphics_decoder import DecodedGraphics, decode_graphics
 from .graphics_consumer import GraphicsDecodeConsumer, GraphicsConsumerSnapshot
 from .health import AcquisitionHealth, AcquisitionHealthSnapshot
 from .fuel_engineer import FuelEngineerSnapshot, build_fuel_engineer_snapshot
+from .service import RaceEngineerService
 from .engineering_snapshot import (
     RaceEngineerSnapshotAggregator,
     RaceEngineerTelemetrySnapshot,
@@ -28,6 +29,7 @@ __all__ = [
     "AcquisitionHealthSnapshot",
     "FuelEngineerSnapshot",
     "build_fuel_engineer_snapshot",
+    "RaceEngineerService",
     "RaceEngineerSnapshotAggregator",
     "RaceEngineerTelemetrySnapshot",
     "TelemetryStreamView",
