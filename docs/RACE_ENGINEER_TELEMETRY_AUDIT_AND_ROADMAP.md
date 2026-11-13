@@ -842,3 +842,33 @@ The dedicated Pit-Stop Strategy specification has been created:
 - Pit-history persistence, provenance, driver-confirmation workflow and post-stop outcome analysis require implementation and tests.
 - Initial weights remain fixed as specified; future adjustment requires sufficient comparable evidence and explicit approval.
 - No application code was changed as part of this documentation update.
+
+
+## 24. Shared Telemetry Requirements Matrix (2026-11-13)
+
+The cross-strategy shared telemetry requirements matrix has been created:
+
+- [Race Engineer Shared Telemetry Requirements Matrix](RACE_ENGINEER_SHARED_TELEMETRY_REQUIREMENTS_MATRIX.md)
+
+The matrix consolidates the ten strategy specifications and identifies:
+- Shared Physics, Graphics, Static, application-history, derived and driver-confirmed inputs.
+- Which strategies consume each data family.
+- Current validation state and restrictions on candidate/inferred/unavailable data.
+- Existing snapshot aggregator and Fuel observation API contracts.
+- Shared services needed for lap/sector history, race progress, fuel, tyres, brakes, damage, weather, opponents/traffic, setup, pit decisions/history and radio.
+- Cross-stream freshness/timestamp rules, ownership boundaries and anti-double-counting rules.
+- Prioritised validation gaps and an implementation sequence based on shared dependencies.
+
+### Source/API findings verified in this pass
+
+- `src/race_engineer_acquisition/engineering_snapshot.py` implements `RaceEngineerSnapshotAggregator` and reads the existing Physics and Graphics consumer snapshots plus acquisition health. It does not read shared memory or drain queues.
+- Physics and Graphics have separate capture timestamps and independent freshness limits (default 500 ms and 1,000 ms respectively). The aggregate snapshot explicitly does not claim that their samples are synchronized.
+- Static currently appears in this aggregate as raw read-health information only; it does not expose decoded Static metadata through `RaceEngineerTelemetrySnapshot.static`.
+- `src/race_engineer_acquisition/fuel_engineer.py` implements a conservative observation builder for current fuel, fuel-per-lap, estimated laps remaining, MFD fuel-to-add and fuel-used. It does not yet calculate finish fuel, shortfall, saving or refuelling amount; a configured reserve is still required to enable its calculation gate.
+- Focused tests for the snapshot aggregator and Fuel observation builder were inspected but not executed.
+
+### Remaining source-audit limitation
+
+The low-level Physics/Graphics decoder implementations, complete consumer API surface, Static metadata consumer and existing session-history/pit-event storage APIs were not fully verified in this pass. The matrix explicitly marks this as a P0 source/API audit task; decoder field names taken from existing audit documents must be reconciled against the actual decoder source before implementation.
+
+No application code was changed as part of this documentation update.
