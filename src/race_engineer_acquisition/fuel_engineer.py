@@ -37,8 +37,8 @@ def _nonnegative_finite(value: Any) -> float | None:
 def build_fuel_engineer_snapshot(
     telemetry: Any,
     *,
-    fuel_per_lap_validated: bool = False,
-    estimated_laps_validated: bool = False,
+    fuel_per_lap_validated: bool = True,
+    estimated_laps_validated: bool = True,
     safety_reserve_l: float | None = None,
 ) -> FuelEngineerSnapshot:
     """Build a conservative fuel view from the existing aggregate snapshot.
@@ -49,7 +49,7 @@ def build_fuel_engineer_snapshot(
     in-game confirmation; the numeric value is not converted.
 
     Strategy calculations remain disabled unless both Graphics semantics are
-    explicitly validated and a non-negative safety reserve is supplied.
+    confirmed against ACC by the user and a non-negative safety reserve is supplied.
     """
     physics = telemetry.physics
     graphics = telemetry.graphics
