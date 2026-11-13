@@ -1117,3 +1117,34 @@ See [Race Engineer Strategy Consumer Architecture — Section 20](RACE_ENGINEER_
 
 **Status:** This is a documentation clarification and implementation-direction correction only. It does not claim Stage 2 code has been implemented, tested or validated in a live ACC session.
 
+## 32. First Stage 2 implementation increment — decoded snapshot broker (2026-11-13)
+
+The decoded-only implementation boundary in Section 31 now has its first source-code increment. Detailed design and file-level notes are in [Race Engineer Strategy Consumer Architecture — Section 21](RACE_ENGINEER_STRATEGY_CONSUMER_ARCHITECTURE.md#21-stage-2-decoded-snapshot-broker--first-implementation-increment-2026-11-13).
+
+### Implemented
+
+- New `src/race_engineer_acquisition/decoded_distribution.py`: a separate worker-backed decoded snapshot broker.
+- Optional constant-time update notifier hooks on the existing Physics and Graphics decoder consumers. Notifications are sent after the consumer lock is released; callback exceptions cannot fail decoding.
+- The broker reads the existing decoded, freshness-aware aggregator. It does not read raw rings, decode raw bytes, open ACC mappings or change acquisition ownership.
+- Named independent subscriber mailboxes with latest-value coalescing and a per-subscriber coalescing counter.
+- Existing Fuel observation service is connected as the first Stage 2 subscriber; its existing calculation builder and output contract are retained.
+- Desktop startup/shutdown owns the broker worker lifecycle.
+- New deterministic broker tests cover subscriber fan-out, latest decoded state, coalescing and subscriber-close isolation.
+
+### Preserved
+
+- Existing raw recorder and all recording formats/workers are untouched.
+- Acquisition readers, raw SPSC rings and Physics/Graphics decoder algorithms are untouched.
+- Overview's Qt 20 Hz timer, `_publish_snapshot()` implementation, UI, bridge contract and React consumer are untouched. The Qt host change only starts and stops the independent service worker.
+- No ACC control/write path has been added.
+
+### Remaining work
+
+1. Execute the new broker tests together with existing Physics/Graphics consumer, acquisition and service regression tests.
+2. Run type/lint checks and a Windows application build.
+3. Measure notification overhead, broker publication latency, CPU and memory under representative ACC telemetry rates.
+4. Add a separate identified, ordered and gap-reconcilable domain-event delivery path before relying on lap, pit, session, damage or weather transitions for history-critical strategy behaviour.
+5. Add strategy consumers and shared calculations incrementally in the documented order; the current Fuel subscriber remains the existing observation slice, not a completed Fuel strategy.
+6. Validate no regression in Overview cadence/payload and test the broker under decoder reconnect, stale streams and shutdown.
+
+**Status:** First Stage 2 code increment committed. Tests/build/benchmark/live ACC validation remain pending; do not infer they passed from the source commit.
