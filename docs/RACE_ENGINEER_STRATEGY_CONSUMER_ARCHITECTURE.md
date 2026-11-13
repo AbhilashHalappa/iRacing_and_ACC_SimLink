@@ -471,3 +471,52 @@ Before implementation, verify the exact producer and cadence for Physics/Graphic
 Only after those gates should the broker be implemented incrementally and benchmarked against the pre-strategy baseline.
 
 **Decision status:** Option B is selected as the initial implementation architecture. The broker itself is not yet implemented. No application code or Overview path was changed by this documentation decision.
+
+
+## 18. Decoded publication boundary and runtime cadence audit (2026-11-13)
+
+The source audit traced the decoded snapshot path through the desktop host. The exact current call path is:
+
+```text
+ACC Physics / Graphics acquisition workers
+  → independent SPSC acquisition rings
+  → PhysicsDecodeConsumer / GraphicsDecodeConsumer workers
+  → lock-protected latest decoded sample + capture timestamp
+  → RaceEngineerSnapshotAggregator (on demand)
+  → RaceEngineerService.snapshot()
+  → ACCDesktopWindow._publish_snapshot()
+  → TelemetryBridge.publish()
+```
+
+### Verified publication and cadence findings
+
+- `PhysicsDecodeConsumer.process_pending()` and `GraphicsDecodeConsumer.process_pending()` decode raw records on their own downstream workers. On a successful decode they update `_latest`, `_latest_capture_timestamp_ns`, `_last_capture_sequence` and health counters under the consumer lock.
+- Each consumer exposes a frozen `PhysicsConsumerSnapshot` / `GraphicsConsumerSnapshot` through a property. The property takes the lock and returns the latest decoded object and metadata. There is no subscriber registry, callback, notification event or push-publication API in either consumer.
+- `RaceEngineerSnapshotAggregator.snapshot()` is pull-based. It reads both existing consumer snapshots and their acquisition health, calculates independent sample ages/freshness and explicitly does not claim that Physics and Graphics are synchronized.
+- `RaceEngineerService.snapshot()` calls the aggregator and builds the current Fuel observation. It is not currently a general strategy publisher and has no strategy event stream.
+- `src/desktop/qt_host.py` starts a Qt `QTimer` at **50 ms (20 Hz)**. Its `_publish_snapshot()` method reads the Physics/Graphics consumer snapshots, derives the existing out-lap display state, builds stream freshness, calls `RaceEngineerService.snapshot()`, and publishes the combined payload to the bridge.
+- The same Qt callback drains the Static SPSC ring to update car/track identity. Static is not decoded into the current `RaceEngineerTelemetrySnapshot`; the aggregator currently exposes only Static read health.
+- The 50 ms timer is the existing Overview publisher. It is not a safe place to run strategy calculations or to make Overview delivery depend on broker queues, strategy scheduling, history or TTS.
+
+### Selected low-cost notification boundary
+
+The preferred handoff point is the successful latest-sample publication inside each decoder consumer, **after its consumer lock has been released**. Add only a minimal, optional dirty-notification hook at that boundary when the broker is implemented:
+
+1. Decoder completes and validates the sample, updates its existing latest-value fields under the existing lock, then releases the lock.
+2. A minimal notifier marks that stream as dirty / signals a broker-owned waitable event. It must not build the aggregate snapshot, run strategy code, perform I/O, wait for queue capacity or call TTS.
+3. A broker-owned worker wakes on notification, reads the latest immutable Physics/Graphics consumer snapshots and acquisition health, applies the existing independent freshness rules, and updates the broker's coalesced latest-state view.
+4. If several samples arrive before the broker worker runs, only the newest latest-value state needs processing. The worker must be bounded and must not drain the acquisition rings.
+5. Strategy scheduling happens downstream on the bounded shared scheduler. A strategy consumer never runs inline on the decoder thread.
+
+The notifier must be optional and failure-isolated: an exception or slow subscriber cannot fail or delay decoding. The callback contract must be constant-time, non-blocking and limited to signalling/marking dirty. Prefer an edge-triggered dirty flag plus a waitable event so repeated high-rate decoder updates coalesce into one pending wake-up rather than creating one queued task per sample. Whether this adds measurable cost must be benchmarked.
+
+### Boundaries and remaining gates
+
+- Do not call `RaceEngineerService.snapshot()` from the broker as a shortcut if doing so would make the broker depend on the 20 Hz Overview timer or duplicate its full work. The broker should own its strategy-side aggregation from the existing consumer snapshots.
+- Do not place strategy evaluation, history writes or TTS in `_publish_snapshot()`; keep the Qt timer and bridge payload path unchanged.
+- The Physics/Graphics notification hook is a proposed minimal extension, not an existing API. It must be implemented only after contract tests prove the notifier cannot block or throw into decoder processing.
+- Static identity needs a separate safe handoff decision. Do not have the broker drain the Static ring or compete with the Qt host's existing SPSC ownership. For the first broker increment, keep Static outside strategy fan-out unless a separate single-owner decoded publication path is defined.
+- Domain events (completed lap, pit transitions, session changes, damage/weather transitions) are not emitted by these two latest-snapshot consumers. Their existing producers and authoritative reconciliation sources still require a separate audit.
+- The 20 Hz Overview cadence is verified from source, but no measured CPU, memory or event-latency baseline has been captured.
+
+**Audit conclusion:** the current code has a safe latest-value read interface but no push hook. The least invasive strategy-only boundary is a coalesced dirty notification after successful decoded publication, consumed by a separate broker worker. This preserves SPSC ownership and leaves the Overview path untouched. The hook, broker, tests and performance impact remain unimplemented/unvalidated.
