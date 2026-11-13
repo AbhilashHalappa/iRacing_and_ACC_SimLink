@@ -810,3 +810,35 @@ The dedicated Weather Strategy specification has been created:
 - Track-grip transitions and wind interpretation must remain gated by their documented semantics.
 - Controlled dry-to-wet, wet-to-dry, temperature-change, reconnect and new-session tests are required.
 - No application code was changed as part of this documentation update.
+
+
+## 23. Dedicated Pit-Stop Strategy specification (2026-11-13)
+
+The dedicated Pit-Stop Strategy specification has been created:
+
+- [Race Engineer Pit-Stop Strategy](RACE_ENGINEER_PIT_STOP_STRATEGY.md)
+
+### User-confirmed integrated pit-decision design
+
+- Pit-Stop Strategy is the **single decision-making and recommendation layer** for pit stops. Fuel, Tyre, Brake, Car Health, Weather, Race-State, Pace and Traffic provide evidence/context; they must not issue separate competing routine pit instructions.
+- The integrated strategy combines all relevant evidence and produces one recommendation: stay out, plan a stop, or pit now/urgently, with the supported timing and combined service list.
+- A single issue may justify a stop, but the final pit recommendation still comes from the integrated decision layer. Specialist strategies may issue their own critical informational warnings without issuing separate pit instructions.
+- Use a two-layer model: validated hard constraints first, then a weighted assessment. A validated mandatory rule, fuel infeasibility or confirmed critical condition can require a stop regardless of the weighted score. Candidate or stale telemetry must not become a hard constraint.
+- The agreed initial weighted assessment is fixed at Fuel 25%, Tyres 25%, Car Health 20%, Brakes 15%, Weather 10% and Race-State strategic context 5% (100% total).
+- Pace and Traffic are contextual timing inputs in the initial model, not independent pit-necessity weight contributors.
+- These weights are fixed initially. They must not adapt automatically. Changes may be considered only after sufficient representative race history has been recorded and reviewed, with documented evidence and explicit approval.
+- The weighted score is not a probability. Missing, stale, ambiguous or unvalidated inputs remain unknown; do not treat them as zero need or silently redistribute their weight. Score scale, evidence-coverage rules and decision thresholds require explicit definition and validation before live use.
+- Combine compatible fuel, tyre, damage/repair and other validated services into one stop where timing and constraints support it. Consider race distance, pit-lane loss, service duration, weather, position, gaps and traffic without inventing unavailable values.
+- Maintain persistent chronological pit-stop history per session: observed pit entry/exit, fuel before/after/added, tyre state and changes, damage/brake state and confirmed services, conditions, position/gaps, recommendation, driver action and subsequent pace/consistency outcomes.
+- Every history value must retain provenance: automatically observed, calculated from validated observations, imported or driver-confirmed. Unexposed service details remain unknown until confirmed; a pit visit alone does not prove refuelling, tyre change or repair.
+- Use compact event and before/after summaries, reusing existing telemetry/session history. Do not add another shared-memory reader or unnecessary high-frequency recording.
+- All recommendations remain advisory and read-only. Race Engineer never operates pit controls, MFD or any in-game function.
+
+### Pit-Stop Strategy readiness
+
+- Strategy-output aggregation and timestamp/freshness alignment are not yet implemented or live-validated.
+- Mandatory-stop rules, finish behaviour, fuel feasibility, service constraints, pit-lane loss, repair duration and pit entry/exit/service detection require source-specific validation.
+- The score scale, per-strategy severity mappings, minimum evidence coverage, hard-constraint precedence, decision thresholds and hysteresis/deduplication must be defined and tested before score-driven recommendations.
+- Pit-history persistence, provenance, driver-confirmation workflow and post-stop outcome analysis require implementation and tests.
+- Initial weights remain fixed as specified; future adjustment requires sufficient comparable evidence and explicit approval.
+- No application code was changed as part of this documentation update.
