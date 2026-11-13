@@ -520,3 +520,117 @@ The notifier must be optional and failure-isolated: an exception or slow subscri
 - The 20 Hz Overview cadence is verified from source, but no measured CPU, memory or event-latency baseline has been captured.
 
 **Audit conclusion:** the current code has a safe latest-value read interface but no push hook. The least invasive strategy-only boundary is a coalesced dirty notification after successful decoded publication, consumed by a separate broker worker. This preserves SPSC ownership and leaves the Overview path untouched. The hook, broker, tests and performance impact remain unimplemented/unvalidated.
+
+
+## 19. Two-stage telemetry fan-out architecture — superseding decision (2026-11-13)
+
+**Decision:** Adopt a two-stage fan-out architecture as the target distribution design for Physics, Graphics and Static. This section supersedes the earlier proposal that treated a strategy-only decoded broker as the complete distribution architecture. The strategy broker concept remains useful, but decoded distribution is now a general downstream capability rather than a strategy-only special case.
+
+### 19.1 Architecture
+
+```mermaid
+flowchart TB
+  ACC["ACC shared memory"]:::existing
+  subgraph RAW["Stage 1 — independent raw stream paths"]
+    P["Physics acquisition"]:::existing
+    G["Graphics acquisition"]:::existing
+    S["Static acquisition"]:::existing
+    PF["Physics raw fan-out"]:::new
+    GF["Graphics raw fan-out"]:::new
+    SF["Static raw fan-out"]:::new
+    PR["Existing raw Physics recorder"]:::existing
+    GR["Existing raw Graphics recorder"]:::existing
+    SR["Existing raw Static recorder"]:::existing
+    PD["Physics decoder"]:::existing
+    GD["Graphics decoder"]:::existing
+    SD["Static identity / metadata decoder"]:::new
+    P --> PF
+    G --> GF
+    S --> SF
+    PF --> PR
+    PF --> PD
+    GF --> GR
+    GF --> GD
+    SF --> SR
+    SF --> SD
+  end
+  ACC --> P
+  ACC --> G
+  ACC --> S
+  subgraph DECODED["Stage 2 — decoded-data distribution"]
+    DB["Decoded state + typed event distribution"]:::new
+    O["Overview compatibility path — preserve current behaviour"]:::preserve
+    STR["Strategy consumers"]:::new
+    ANA["Analysis / future consumers"]:::new
+    DB --> O
+    DB --> STR
+    DB --> ANA
+  end
+  PD --> DB
+  GD --> DB
+  SD --> DB
+  classDef existing fill:#166534,stroke:#14532d,color:#fff,stroke-width:2px;
+  classDef preserve fill:#475569,stroke:#334155,color:#fff,stroke-width:2px;
+  classDef new fill:#1d4ed8,stroke:#1e40af,color:#fff,stroke-width:2px;
+```
+
+Physics, Graphics and Static remain independent from acquisition through raw distribution. The decoded distribution layer may combine their latest decoded views only with explicit per-stream freshness and skew metadata; it must never imply that independently sampled streams are synchronised.
+
+### 19.2 Stage 1 — raw-data fan-out
+
+- Each ACC mapping has exactly one acquisition reader and one acquisition producer.
+- The acquisition producer writes immutable raw snapshots to its existing SPSC acquisition ring. It does not decode, record to disk, or call consumers inline.
+- One raw dispatcher becomes the sole reader of that stream's acquisition ring and offers each raw snapshot to independently bounded consumer queues.
+- The existing raw recorder is a Stage 1 consumer. Keep its current file format, checksums, recovery, batching, acknowledgement and checkpoint behaviour. Do not create a duplicate recorder.
+- The decoder is a separate Stage 1 consumer and receives the same raw bytes independently of the recorder. A decode failure must not prevent the raw recorder from preserving the sample.
+- Raw diagnostics or future raw consumers may subscribe independently with explicit capacity and loss policy.
+- No consumer may drain the acquisition ring directly once the dispatcher owns it. In particular, the decoder and Qt host must not remain competing readers after a stream is migrated.
+- Raw queue rejection, recorder failure, dispatcher failure and sequence gaps must be visible in per-stream health and recording status.
+
+**Recorder reliability rule:** the dispatcher must remain non-blocking with respect to disk I/O. A full or failed recorder queue must not stall the acquisition worker or silently masquerade as a complete recording. It must raise an explicit recording-degraded/failed state and expose the affected capture-sequence range. If uninterrupted recording is a hard requirement for a session, the application must surface that recording has failed; it must not silently continue claiming complete evidence. Required-consumer semantics in the current dispatcher are accounting/visibility, not automatic retry or backpressure.
+
+### 19.3 Stage 2 — decoded-data fan-out
+
+- Each data format is decoded once. Consumers subscribe to decoded data; they do not instantiate decoders or open ACC mappings.
+- The decoder publishes immutable latest-state snapshots with stream identity, capture sequence, source timestamp, receive timestamp, decoder health and freshness.
+- Latest-value state is coalescible. Slow consumers should receive the newest useful state, not accumulate obsolete high-frequency samples.
+- Important domain events use a distinct bounded, identified and gap-detectable event channel. Examples include completed laps, lap validity changes, pit transitions, session changes, damage transitions and weather/track-condition changes.
+- Event delivery requires explicit ordering, duplicate handling, sequence-gap detection and reconciliation/replay policy. Do not model history-critical events as replaceable latest-value snapshots.
+- Every subscriber has independent bounded capacity, health and failure metrics. A slow or failed consumer cannot block decoding or affect another consumer.
+- Multi-stream consumers combine Physics, Graphics and Static locally or through a shared freshness-aware view; source timestamps and cross-stream skew remain visible.
+- Shared calculations with multiple consumers have one owner and publish reusable derived results. Strategy consumers own strategy-specific interpretation and recommendations.
+
+### 19.4 Overview compatibility and migration boundary
+
+The Overview UI and its existing presentation, Qt publisher cadence, TelemetryBridge HTTP/SSE contract and React consumer are protected.
+
+The two-stage architecture does not authorize an immediate Overview rewrite or a change to its visible behaviour. Initial integration must preserve the current Overview delivery contract. Strategy and other new consumers should be onboarded through Stage 2 first. An Overview compatibility subscription/adapter may be evaluated later, but only if it can preserve the same payload semantics, freshness behaviour and cadence and passes regression validation. The broker must never become a prerequisite for Overview rendering.
+
+Static needs special care: current live runtime drains the Static SPSC ring from the Qt host for car/track identity. A Static raw dispatcher cannot be introduced while that direct reader remains active. Migration must transfer sole ownership to the dispatcher and replace the Qt direct drain with a bounded identity/metadata consumer or compatibility handoff, without changing Overview identity behaviour.
+
+### 19.5 Current source facts and integration gap
+
+The current branch source audit confirms:
+
+- `create_acc_acquisition_runtime()` creates independent Physics, Graphics and Static acquisition rings and acquisition workers.
+- Physics and Graphics decoder consumers currently read their respective acquisition rings directly. Static is currently read by the Qt host for identity.
+- `FanOutDispatcher` and `BoundedConsumerQueue` already exist. The dispatcher is a single reader of one SPSC ring and distributes immutable items to separate bounded queues. Queue processing has explicit acknowledgements and loss/failure metrics.
+- The dispatcher is not wired into the default live Physics/Graphics/Static runtime.
+- The existing Physics raw recorder uses the bounded consumer queue abstraction and writes raw payload bytes with capture metadata. Separate raw recording entry points exist for Physics, Graphics and Static. They are retained; this decision is not a request to create another recorder.
+- Physics and Graphics decoder consumers publish lock-protected latest decoded snapshots, but do not currently expose a subscriber registry or decoded push bus.
+- The Qt host currently publishes Overview snapshots on a 50 ms / 20 Hz timer and drains Static for identity. This path remains protected.
+- The existing fan-out queue rejects offers when full and accounts the loss; it does not retry or block for required consumers. Its current semantics therefore need an explicit recording-failure policy before it can safely serve as the live raw recorder fan-out.
+
+### 19.6 Implementation sequence and gates
+
+1. **Contract and tests first:** define per-stream raw snapshot, decoded snapshot, event and health contracts; add deterministic tests for independent delivery, ordering, capacity, acknowledgements, queue rejection, consumer failure, shutdown and restart.
+2. **Physics raw fan-out pilot:** migrate the Physics ring from direct decoder ownership to one dispatcher with separate decoder and existing raw-recorder queues. Prove that raw recording and decoding both receive the same capture sequence range.
+3. **Graphics raw fan-out:** apply the same pattern independently, preserving complete raw mapping payloads.
+4. **Static raw fan-out:** migrate only after defining a safe identity consumer/Qt compatibility handoff; never introduce a competing Static ring reader.
+5. **Decoded distribution:** publish immutable decoded state and domain events through a separate bounded broker. Start with Strategy consumers; retain Overview's current path.
+6. **Optional Overview compatibility:** evaluate only after the new distribution path is proven and only with exact payload/cadence regression tests.
+7. **Performance and live validation:** compare acquisition cadence, queue age/depth, sequence gaps, CPU, memory, decoder latency, recorder completeness, event latency and Overview stability against a baseline. Run unit tests, Windows build and controlled ACC validation before enabling consumers.
+
+**Acceptance criteria:** one reader per ACC mapping; one decoder per format; recorder and decoder independently receive raw samples; no disk I/O or consumer processing on acquisition threads; no silent loss; bounded memory; visible sequence gaps and failure states; independent consumer isolation; unchanged Overview behaviour; no strategy work in decoder threads or the Qt Overview timer.
+
+**Status:** Target architecture approved and documented. Raw fan-out integration, decoded distribution, tests, build, benchmarks and live ACC validation remain pending. No application code was changed by this decision.
