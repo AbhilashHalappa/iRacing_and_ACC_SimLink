@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 import struct
 import time
 from threading import Event, Lock
-from typing import Any
+from typing import Any, Callable
 
 from .models import PhysicsSnapshot
 from .physics_decoder import DecodedPhysics, WHEEL_ORDER, decode_physics
@@ -68,6 +68,22 @@ class PhysicsDecodeConsumer:
         self._last_error: str | None = None
         self._latest: DecodedPhysics | None = None
         self._latest_capture_timestamp_ns: int | None = None
+        self._update_notifier: Callable[[], None] | None = None
+
+    def set_update_notifier(self, notifier: Callable[[], None] | None) -> None:
+        """Install an optional constant-time dirty notifier for decoded publication."""
+        with self._lock:
+            self._update_notifier = notifier
+
+    def _notify_update(self) -> None:
+        with self._lock:
+            notifier = self._update_notifier
+        if notifier is not None:
+            try:
+                notifier()
+            except Exception:
+                # Distribution notification must never fail the decoder worker.
+                pass
 
     @property
     def snapshot(self) -> PhysicsConsumerSnapshot:
@@ -111,12 +127,16 @@ class PhysicsDecodeConsumer:
                     self._latest = decoded
                     self._latest_capture_timestamp_ns = raw.capture_timestamp_ns
             processed += 1
+        if processed:
+            # Signal once per drained batch, outside the decoder state lock.
+            self._notify_update()
         return processed
 
     def run(self, stop_event: Event, producer_done: Event) -> None:
         """Drain until acquisition has exited and its ring is empty."""
         with self._lock:
             self._lifecycle_state = "running"
+        self._notify_update()
         try:
             while not producer_done.is_set() or self._source.size > 0:
                 if self.process_pending() == 0:
@@ -127,4 +147,5 @@ class PhysicsDecodeConsumer:
         finally:
             with self._lock:
                 self._lifecycle_state = "stopped"
+            self._notify_update()
 
