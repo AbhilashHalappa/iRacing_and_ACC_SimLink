@@ -752,3 +752,32 @@ This document is authoritative for damage observations, validated mechanical war
 - A validated ACC warning/confirmed critical condition may justify an urgent warning only according to its validated meaning and lifecycle. No uncalibrated `car_damage[5]` threshold, component diagnosis, severity score, safety claim or quantified lap-time loss is permitted.
 - Pit-Stop Strategy must integrate validated damage urgency with race distance/position, pit-lane loss, repair duration/availability and opportunities to combine repair with an already-planned fuel/tyre stop. All actions remain manual and driver-controlled.
 - No application code was changed as part of this documentation update.
+
+## 21. Dedicated Setup Strategy specification (2026-11-13)
+
+The dedicated Setup Strategy specification has been created:
+
+- [Race Engineer Setup Strategy](RACE_ENGINEER_SETUP_STRATEGY.md)
+
+This document is authoritative for in-session/on-board setting recommendations, driver-confirmed adjustments, setup history, before/after evaluation, setup-file provenance, communication, UI requirements and validation gates.
+
+### User-confirmed Setup Strategy decisions
+
+- Prioritise **on-board adjustments that can be made during an ACC session**. Garage-only setup changes are deferred to a later phase.
+- Potential on-board controls include brake bias, TC, ABS, engine map and other car-specific adjustable controls, but only where the selected car/session actually exposes them. Do not assume a universal control inventory or common ranges across cars.
+- Setup Strategy recommends changes and explains the evidence, expected benefit and trade-off. The driver manually applies every change; Race Engineer must never send control inputs or modify ACC.
+- Automatically capture telemetry and compact lap/session context so pre-change and post-change behaviour can be compared.
+- Maintain persistent setup adjustment history, organised by car, track/layout and conditions, with chronological setting versions and source provenance.
+- Require driver confirmation of the actual applied setting whenever ACC telemetry does not expose it. A recommendation is not proof that a change was made.
+- Support setup-file import as a read-only supporting source for baseline/configuration values, while distinguishing imported values from live telemetry and driver-confirmed changes.
+- Evaluate changes using valid lap/sector pace, consistency, relevant vehicle response and optional driver feedback. Account for traffic, fuel, tyres, brakes, weather, track evolution and driver variation before attributing an outcome to a setting.
+- Build preferred track/car/condition-specific values only from repeatable comparable evidence. Label limited evidence as candidate or inconclusive; never declare a universal best setup from one faster lap.
+- Garage-only settings such as suspension, dampers, springs, ride height, aero and alignment remain outside the initial implementation scope and will be considered later.
+- Reuse existing telemetry consumers and history infrastructure; do not add another shared-memory reader. All setup actions remain manual and driver-controlled.
+
+### Setup Strategy readiness
+
+- The available on-board control inventory, per-car labels/ranges/increments and telemetry exposure must be audited before numeric recommendations are enabled.
+- Setup-file format coverage and association with the active car/session require validation before import can be treated as reliable.
+- Persistent event history, confirmation workflow, before/after windows and confounder handling require implementation and tests.
+- No application code was changed as part of this documentation update.
