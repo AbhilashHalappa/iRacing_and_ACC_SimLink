@@ -141,6 +141,14 @@ class DecodedTelemetryBroker:
             if self._started:
                 return
             self._started = True
+        try:
+            # Seed the first immutable view before any service can subscribe.
+            self._publish_once()
+        except Exception:
+            with self._lock:
+                self._started = False
+            raise
+        with self._lock:
             self._thread = Thread(
                 target=self._run,
                 name="ACC-Decoded-Telemetry-Broker",
@@ -148,6 +156,24 @@ class DecodedTelemetryBroker:
             )
             self._thread.start()
         self.notify_dirty()
+
+    def _publish_once(self) -> None:
+        telemetry = self._aggregator.snapshot()
+        with self._lock:
+            self._revision += 1
+            envelope = DecodedSnapshotEnvelope(
+                revision=self._revision,
+                published_at_ns=self._clock_ns(),
+                telemetry=telemetry,
+            )
+            self._latest = envelope
+            self._published_count += 1
+            self._last_error = None
+            subscribers = tuple(self._subscribers.values())
+        for subscriber in subscribers:
+            # Each mailbox is independently locked and coalescing.
+            # No consumer callback runs on this worker.
+            subscriber._publish(envelope)
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -158,22 +184,7 @@ class DecodedTelemetryBroker:
             with self._lock:
                 self._wake_count += 1
             try:
-                telemetry = self._aggregator.snapshot()
-                with self._lock:
-                    self._revision += 1
-                    envelope = DecodedSnapshotEnvelope(
-                        revision=self._revision,
-                        published_at_ns=self._clock_ns(),
-                        telemetry=telemetry,
-                    )
-                    self._latest = envelope
-                    self._published_count += 1
-                    self._last_error = None
-                    subscribers = tuple(self._subscribers.values())
-                for subscriber in subscribers:
-                    # Each mailbox is independently locked and coalescing.
-                    # No consumer callback runs on this worker.
-                    subscriber._publish(envelope)
+                self._publish_once()
             except Exception as exc:
                 with self._lock:
                     self._error_count += 1
