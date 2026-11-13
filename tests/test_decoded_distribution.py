@@ -88,7 +88,7 @@ def test_broker_publishes_decoded_state_to_independent_subscribers():
     tyre = broker.subscribe("tyre")
     broker.start()
     try:
-        assert _wait_for(lambda: fuel.latest is not None)
+        assert fuel.latest is not None
         first = fuel.read_latest()
         assert first is not None
         assert tyre.latest == first
