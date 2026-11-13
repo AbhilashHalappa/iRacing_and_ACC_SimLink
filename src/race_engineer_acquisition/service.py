@@ -9,6 +9,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .engineering_snapshot import RaceEngineerSnapshotAggregator
+from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
 
 
@@ -17,6 +18,17 @@ class RaceEngineerService:
 
     def __init__(self, runtime: Any) -> None:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime)
+        self._broker = DecodedTelemetryBroker(runtime)
+        self._fuel_subscription = self._broker.subscribe("fuel-engineer-observation")
+
+    def start(self) -> None:
+        """Start the independent decoded-data distribution worker."""
+        self._broker.start()
+
+    def close(self) -> bool:
+        """Stop distribution cleanly during desktop shutdown."""
+        self._fuel_subscription.close()
+        return self._broker.close()
 
     @staticmethod
     def _fuel_radio_preview(fuel: Any) -> str:
@@ -34,7 +46,8 @@ class RaceEngineerService:
         return "Fuel status: " + "; ".join(parts) + "."
 
     def snapshot(self) -> dict[str, Any]:
-        telemetry = self._aggregator.snapshot()
+        envelope = self._fuel_subscription.read_latest()
+        telemetry = envelope.telemetry if envelope is not None else self._aggregator.snapshot()
         fuel = build_fuel_engineer_snapshot(telemetry)
         return {
             "fuel_engineer": asdict(fuel),
