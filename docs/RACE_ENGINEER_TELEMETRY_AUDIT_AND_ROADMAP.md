@@ -3,8 +3,8 @@
 **Repository:** AbhilashHalappa/Race-Engineer-ACC-New  
 **Target branch:** feature/race-engineer-page  
 **Audit baseline:** branch head b180a3094f78d26fa12a9417e2f1e97e3b8a2a17  
-**Document status:** Stage 0 audit baseline documented; unresolved semantic checks are explicitly deferred where they do not block foundation work  
-**Implementation status:** Stage 1 snapshot aggregator and initial Stage 3 fuel-observation slice are committed; service/UI integration, strategy calculations, and Windows/live-ACC validation remain pending.
+**Document status:** Cross-strategy telemetry audit and implementation roadmap; individual strategy requirements are maintained in dedicated strategy documents  
+**Implementation status:** Snapshot aggregator, initial Fuel Engineer observation slice, service integration and initial UI are committed. Fuel strategy calculations, radio/TTS integration, automated regression execution and Windows/live-ACC strategy validation remain pending.
 
 ## 1. Purpose and audit method
 
@@ -523,3 +523,28 @@ The user completed a controlled live ACC check of the Race Engineer fuel observa
 **Scope limitation:** this test does not establish whether Fuel Used resets or accumulates across pit stops, refuelling events, driver swaps, or other in-session transitions. Keep Fuel Used observation-only until those semantics are separately tested. The display remains freshness-gated and read-only.
 
 **Strategy gate unchanged:** no finish-fuel, shortfall/surplus, or fuel-saving recommendation is enabled. A configurable safety reserve and validated remaining-race-distance inputs are still required. No ACC controls or MFD values are written by Race Engineer.
+
+
+## 14. Dedicated strategy specifications and fuel strategy decision (2026-11-13)
+
+Strategy requirements are maintained in separate documents so each strategy can be developed, reviewed and validated independently. This audit/roadmap remains the shared telemetry and implementation tracker; it is not the detailed specification for every strategy.
+
+### Fuel Strategy specification
+
+The dedicated Fuel Strategy specification is now available:
+
+- [Race Engineer Fuel Strategy](RACE_ENGINEER_FUEL_STRATEGY.md)
+
+The Fuel Strategy document is authoritative for fuel decision logic, reserve, calculation cadence, pit/refuelling recommendations, radio suppression, UI presentation and validation scenarios.
+
+### Newly confirmed fuel strategy behaviour
+
+- Assess fuel strategy in the background at the beginning of every lap, with exactly-once lap-boundary handling.
+- Recalculate using current fuel, a rolling average of the last five valid completed lap times, validated fuel consumption, remaining race distance/time and actual finish-line behaviour.
+- Use an initial safety reserve of **three laps** of estimated fuel consumption.
+- Do not announce routine “fuel OK” or unchanged no-stop results. Background calculations must not create lap-by-lap radio spam.
+- Announce actionable refuelling recommendations and critical fuel warnings. Suppress duplicate unchanged messages; correct a previously announced recommendation only when it materially changes or becomes obsolete.
+- Calculate fuel expected to remain on pit arrival, then recommend the amount to add for the remaining race plus the three-lap reserve.
+- The driver manually enters fuel in ACC and decides whether to pit. Race Engineer remains strictly read-only and must never operate the MFD or initiate pit actions.
+
+These decisions supersede the earlier open-reserve wording in this roadmap. The three-lap reserve is selected as the initial default; car-specific tank capacity, remaining-race-distance semantics, timed-race finish behaviour, pit rules and other calculation inputs remain subject to validation before strategy calculations are enabled.
