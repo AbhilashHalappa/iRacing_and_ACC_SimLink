@@ -30,7 +30,7 @@ class FuelEngineerTests(unittest.TestCase):
         self.assertEqual(result.fuel_per_lap_candidate_l, 2.7)
         self.assertEqual(result.estimated_laps_candidate, 15.7)
         self.assertFalse(result.strategy_calculations_enabled)
-        self.assertEqual(len(result.blockers), 3)
+        self.assertEqual(result.blockers, ("A safety-fuel reserve has not been configured.",))
 
     def test_strategy_requires_both_validations_and_reserve(self):
         result = build_fuel_engineer_snapshot(
