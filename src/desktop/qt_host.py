@@ -27,6 +27,7 @@ class ACCDesktopWindow(QMainWindow):
         self.setStyleSheet("QMainWindow { background: #0b1118; }")
 
         self._runtime = create_acc_acquisition_runtime()
+        self._race_engineer_service = RaceEngineerService(self._runtime)
         self._car_model: str | None = None
         self._track: str | None = None
         self._track_configuration: str | None = None
@@ -131,6 +132,7 @@ class ACCDesktopWindow(QMainWindow):
                 "track_configuration": self._track_configuration,
             },
             "acquisition": acquisition,
+            **self._race_engineer_service.snapshot(),
         }
         self._bridge.publish(snapshot)
         if connected:
