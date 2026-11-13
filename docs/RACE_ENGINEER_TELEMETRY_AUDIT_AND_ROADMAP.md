@@ -148,7 +148,6 @@ The repository already has a useful read-only acquisition foundation:
 | Cause attribution | Multiple validated channels and evidence history | **Not approved without evidence** | Say what changed and what may explain it; do not assert driver or car fault from one signal. |
 
 **Separation rule:** Race Engineer provides concise race-level observations and actionable alerts. Detailed driving-technique coaching remains with Performance Coach and Corner Coach; do not duplicate their corner-by-corner coaching.
-
 ### 3.7 Race strategy
 
 | Requirement | Current source / evidence | Status | Audit decision |
@@ -296,8 +295,7 @@ Tasks:
 - Track stint age and pit/service resets.
 - Compare front/rear and left/right behaviour.
 - Add conservative brake-temperature monitoring after car-specific limits are established.
-- Add tyre degradation estimates only as inferred trends.
-- Keep I/M/O temperatures, direct tyre wear, pad/disc life, brake pressure and brake compound out of trusted logic until their field issues are resolved.
+- Add tyre degradation estimates only as inferred trends.- Keep I/M/O temperatures, direct tyre wear, pad/disc life, brake pressure and brake compound out of trusted logic until their field issues are resolved.
 - Define next-stint pressure advice only after a supported target-window model exists.
 
 Acceptance gate:
@@ -512,3 +510,16 @@ The fuel-observation snapshot exposes MFD fuel-to-add and fuel-used values only 
 - The service is observation-only. It does not write to ACC or operate the MFD. Fuel-used accumulation/reset semantics remain open; fuel-to-finish and saving calculations remain disabled until reserve and remaining-race-distance inputs are validated.
 
 **Validation status:** changes are committed to the feature branch but have not been built or run in the user's Windows environment. A live ACC check is still required to confirm the Fuel Engineer page updates and the values remain consistent through session transitions.
+
+### Fuel-used accumulation and new-session reset validation (2026-11-13)
+
+The user completed a controlled live ACC check of the Race Engineer fuel observations:
+
+- During the session, **Fuel Used increased to 1.1 L** while **Fuel Remaining was 60.9 L**. This confirms that the decoded Graphics `used_fuel_l` value changes as fuel is consumed.
+- After starting a **new session**, **Fuel Used reset to 0.0 L** and **Fuel Remaining reset to 62.0 L**.
+- In the new session, Fuel per Lap displayed **3.66 L/lap**, Estimated Laps Remaining displayed **16.9 laps**, and MFD Fuel to Add displayed **0.0 L**.
+- The observed fuel-used behaviour is therefore validated for live accumulation during a session and reset on a new session.
+
+**Scope limitation:** this test does not establish whether Fuel Used resets or accumulates across pit stops, refuelling events, driver swaps, or other in-session transitions. Keep Fuel Used observation-only until those semantics are separately tested. The display remains freshness-gated and read-only.
+
+**Strategy gate unchanged:** no finish-fuel, shortfall/surplus, or fuel-saving recommendation is enabled. A configurable safety reserve and validated remaining-race-distance inputs are still required. No ACC controls or MFD values are written by Race Engineer.
