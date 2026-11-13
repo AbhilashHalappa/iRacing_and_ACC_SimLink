@@ -416,3 +416,58 @@ Select the smaller and cheaper option after measuring lock contention, thread co
 
 This was a read-only source audit. The dispatcher and its tests were inspected but not executed. No application code, tests or Overview behaviour were changed. No Windows build, CPU benchmark or live ACC test was performed.
 
+
+
+## 17. Strategy distribution implementation choice — lightweight decoded-state broker (2026-11-13)
+
+Following the detailed `FanOutDispatcher` audit, the initial strategy distribution design is now **Option B: a lightweight strategy broker at the decoded-data boundary**. This replaces the earlier open comparison between adapting the raw-acquisition dispatcher and introducing a decoded-state broker.
+
+### Why this is the selected approach
+
+- Physics and Graphics acquisition rings are single-consumer (SPSC) inputs currently owned by their decoder workers. The existing `FanOutDispatcher` consumes an `AcquisitionRingBuffer`; attaching it as another reader would compete with the decoders and steal samples.
+- Strategy consumers need decoded, freshness-aware snapshots and domain events, not raw shared-memory pages.
+- The current dispatcher is not connected to the live strategy runtime and does not itself provide decoded-state publication, latest-value coalescing, event replay/reconciliation or consumer worker scheduling.
+- A separate broker at the decoded-data boundary avoids changing raw acquisition ownership and avoids forcing decoded-state semantics into a raw-ring abstraction.
+
+### Broker responsibilities
+
+The broker is a small in-process distribution component, not another telemetry acquisition service:
+
+1. Accept immutable decoded snapshot updates from an explicitly verified publication boundary. It must not read shared memory, drain acquisition rings or poll the Overview publisher.
+2. Keep one latest-value slot/version per relevant data family or composed snapshot. A newer snapshot replaces an obsolete pending snapshot; consumers can detect skipped versions and always read the newest valid state.
+3. Publish meaningful domain events through bounded, independently accounted event mailboxes. Events carry collision-safe identity (session identity + stream/event identity or a process-wide monotonic event sequence), schema version, source sequence/timestamps and provenance.
+4. Support explicit per-consumer subscriptions so each strategy receives only the data families and event types it needs.
+5. Keep snapshot and event delivery separate. Snapshot coalescing is acceptable; history-critical events must be gap-detectable and recoverable/reconcilable from authoritative session/lap state where possible. If recovery is impossible, surface the gap rather than silently claiming complete history.
+6. Isolate consumer failures and slow processing. A subscriber must not execute strategy calculations inline on the decoder/publication thread.
+7. Expose bounded queue/mailbox depth, oldest age, coalesced/rejected/gap counts, processing duration and subscriber health.
+8. Use a bounded shared worker/scheduler for strategy work rather than one high-frequency polling loop or dedicated thread per strategy by default.
+9. Keep compact persistence asynchronous and outside acquisition, decoder publication and Overview work.
+
+### Relationship to the existing FanOutDispatcher
+
+- Do **not** connect `FanOutDispatcher` directly to Physics/Graphics raw acquisition rings for strategy distribution.
+- Do not replace or refactor the existing dispatcher merely to make it serve this new purpose.
+- Reuse its useful design concepts—bounded per-consumer capacity, acknowledgement/accounting, explicit failure state and loss metrics—as references when implementing the broker.
+- Reconsider a shared generic dispatcher abstraction only if a later measured implementation demonstrates that it simplifies both use cases without weakening their distinct input and delivery contracts.
+
+### Publication boundary and Overview isolation
+
+The exact decoded snapshot publication hook remains a source-audit gate. The broker must be driven from an existing safe service/publication boundary or a minimal bounded handoff that is constant-time and failure-isolated. Do not add a new timer/poll loop until source inspection proves no suitable boundary exists and measurement justifies one.
+
+The Overview publisher, Qt update cadence, TelemetryBridge HTTP/SSE transport and React Overview consumer remain untouched. The broker must not subscribe to, intercept, delay or become a dependency of Overview delivery.
+
+### Implementation gates
+
+Before implementation, verify the exact producer and cadence for Physics/Graphics decoded snapshots, the engineering snapshot aggregation call path, session/lap/pit/damage/weather event producers and service lifecycle. Then define versioned broker contracts and deterministic tests for:
+
+- Latest-value replacement and stale/freshness handling.
+- Independent subscriptions and multi-consumer delivery.
+- Slow/failed subscriber isolation.
+- Event identity, ordering, duplicate suppression, gap detection and reconciliation.
+- Subscriber registration, shutdown and restart.
+- Bounded memory and fair shared scheduling.
+- No regression in acquisition cadence or Overview publication.
+
+Only after those gates should the broker be implemented incrementally and benchmarked against the pre-strategy baseline.
+
+**Decision status:** Option B is selected as the initial implementation architecture. The broker itself is not yet implemented. No application code or Overview path was changed by this documentation decision.
