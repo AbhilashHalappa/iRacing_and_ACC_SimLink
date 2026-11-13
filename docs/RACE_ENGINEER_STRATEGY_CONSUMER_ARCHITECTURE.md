@@ -710,3 +710,30 @@ Race Engineer must subscribe through Stage 2 independently. It must not be inser
 
 **Implementation priority clarification:** Stage 2 decoded-data distribution is the immediate Race Engineer implementation prerequisite. Stage 1 raw fan-out is not.
 
+## 21. Stage 2 decoded snapshot broker — first implementation increment (2026-11-13)
+
+The first code increment for the agreed decoded-only Race Engineer boundary is now present on `feature/race-engineer-page`.
+
+### Implemented in source
+
+- Added `src/race_engineer_acquisition/decoded_distribution.py` with an in-process Stage 2 broker.
+- The broker subscribes to existing Physics and Graphics decoder consumers through optional dirty notifications. Each decoder invokes only a constant-time event signal after publishing a batch or changing lifecycle state; it does not aggregate snapshots or execute subscriber code.
+- A dedicated broker worker reads the existing `RaceEngineerSnapshotAggregator`, preserving the per-stream timestamp, sequence, freshness, validity and health metadata.
+- Each named subscriber receives its own bounded-memory latest-value mailbox. Newer snapshots replace older unread snapshots and increment a coalescing counter.
+- The existing Fuel observation slice is the first subscriber, named `fuel-engineer-observation`. Its calculations continue to use the existing builder; the input now comes through Stage 2 when the broker has published.
+- Broker startup and shutdown are tied to the desktop service lifecycle. The Qt host changes are limited to starting/stopping the broker; the Overview timer, callback body, UI, payload shape and cadence are not changed.
+- Added deterministic tests in `tests/test_decoded_distribution.py` for multiple subscribers, latest-state publication, coalescing and closed-subscriber isolation.
+
+### Explicitly not implemented in this increment
+
+- No raw acquisition dispatcher or recorder changes.
+- No Physics/Graphics decoder algorithm or shared-memory acquisition changes.
+- No Static ring ownership or identity-path changes.
+- No history-critical domain-event channel yet. Completed-lap, pit/session, damage and weather events still require their separately identified, ordered and reconcilable delivery path.
+- No new strategy calculations, pit-decision coordinator, radio/TTS behaviour or UI features.
+- No Overview UI, publisher, timer, bridge or React consumer changes.
+
+### Validation status
+
+Source changes and test cases have been committed. Automated tests, type/lint checks, Windows build, performance measurement and live ACC validation have **not** been run in this environment. This increment must not be described as runtime-validated until those checks are executed.
+
