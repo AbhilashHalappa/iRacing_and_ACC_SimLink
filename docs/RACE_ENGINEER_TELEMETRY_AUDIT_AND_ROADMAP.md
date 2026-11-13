@@ -501,3 +501,14 @@ The user confirmed the following fuel observations against the live ACC session:
 - Fuel used: live value confirmed working; its accumulation/reset semantics remain undocumented, so it is observation-only for now.
 
 The fuel-observation snapshot exposes MFD fuel-to-add and fuel-used values only when the Graphics stream is fresh and the values are finite and non-negative. These observations do not enable finish-fuel or fuel-saving calculations; the safety reserve and remaining-race-distance gates remain in force. All values are advisory/read-only, and the application must not operate the ACC MFD.
+
+
+## 13. Race Engineer fuel observation integration (2026-11-13)
+
+- Added a Race Engineer service boundary that consumes the existing Physics/Graphics consumers through the freshness-aware snapshot aggregator; no second shared-memory reader or acquisition queue was introduced.
+- The Qt host now publishes the fuel observation snapshot and a concise text radio preview with each bridge snapshot.
+- Added an initial Fuel Engineer workspace showing current fuel, fuel used, fuel per lap, estimated laps and MFD fuel-to-add. The UI labels the preview as text-only; no TTS or communication-mode routing is claimed as integrated.
+- Corrected the fuel-used observation to read the decoded Graphics member `used_fuel_l` (not the nonexistent `used_fuel` attribute).
+- The service is observation-only. It does not write to ACC or operate the MFD. Fuel-used accumulation/reset semantics remain open; fuel-to-finish and saving calculations remain disabled until reserve and remaining-race-distance inputs are validated.
+
+**Validation status:** changes are committed to the feature branch but have not been built or run in the user's Windows environment. A live ACC check is still required to confirm the Fuel Engineer page updates and the values remain consistent through session transitions.
