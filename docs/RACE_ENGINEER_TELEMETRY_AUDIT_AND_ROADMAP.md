@@ -747,4 +747,8 @@ This document is authoritative for damage observations, validated mechanical war
 - Vehicle-dynamics diagnosis requires validated units, axes, signs, timestamp alignment and repeatable baselines.
 - Stale or missing telemetry must be reported as unavailable, never as evidence that the car is healthy.
 - No universal damage threshold or generic severity classification is approved.
+- Damage assessment and final pit timing are separate: Car Health tracks raw damage changes, persistence, corroborating evidence and observed repair transitions; Pit-Stop Strategy owns the final integrated stop-timing decision.
+- A changed raw damage value alone must not trigger a pit recommendation. Persistent damage plus repeatable, independently supported abnormal behaviour may justify advising inspection at a suitable stop, with correlation phrased cautiously.
+- A validated ACC warning/confirmed critical condition may justify an urgent warning only according to its validated meaning and lifecycle. No uncalibrated `car_damage[5]` threshold, component diagnosis, severity score, safety claim or quantified lap-time loss is permitted.
+- Pit-Stop Strategy must integrate validated damage urgency with race distance/position, pit-lane loss, repair duration/availability and opportunities to combine repair with an already-planned fuel/tyre stop. All actions remain manual and driver-controlled.
 - No application code was changed as part of this documentation update.
