@@ -297,7 +297,6 @@ Tasks:
 - Add conservative brake-temperature monitoring after car-specific limits are established.
 - Add tyre degradation estimates only as inferred trends.- Keep I/M/O temperatures, direct tyre wear, pad/disc life, brake pressure and brake compound out of trusted logic until their field issues are resolved.
 - Define next-stint pressure advice only after a supported target-window model exists.
-
 Acceptance gate:
 - Validate cold-to-hot pressure changes, pit resets, tyre changes, wet/dry transitions and brake-temperature trends.
 - Confirm no false warnings from initial zero/unpopulated samples.
@@ -516,8 +515,7 @@ The fuel-observation snapshot exposes MFD fuel-to-add and fuel-used values only 
 The user completed a controlled live ACC check of the Race Engineer fuel observations:
 
 - During the session, **Fuel Used increased to 1.1 L** while **Fuel Remaining was 60.9 L**. This confirms that the decoded Graphics `used_fuel_l` value changes as fuel is consumed.
-- After starting a **new session**, **Fuel Used reset to 0.0 L** and **Fuel Remaining reset to 62.0 L**.
-- In the new session, Fuel per Lap displayed **3.66 L/lap**, Estimated Laps Remaining displayed **16.9 laps**, and MFD Fuel to Add displayed **0.0 L**.
+- After starting a **new session**, **Fuel Used reset to 0.0 L** and **Fuel Remaining reset to 62.0 L**.- In the new session, Fuel per Lap displayed **3.66 L/lap**, Estimated Laps Remaining displayed **16.9 laps**, and MFD Fuel to Add displayed **0.0 L**.
 - The observed fuel-used behaviour is therefore validated for live accumulation during a session and reset on a new session.
 
 **Scope limitation:** this test does not establish whether Fuel Used resets or accumulates across pit stops, refuelling events, driver swaps, or other in-session transitions. Keep Fuel Used observation-only until those semantics are separately tested. The display remains freshness-gated and read-only.
@@ -721,3 +719,36 @@ This document is authoritative for session-state awareness, flag and track-statu
 - Timer expiry alone must never trigger a confirmed race-finished announcement.
 
 No application code was changed as part of this documentation update.
+
+
+## 20. Dedicated Car Health Strategy specification (2026-11-13)
+
+The dedicated Car Health Strategy specification has been created:
+
+- [Race Engineer Car Health Strategy](RACE_ENGINEER_CAR_HEALTH_STRATEGY.md)
+
+This document is authoritative for damage observations, validated mechanical warnings, evidence-based abnormal-behaviour assessment, alert behaviour, UI presentation and validation gates.
+
+### Car Health Strategy boundaries
+
+- Monitor only damage channels and mechanical warnings whose source, semantics and freshness are understood.
+- The five Physics `car_damage` channels have been observed changing, and a controlled pit repair returned the values to zero. This validates them as changing general-damage observations, but not their individual component mapping, units, scale or severity thresholds.
+- Do not assign body-panel/component names, percentages, severity bands or safety conclusions to uncalibrated damage values.
+- Physics `suspension_damage[4]` remains candidate telemetry; channel meaning, corner mapping, units, value direction and repair behaviour require controlled validation before driver-facing diagnosis.
+- No separately trusted engine-damage field or complete mechanical-fault inventory is currently established. Do not infer engine damage from temperature, RPM, power or generic engine-state values.
+- Collision detection is not directly available as a trusted event. A damage change is evidence of a damage-reading change, not proof of a collision.
+- Abnormal vehicle behaviour is an inference and requires validated channels, a comparable baseline, repeatable/corroborating evidence and confounder checks.
+- Brake component condition remains owned by Brake Strategy; tyre condition remains owned by Tyre Strategy. Car Health may consume validated summaries but must not duplicate their specialist alerts.
+- Detailed driving-technique coaching remains with Performance Coach and Corner Coach.
+- Reuse existing decoded consumers and freshness-aware snapshots. Do not add another shared-memory reader or acquisition path.
+- All reports and recommendations remain advisory. The driver decides whether to inspect or pit; Race Engineer never controls the car, setup, MFD or pit actions.
+
+### Current validation gates
+
+- General damage-channel movement and return to zero after a controlled pit repair have been observed; component mapping and severity interpretation remain open.
+- Suspension damage channels remain candidate-only.
+- Engine fault/damage sources and warning lifecycle require targeted source identification and ACC HUD correlation.
+- Vehicle-dynamics diagnosis requires validated units, axes, signs, timestamp alignment and repeatable baselines.
+- Stale or missing telemetry must be reported as unavailable, never as evidence that the car is healthy.
+- No universal damage threshold or generic severity classification is approved.
+- No application code was changed as part of this documentation update.
