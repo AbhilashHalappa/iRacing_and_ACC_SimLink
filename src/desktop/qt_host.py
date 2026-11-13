@@ -13,6 +13,7 @@ from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
 from ..race_engineer_acquisition.out_lap import ACCOutLapObserver
 from ..race_engineer_acquisition.static_decoder import decode_static_candidate_b
+from ..race_engineer_acquisition.service import RaceEngineerService
 from .stream_health import build_stream_freshness
 
 
