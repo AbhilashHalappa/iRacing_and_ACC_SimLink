@@ -548,3 +548,39 @@ The Fuel Strategy document is authoritative for fuel decision logic, reserve, ca
 - The driver manually enters fuel in ACC and decides whether to pit. Race Engineer remains strictly read-only and must never operate the MFD or initiate pit actions.
 
 These decisions supersede the earlier open-reserve wording in this roadmap. The three-lap reserve is selected as the initial default; car-specific tank capacity, remaining-race-distance semantics, timed-race finish behaviour, pit rules and other calculation inputs remain subject to validation before strategy calculations are enabled.
+
+
+## 15. Dedicated Tyre Strategy specification and weather validation update (2026-11-13)
+
+The dedicated Tyre Strategy specification has been created:
+
+- [Race Engineer Tyre Strategy](RACE_ENGINEER_TYRE_STRATEGY.md)
+
+This document is authoritative for tyre pressure and temperature monitoring, condition/degradation evidence, dry/wet tyre-type recommendations, pit-stop tyre advice, radio behaviour, UI requirements and validation scenarios.
+
+### User-confirmed tyre strategy decisions
+
+- Use the full adaptive, evidence-based approach: correlate pressure, temperature, stint trends, weather and driver feedback if/when that input is integrated.
+- Strictly limit recommendations to data that ACC exposes and the project has validated. Never fabricate a value, threshold, wear percentage, diagnosis, compound option or remaining tyre life.
+- Recommend the tyre type/compound based on track and weather conditions, but only from choices actually available for the selected ACC car/session. Do not assume unsupported dry compound choices.
+- The Race Engineer remains strictly read-only; the driver makes all tyre and setup changes in ACC.
+- Keep direct measurements, calculations and inferences clearly distinguished.
+
+### Weather telemetry validation update (2026-11-13)
+
+The user has now explicitly confirmed that **all weather fields currently exposed by the ACC implementation match the values shown in ACC**. This closes the user's value-comparison validation for those exposed weather fields.
+
+Use the validated weather observations in Tyre Strategy, subject to each field's actual semantics, freshness and units. A field matching ACC does not automatically validate an undocumented interpretation or a future forecast horizon; current conditions and forecast/horizon data must remain distinguished. Future-looking tyre recommendations may only use a genuinely available and validated forecast/horizon.
+
+### Tyre telemetry readiness and limits
+
+- Four tyre pressures: available and validated.
+- Tyre core temperatures: available and validated.
+- Inner/middle/outer tread temperatures: currently unreliable; exclude from trusted decision logic.
+- Direct tyre wear percentage / remaining tread life: unavailable as trusted telemetry; do not fabricate a health percentage or exact remaining life.
+- Tyre degradation: inference only, requiring multiple signals, valid lap history and confounder checks.
+- Pressure target ranges and temperature operating windows: require validated car-/tyre-specific references before classifying readings as optimal or abnormal.
+- Selected tyre type and available choices: verify per car/session before making a recommendation.
+- For the current ACC GT3 scope, treat the practical selection primarily as dry versus wet tyre, subject to the actual options exposed by the selected car/session. Do not invent soft/medium/hard choices.
+
+This section supersedes any earlier roadmap wording that implies weather fields are still unvalidated. It also clarifies that weather validation does not close the separate tyre target-range, wear, temperature-distribution or compound-availability gates. No application code was changed as part of this documentation update.
