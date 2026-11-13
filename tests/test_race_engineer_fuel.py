@@ -12,7 +12,7 @@ def telemetry(*, physics_fresh=True, graphics_fresh=True, fuel=42.5, per_lap=2.7
         fuel_per_lap_l=per_lap,
         fuel_estimated_laps=laps,
         mfd_fuel_to_add=mfd,
-        used_fuel=used,
+        used_fuel_l=used,
     ) if graphics_fresh else None
     return SimpleNamespace(
         physics=SimpleNamespace(is_fresh=physics_fresh, data=physics_data),
