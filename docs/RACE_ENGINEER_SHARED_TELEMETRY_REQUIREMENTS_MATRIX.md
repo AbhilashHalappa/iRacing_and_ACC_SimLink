@@ -211,3 +211,112 @@ Status vocabulary:
 - Existing tests were read but not executed.
 - No application code, decoder, consumer, UI or test was changed in this documentation task.
 - Do not begin implementation solely from a candidate row. Close its source/API and validation gates first.
+
+
+## 9. Required fan-out data-distribution architecture
+
+### 9.1 Architecture contract
+
+Race Engineer must use a **single acquisition/decode path with independent fan-out consumers**. The architecture is not a chain in which one strategy takes data away from another.
+
+```text
+ACC shared memory
+       |
+       v
+Existing acquisition workers (one owner per stream)
+       |
+       v
+Existing decoders and consumer snapshots
+       |
+       v
+Shared immutable telemetry snapshot / domain events
+       |
+       +------> Fuel Strategy
+       +------> Tyre Strategy
+       +------> Brake Strategy
+       +------> Car Health Strategy
+       +------> Weather Strategy
+       +------> Race-State Strategy
+       +------> Pace Strategy
+       +------> Traffic Strategy
+       +------> Setup Strategy
+       +------> Pit-Stop Strategy
+                       |
+                       v
+             Central decision/message coordinator
+                       |
+                       v
+             Communication modes / Windows TTS
+```
+
+The diagram is a logical target architecture. It does not claim that all strategy subscribers or the central coordinator already exist in code.
+
+### 9.2 Distribution rules
+
+1. **One reader per source stream:** strategies must never create their own ACC shared-memory readers, duplicate acquisition workers or independently drain a shared queue.
+2. **Fan-out, not destructive consumption:** each subscriber receives the same immutable snapshot or its own event delivery. Reading/handling by one strategy must not remove, acknowledge or mutate data needed by another.
+3. **Immutable source observations:** decoded source samples and published event payloads are read-only after publication. Strategy-specific state and calculations live in the consuming strategy/service, not in shared source objects.
+4. **Independent subscriber lifecycle:** a slow, stopped or failed strategy must not block acquisition or starve other subscribers. Delivery needs bounded buffering or latest-value semantics appropriate to the data type, with explicit drop/overflow diagnostics.
+5. **Different delivery semantics for state and events:**
+   - Live state (speed, fuel, pressure, temperatures, current weather) uses latest-value immutable snapshots; consumers can safely skip intermediate samples when their calculation only needs current state.
+   - Meaningful transitions (completed valid lap, lap invalidation, pit entry/exit, damage change, weather transition, session transition) use event delivery with stable event identity and deduplication.
+   - Events that affect history or race decisions must not silently disappear. If bounded event delivery overflows, surface a detectable gap and require reconciliation from retained history/current state where possible.
+6. **Per-subscriber freshness gates:** consumers check source timestamp, stream age, lifecycle, validation status and cross-stream timestamp skew for every calculation. A fresh aggregate wrapper does not make stale constituent fields valid.
+7. **No false synchronization:** Physics, Graphics and any decoded Static metadata retain independent capture timestamps. Each cross-stream calculation declares its maximum allowed skew and behaviour when exceeded.
+8. **Canonical shared calculations:** calculations genuinely common to multiple strategies (lap/sector event normalization, fuel observation normalization, stint boundaries, weather context and opponent association) are owned once by shared domain services. Strategies consume the result rather than reimplementing slightly different versions.
+9. **No shared mutable strategy output:** one strategy cannot rewrite another strategy's evidence, confidence or recommendation. Shared results are versioned/read-only; each strategy owns its own assessment.
+10. **Centralized radio arbitration:** strategies publish structured findings/recommendations to one coordinator. The coordinator handles priority, critical-warning bypass, communication mode, deduplication, escalation and speech serialization. Strategy engines do not independently call TTS for routine output.
+11. **Pit decision ownership remains singular:** specialist strategies provide evidence; only Pit-Stop Strategy emits routine stay-out/plan-stop/pit-now decisions. Critical factual warnings can still be raised through the common coordinator.
+12. **Read-only game boundary:** fan-out is telemetry and recommendation only. No subscriber or coordinator may write to ACC shared memory, operate controls, MFD, setup or pit actions.
+
+### 9.3 State snapshots versus event stream
+
+| Information | Preferred shared delivery | Reason / safeguards |
+|---|---|---|
+| Current speed, controls, gear, RPM, fuel | Latest immutable Physics snapshot | Current-state consumers do not need a queue of every sample |
+| Current weather and forecast values | Latest immutable Graphics/weather snapshot | Preserve observed-vs-forecast distinction, source time and horizon |
+| Tyre pressure/core temperature and brake temperatures | Latest immutable Physics snapshot plus compact per-lap summaries | Live display and trends have different sampling needs |
+| Damage raw channels | Latest immutable sample plus change events/history | Preserve raw values and detect persistence/repair transitions |
+| Completed lap, validity and sector result | Identified lap/sector events plus durable session history | Must preserve lap boundaries and avoid duplicate completion events |
+| Pit entry, pit exit and confirmed service changes | Identified pit/session events plus durable history | A pit visit is not proof of service |
+| Session/race-control transitions | Identified events plus current race-state snapshot | Reconnect and duplicate packets must not duplicate transitions |
+| Opponent identity/gap/position | Latest classification/traffic snapshot plus meaningful target-change events | Preserve association, sign, timestamp and track wrap semantics |
+| Strategy findings | Structured strategy-output events/state | Central coordinator can prioritize and deduplicate without owning domain logic |
+
+### 9.4 Minimum shared message metadata
+
+Every published telemetry observation or event should retain, where applicable:
+- Source stream and original decoder field/member name.
+- Normalized field name and unit (only where validated).
+- Capture timestamp and publication timestamp, using a consistent monotonic clock domain where possible.
+- Stream sequence/capture sequence and packet identifier when available.
+- Session identity and lap/stint identity when applicable.
+- Freshness/availability and validation state.
+- Provenance class: directly observed, calculated, imported or driver-confirmed.
+- For events: stable event ID, event type, event timestamp and deduplication key.
+- For derived values: input observation/event IDs and calculation/version identifier.
+
+Do not fabricate missing metadata. An unavailable sequence, unit or session key remains explicitly unavailable.
+
+### 9.5 Failure isolation and recovery
+
+- Acquisition continues independently of strategy subscriber health.
+- A strategy exception is isolated and reported; it must not terminate the acquisition loop or other strategies.
+- Latest-value consumers may resume from the newest snapshot after recovery, but must detect the gap and avoid pretending they processed every intermediate sample.
+- Event consumers need sequence/gap detection and a reconciliation path to session history or current state.
+- On session change/reconnect, reset session-scoped strategy state deliberately and deduplicate replayed events.
+- Critical warnings remain available to the central coordinator even if a non-critical strategy is muted or a communication mode is quiet.
+- Diagnostics should expose per-subscriber last processed sequence/time, lag, dropped-event count, lifecycle and last error.
+
+### 9.6 Acceptance criteria before strategy expansion
+
+- Demonstrate one acquisition/decode path per ACC source stream.
+- Demonstrate that two or more independent consumers can read the same published sample without consuming it from each other.
+- Demonstrate that one blocked/failed consumer does not stall another consumer or acquisition.
+- Demonstrate freshness and cross-stream skew rejection for stale or misaligned inputs.
+- Demonstrate latest-value coalescing for live state and detectable event-gap handling for lap/pit/session events.
+- Demonstrate event deduplication across repeated packets and reconnects.
+- Demonstrate strategy outputs reaching one coordinator, with one pit decision owner and centralized radio deduplication.
+- Verify no game-control/write path is introduced.
+
+These are architecture requirements and acceptance tests, not claims of current implementation. The existing snapshot aggregator is a useful source boundary, but full strategy fan-out, event delivery, failure isolation and radio arbitration remain to be audited/implemented.
