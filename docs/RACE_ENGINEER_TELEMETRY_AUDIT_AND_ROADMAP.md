@@ -584,3 +584,44 @@ Use the validated weather observations in Tyre Strategy, subject to each field's
 - For the current ACC GT3 scope, treat the practical selection primarily as dry versus wet tyre, subject to the actual options exposed by the selected car/session. Do not invent soft/medium/hard choices.
 
 This section supersedes any earlier roadmap wording that implies weather fields are still unvalidated. It also clarifies that weather validation does not close the separate tyre target-range, wear, temperature-distribution or compound-availability gates. No application code was changed as part of this documentation update.
+
+
+## 16. Dedicated Brake Strategy specification and pad/disc telemetry update (2026-11-13)
+
+The dedicated Brake Strategy specification has been created:
+
+- [Race Engineer Brake Strategy](RACE_ENGINEER_BRAKE_STRATEGY.md)
+
+This document is authoritative for four-corner brake-temperature monitoring, pad/disc condition observations, braking-behaviour analysis, evidence requirements, radio behaviour, UI requirements and validation gates.
+
+### User-confirmed brake telemetry
+
+- Four brake-temperature channels are available and user-validated.
+- Brake pad-life values are working and appear separately for FL, FR, RL and RR.
+- Brake disc-life values are working and appear separately for FL, FR, RL and RR.
+- The user sees numeric pad/disc values without a unit label.
+
+### Pad/disc unit interpretation
+
+ACC-specific shared-memory references describe pad-life and disc-life values as remaining thickness in millimetres (mm), with commonly documented new-component reference values around 29 mm for pads and 32 mm for discs. These are reference values, not universal car-independent limits.
+
+Until the user's selected car and a controlled ACC state confirm the interpretation:
+- Preserve raw values and corner mapping.
+- Treat mm as the expected/reference unit, not as an unconditional validated runtime label.
+- Do not calculate wear rate, remaining laps/distance, replacement timing or percentage health.
+- Do not apply universal new-component or minimum-thickness thresholds.
+
+### Supersession of earlier brake audit wording
+
+This update supersedes the earlier §3.4 statements that pad-life and disc-life are simply unreliable/unusable. The user has confirmed the four-corner values are working. The remaining uncertainty concerns unit/scale semantics, value direction, car-specific baselines, service limits and wear/reset behaviour. The existing brake-pressure and brake-compound candidate warnings remain unchanged; they are still excluded from diagnosis until separately validated.
+
+### Brake Strategy design decisions
+
+- Monitor all four brake temperatures, pad values and disc values independently.
+- Compare per-corner values and trends only when samples are fresh and their semantics are understood.
+- Use car-specific, evidence-backed temperature limits; never hard-code generic universal thresholds.
+- Keep braking-performance, ABS and lock-up diagnosis gated on validation of their respective telemetry.
+- Do not claim mechanical failure or component remaining life without sufficient validated evidence.
+- Race Engineer remains read-only; all setup, component and pit decisions remain with the driver.
+
+No application code was changed as part of this documentation update.
