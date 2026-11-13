@@ -872,3 +872,37 @@ The matrix consolidates the ten strategy specifications and identifies:
 The low-level Physics/Graphics decoder implementations, complete consumer API surface, Static metadata consumer and existing session-history/pit-event storage APIs were not fully verified in this pass. The matrix explicitly marks this as a P0 source/API audit task; decoder field names taken from existing audit documents must be reconciled against the actual decoder source before implementation.
 
 No application code was changed as part of this documentation update.
+
+
+## 25. Fan-out telemetry distribution architecture (2026-11-13)
+
+The shared telemetry matrix now defines the required fan-out architecture in Section 9:
+
+- [Shared Telemetry Requirements Matrix — Fan-out architecture](RACE_ENGINEER_SHARED_TELEMETRY_REQUIREMENTS_MATRIX.md#9-required-fan-out-data-distribution-architecture)
+
+### Required architecture
+
+ACC shared memory is acquired and decoded once per source stream. Existing consumer snapshots are published as immutable latest-value state, while meaningful transitions are published as identified events. Independent strategy consumers receive the same data without destructive queue reads or shared mutable state.
+
+The target fan-out consumers are Fuel, Tyre, Brake, Car Health, Weather, Race-State, Pace, Traffic, Setup and Pit-Stop. Shared domain calculations (such as lap/sector normalization, fuel observations, stint boundaries and weather context) must have one owner and be reused by strategies.
+
+Strategy outputs are submitted to one central coordinator for priority, communication-mode handling, critical-warning bypass, deduplication and TTS serialization. Pit-Stop Strategy remains the sole owner of routine pit recommendations. The architecture remains strictly read-only with respect to ACC.
+
+### Audit and implementation gates
+
+1. Inspect the actual acquisition workers and decoded consumer APIs to verify one reader per source and establish whether current consumers already receive independent fan-out or merely read a latest-value cache.
+2. Inspect queue ownership, callback/subscriber registration and thread boundaries. Confirm no consumer destructively drains data needed by another.
+3. Inspect event production and persistence for completed laps, pit entry/exit, session transitions and damage/weather changes. Add stable event identity, gap detection and deduplication where absent.
+4. Define latest-value delivery for live state and reliable/gap-detectable delivery for history-critical events. A failed or slow strategy must not block acquisition or other consumers.
+5. Define per-calculation freshness and cross-stream timestamp-skew gates.
+6. Inspect strategy output and TTS call sites; route findings through one coordinator rather than allowing independent strategy speech.
+7. Add acceptance tests for multi-consumer fan-out, subscriber failure isolation, event gaps/replay/deduplication, stale/misaligned data and centralized radio arbitration.
+
+### Current implementation status
+
+- **Verified:** the existing `RaceEngineerSnapshotAggregator` reads existing Physics/Graphics consumer snapshots and acquisition health without opening another shared-memory reader or draining their queues.
+- **Not yet verified:** whether the underlying acquisition/consumer layer already provides full independent fan-out to multiple strategy subscribers; the snapshot aggregator alone does not prove this.
+- **Not yet implemented/verified:** complete strategy subscriber lifecycle, reliable event fan-out, failure isolation, event-gap reconciliation and centralized strategy-output/radio arbitration.
+- **Required next source-audit focus:** trace acquisition worker → decoder → consumer publication → every consumer/subscriber → strategy output/TTS call site. Record the real ownership and delivery semantics before changing implementation.
+
+No application code was changed as part of this architecture documentation update.
