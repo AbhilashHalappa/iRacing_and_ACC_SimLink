@@ -178,6 +178,7 @@ The repository already has a useful read-only acquisition foundation:
 | Automatic application of settings | Explicitly prohibited | **Not permitted** | Engineer may explain and recommend; driver changes every setting manually in ACC. |
 
 ### 3.9 Radio, interaction and data reliability
+
 | Requirement | Current state | Status | Audit decision |
 |---|---|---|---|
 | Three communication modes | Design agreed; no Race Engineer mode engine yet | **Not implemented** | Driver-initiated, Balanced and Active modes must all be supported and switchable during a session. |
@@ -356,7 +357,8 @@ Tasks:
 Acceptance gate:
 - No unhandled failures during a complete practice/race session.
 - Critical warnings work in all modes; routine messages respect the selected mode.
-- All recommendations are advisory and the game remains untouched by the application.- No known unavailable field is presented as measured telemetry.
+- All recommendations are advisory and the game remains untouched by the application.
+- No known unavailable field is presented as measured telemetry.
 
 ## 6. Suggested first implementation slice
 
@@ -536,6 +538,374 @@ The Fuel Strategy document is authoritative for fuel decision logic, reserve, ca
 - Use an initial safety reserve of **three laps** of estimated fuel consumption.
 - Do not announce routine “fuel OK” or unchanged no-stop results. Background calculations must not create lap-by-lap radio spam.
 - Announce actionable refuelling recommendations and critical fuel warnings. Suppress duplicate unchanged messages; correct a previously announced recommendation only when it materially changes or becomes obsolete.
+- Calculate fuel expected to remain on pit arrival, then recommend the amount to add for the remaining race plus the three-lap reserve.
+- The driver manually enters fuel in ACC and decides whether to pit. Race Engineer remains strictly read-only and must never operate the MFD or initiate pit actions.
+
+These decisions supersede the earlier open-reserve wording in this roadmap. The three-lap reserve is selected as the initial default; car-specific tank capacity, remaining-race-distance semantics, timed-race finish behaviour, pit rules and other calculation inputs remain subject to validation before strategy calculations are enabled.
+
+
+## 15. Dedicated Tyre Strategy specification and weather validation update (2026-11-13)
+
+The dedicated Tyre Strategy specification has been created:
+
+- [Race Engineer Tyre Strategy](RACE_ENGINEER_TYRE_STRATEGY.md)
+
+This document is authoritative for tyre pressure and temperature monitoring, condition/degradation evidence, dry/wet tyre-type recommendations, pit-stop tyre advice, radio behaviour, UI requirements and validation scenarios.
+
+### User-confirmed tyre strategy decisions
+
+- Use the full adaptive, evidence-based approach: correlate pressure, temperature, stint trends, weather and driver feedback if/when that input is integrated.
+- Strictly limit recommendations to data that ACC exposes and the project has validated. Never fabricate a value, threshold, wear percentage, diagnosis, compound option or remaining tyre life.
+- Recommend the tyre type/compound based on track and weather conditions, but only from choices actually available for the selected ACC car/session. Do not assume unsupported dry compound choices.
+- The Race Engineer remains strictly read-only; the driver makes all tyre and setup changes in ACC.
+- Keep direct measurements, calculations and inferences clearly distinguished.
+
+### Weather telemetry validation update (2026-11-13)
+
+The user has now explicitly confirmed that **all weather fields currently exposed by the ACC implementation match the values shown in ACC**. This closes the user's value-comparison validation for those exposed weather fields.
+
+Use the validated weather observations in Tyre Strategy, subject to each field's actual semantics, freshness and units. A field matching ACC does not automatically validate an undocumented interpretation or a future forecast horizon; current conditions and forecast/horizon data must remain distinguished. Future-looking tyre recommendations may only use a genuinely available and validated forecast/horizon.
+
+### Tyre telemetry readiness and limits
+
+- Four tyre pressures: available and validated.
+- Tyre core temperatures: available and validated.
+- Inner/middle/outer tread temperatures: currently unreliable; exclude from trusted decision logic.
+- Direct tyre wear percentage / remaining tread life: unavailable as trusted telemetry; do not fabricate a health percentage or exact remaining life.
+- Tyre degradation: inference only, requiring multiple signals, valid lap history and confounder checks.
+- Pressure target ranges and temperature operating windows: require validated car-/tyre-specific references before classifying readings as optimal or abnormal.
+- Selected tyre type and available choices: verify per car/session before making a recommendation.
+- For the current ACC GT3 scope, treat the practical selection primarily as dry versus wet tyre, subject to the actual options exposed by the selected car/session. Do not invent soft/medium/hard choices.
+
+This section supersedes any earlier roadmap wording that implies weather fields are still unvalidated. It also clarifies that weather validation does not close the separate tyre target-range, wear, temperature-distribution or compound-availability gates. No application code was changed as part of this documentation update.
+
+
+## 16. Dedicated Brake Strategy specification and pad/disc telemetry update (2026-11-13)
+
+The dedicated Brake Strategy specification has been created:
+
+- [Race Engineer Brake Strategy](RACE_ENGINEER_BRAKE_STRATEGY.md)
+
+This document is authoritative for four-corner brake-temperature monitoring, pad/disc condition observations, braking-behaviour analysis, evidence requirements, radio behaviour, UI requirements and validation gates.
+
+### User-confirmed brake telemetry
+
+- Four brake-temperature channels are available and user-validated.
+- Brake pad-life values are working and appear separately for FL, FR, RL and RR.
+- Brake disc-life values are working and appear separately for FL, FR, RL and RR.
+- The user sees numeric pad/disc values without a unit label.
+
+### Pad/disc unit interpretation
+
+ACC-specific shared-memory references describe pad-life and disc-life values as remaining thickness in millimetres (mm), with commonly documented new-component reference values around 29 mm for pads and 32 mm for discs. These are reference values, not universal car-independent limits.
+
+Until the user's selected car and a controlled ACC state confirm the interpretation:
+- Preserve raw values and corner mapping.
+- Treat mm as the expected/reference unit, not as an unconditional validated runtime label.
+- Do not calculate wear rate, remaining laps/distance, replacement timing or percentage health.
+- Do not apply universal new-component or minimum-thickness thresholds.
+
+### Supersession of earlier brake audit wording
+
+This update supersedes the earlier §3.4 statements that pad-life and disc-life are simply unreliable/unusable. The user has confirmed the four-corner values are working. The remaining uncertainty concerns unit/scale semantics, value direction, car-specific baselines, service limits and wear/reset behaviour. The existing brake-pressure and brake-compound candidate warnings remain unchanged; they are still excluded from diagnosis until separately validated.
+
+### Brake Strategy design decisions
+
+- Monitor all four brake temperatures, pad values and disc values independently.
+- Compare per-corner values and trends only when samples are fresh and their semantics are understood.
+- Use car-specific, evidence-backed temperature limits; never hard-code generic universal thresholds.
+- Keep braking-performance, ABS and lock-up diagnosis gated on validation of their respective telemetry.
+- Do not claim mechanical failure or component remaining life without sufficient validated evidence.
+- Race Engineer remains read-only; all setup, component and pit decisions remain with the driver.
+
+No application code was changed as part of this documentation update.
+
+
+## 17. Dedicated Pace Strategy specification and opponent-focus decision (2026-11-13)
+
+The dedicated Pace Strategy specification has been created:
+
+- [Race Engineer Pace Strategy](RACE_ENGINEER_PACE_STRATEGY.md)
+
+This document is authoritative for personal pace analysis, immediate-opponent focus, chase/overtake preparation, post-pass gap management, defensive awareness, communication, UI requirements and validation gates.
+
+### User-confirmed Pace Strategy design
+
+- Pace Strategy may compare the player's pace with other cars, but its primary focus is **one classified position ahead at a time**.
+- The goal while chasing is to understand how to close on and prepare to overtake the immediate car ahead.
+- The immediate car behind is also monitored so the driver can maintain a gap and defend a position when necessary.
+- After a confirmed pass, the former target becomes the immediate car behind (subject to updated classification), and the next car ahead becomes the new target.
+- Both adjacent cars may be observed, but only one is the primary tactical focus at a time: chase, defend, gap-building or personal pace.
+- Personal valid-lap and sector pace remains part of the strategy.
+- Opponent-specific pace comparisons and catch-time estimates are permitted only when the corresponding ACC timing/gap source, car association, units, sign convention and freshness are validated.
+- Do not invent opponent timing, passing thresholds, opponent intent, passing zones or likely manoeuvres.
+- If opponent telemetry is unavailable or unreliable, fall back to personal pace and explicitly report the limitation.
+- Keep detailed corner-by-corner driving coaching with Performance Coach and Corner Coach.
+- All recommendations remain advisory; Race Engineer never controls the car or changes ACC state.
+
+### Current telemetry validation gates
+
+- Graphics position and active-car count remain candidate inputs for opponent strategy.
+- Gap-ahead and gap-behind are decoded in milliseconds, but sign convention and immediate-neighbour association must be confirmed.
+- Multi-car identity/coordinate mapping remains candidate and requires controlled live validation.
+- Opponent-specific lap/sector timing availability has not yet been established as a validated input.
+- The next engineering step is to inspect existing decoded consumer APIs and validate these semantics before enabling opponent-aware calculations. Do not add another shared-memory reader.
+
+No application code was changed as part of this documentation update.
+
+
+## 18. Dedicated Traffic Strategy specification (2026-11-13)
+
+The dedicated Traffic Strategy specification has been created:
+
+- [Race Engineer Traffic Strategy](RACE_ENGINEER_TRAFFIC_STRATEGY.md)
+
+This document is authoritative for nearby-car awareness, catching slower traffic, being approached/lapped, proximity and overlap gating, traffic-affected pace context, communication, UI requirements and validation gates.
+
+### Agreed Traffic Strategy boundaries
+
+- Traffic Strategy focuses on physical traffic context and nearby-car interactions, not simply classified position.
+- Pace Strategy retains ownership of the immediate classified car one position ahead/behind, race-position chasing, passing that target, gap-building and defending.
+- Traffic Strategy may identify cars ahead, behind or alongside only when the existing car association and coordinate model support those statements.
+- Catching, being approached, relative movement and overlap must be based on fresh, correctly associated observations; a timing gap alone is not physical proximity.
+- Traffic-affected lap/sector context must be aligned with the relevant timing interval and must not overwrite measured lap times or automatically discard valid laps.
+- No fabricated distance, relative speed, time-to-contact, overlap, contact, blue-flag status, class priority, racing line or opponent intent.
+- Reuse existing decoded consumer APIs and telemetry acquisition. Do not add another shared-memory reader.
+- All recommendations remain informational and advisory; Race Engineer never controls the car or changes ACC state.
+
+### Current telemetry validation gates
+
+- Graphics car IDs, coordinates and normalized track position remain candidate inputs.
+- Player/opponent association, coordinate frame, units, update cadence, track wrap-around and stale-data behaviour require controlled multi-car ACC validation.
+- Opponent-specific speed or relative speed has not been established as a validated traffic input.
+- Overlap detection is not approved until car dimensions/reference points and coordinate geometry can support it reliably.
+- Race-control/blue-flag semantics must remain gated on explicit validation.
+- Until these gates pass, Traffic Strategy must use only the facts the available telemetry can reliably establish and clearly report unavailable information.
+
+No application code was changed as part of this documentation update.
+
+
+## 19. Dedicated Race-State Strategy specification (2026-11-13)
+
+The dedicated Race-State Strategy specification has been created:
+
+- [Race Engineer Race-State Strategy](RACE_ENGINEER_RACE_STATE_STRATEGY.md)
+
+This document is authoritative for session-state awareness, flag and track-status interpretation, penalty/warning lifecycle, safety-car/neutralisation availability gates, session transitions, race-finish handling, communication, UI requirements and validation.
+
+### Race-State Strategy boundaries
+
+- Report only race-control states whose raw values, enum meanings, units and lifecycle have been validated against ACC.
+- Preserve unknown raw codes as unknown; never guess a flag, penalty or neutralisation meaning.
+- Keep lap validity separate from flags and penalties.
+- Use completed-lap count separately from the candidate race lap limit.
+- Treat session timer expiry and actual race completion as distinct until timed-race finish-line behaviour is validated.
+- Do not claim safety car, VSC, FCY, red flag or chequered states unless a reliable source is explicitly identified and tested.
+- ACC HUD and server instructions remain authoritative; Race Engineer provides supplementary information only.
+- Reuse existing decoded consumers and event infrastructure; do not add another shared-memory reader.
+- All behaviour remains strictly read-only. No penalty acknowledgement, MFD operation, pit action or game control is permitted.
+
+### Current telemetry validation gates
+
+- Session time remaining is validated for display, and completed-lap count is validated.
+- Session type/state and race-control integer codes remain candidates requiring controlled transition and HUD correlation.
+- Race lap limit / laps remaining semantics remain unvalidated.
+- Penalty and warning fields require enum, unit and lifecycle validation before announcement.
+- Safety-car/neutralisation and chequered/finish sources have not been established as validated inputs.
+- Timer expiry alone must never trigger a confirmed race-finished announcement.
+
+No application code was changed as part of this documentation update.
+
+
+## 20. Dedicated Car Health Strategy specification (2026-11-13)
+
+The dedicated Car Health Strategy specification has been created:
+
+- [Race Engineer Car Health Strategy](RACE_ENGINEER_CAR_HEALTH_STRATEGY.md)
+
+This document is authoritative for damage observations, validated mechanical warnings, evidence-based abnormal-behaviour assessment, alert behaviour, UI presentation and validation gates.
+
+### Car Health Strategy boundaries
+
+- Monitor only damage channels and mechanical warnings whose source, semantics and freshness are understood.
+- The five Physics `car_damage` channels have been observed changing, and a controlled pit repair returned the values to zero. This validates them as changing general-damage observations, but not their individual component mapping, units, scale or severity thresholds.
+- Do not assign body-panel/component names, percentages, severity bands or safety conclusions to uncalibrated damage values.
+- Physics `suspension_damage[4]` remains candidate telemetry; channel meaning, corner mapping, units, value direction and repair behaviour require controlled validation before driver-facing diagnosis.
+- No separately trusted engine-damage field or complete mechanical-fault inventory is currently established. Do not infer engine damage from temperature, RPM, power or generic engine-state values.
+- Collision detection is not directly available as a trusted event. A damage change is evidence of a damage-reading change, not proof of a collision.
+- Abnormal vehicle behaviour is an inference and requires validated channels, a comparable baseline, repeatable/corroborating evidence and confounder checks.
+- Brake component condition remains owned by Brake Strategy; tyre condition remains owned by Tyre Strategy. Car Health may consume validated summaries but must not duplicate their specialist alerts.
+- Detailed driving-technique coaching remains with Performance Coach and Corner Coach.
+- Reuse existing decoded consumers and freshness-aware snapshots. Do not add another shared-memory reader or acquisition path.
+- All reports and recommendations remain advisory. The driver decides whether to inspect or pit; Race Engineer never controls the car, setup, MFD or pit actions.
+
+### Current validation gates
+
+- General damage-channel movement and return to zero after a controlled pit repair have been observed; component mapping and severity interpretation remain open.
+- Suspension damage channels remain candidate-only.
+- Engine fault/damage sources and warning lifecycle require targeted source identification and ACC HUD correlation.
+- Vehicle-dynamics diagnosis requires validated units, axes, signs, timestamp alignment and repeatable baselines.
+- Stale or missing telemetry must be reported as unavailable, never as evidence that the car is healthy.
+- No universal damage threshold or generic severity classification is approved.
+- Damage assessment and final pit timing are separate: Car Health tracks raw damage changes, persistence, corroborating evidence and observed repair transitions; Pit-Stop Strategy owns the final integrated stop-timing decision.
+- A changed raw damage value alone must not trigger a pit recommendation. Persistent damage plus repeatable, independently supported abnormal behaviour may justify advising inspection at a suitable stop, with correlation phrased cautiously.
+- A validated ACC warning/confirmed critical condition may justify an urgent warning only according to its validated meaning and lifecycle. No uncalibrated `car_damage[5]` threshold, component diagnosis, severity score, safety claim or quantified lap-time loss is permitted.
+- Pit-Stop Strategy must integrate validated damage urgency with race distance/position, pit-lane loss, repair duration/availability and opportunities to combine repair with an already-planned fuel/tyre stop. All actions remain manual and driver-controlled.
+- No application code was changed as part of this documentation update.
+
+## 21. Dedicated Setup Strategy specification (2026-11-13)
+
+The dedicated Setup Strategy specification has been created:
+
+- [Race Engineer Setup Strategy](RACE_ENGINEER_SETUP_STRATEGY.md)
+
+This document is authoritative for in-session/on-board setting recommendations, driver-confirmed adjustments, setup history, before/after evaluation, setup-file provenance, communication, UI requirements and validation gates.
+
+### User-confirmed Setup Strategy decisions
+
+- Prioritise **on-board adjustments that can be made during an ACC session**. Garage-only setup changes are deferred to a later phase.
+- Potential on-board controls include brake bias, TC, ABS, engine map and other car-specific adjustable controls, but only where the selected car/session actually exposes them. Do not assume a universal control inventory or common ranges across cars.
+- Setup Strategy recommends changes and explains the evidence, expected benefit and trade-off. The driver manually applies every change; Race Engineer must never send control inputs or modify ACC.
+- Automatically capture telemetry and compact lap/session context so pre-change and post-change behaviour can be compared.
+- Maintain persistent setup adjustment history, organised by car, track/layout and conditions, with chronological setting versions and source provenance.
+- Require driver confirmation of the actual applied setting whenever ACC telemetry does not expose it. A recommendation is not proof that a change was made.
+- Support setup-file import as a read-only supporting source for baseline/configuration values, while distinguishing imported values from live telemetry and driver-confirmed changes.
+- Evaluate changes using valid lap/sector pace, consistency, relevant vehicle response and optional driver feedback. Account for traffic, fuel, tyres, brakes, weather, track evolution and driver variation before attributing an outcome to a setting.
+- Build preferred track/car/condition-specific values only from repeatable comparable evidence. Label limited evidence as candidate or inconclusive; never declare a universal best setup from one faster lap.
+- Garage-only settings such as suspension, dampers, springs, ride height, aero and alignment remain outside the initial implementation scope and will be considered later.
+- Reuse existing telemetry consumers and history infrastructure; do not add another shared-memory reader. All setup actions remain manual and driver-controlled.
+
+### Setup Strategy readiness
+
+- The available on-board control inventory, per-car labels/ranges/increments and telemetry exposure must be audited before numeric recommendations are enabled.
+- Setup-file format coverage and association with the active car/session require validation before import can be treated as reliable.
+- Persistent event history, confirmation workflow, before/after windows and confounder handling require implementation and tests.
+- No application code was changed as part of this documentation update.
+
+
+## 22. Dedicated Weather Strategy specification (2026-11-13)
+
+The dedicated Weather Strategy specification has been created:
+
+- [Race Engineer Weather Strategy](RACE_ENGINEER_WEATHER_STRATEGY.md)
+
+### User-confirmed Weather Strategy decisions
+
+- Weather Strategy monitors changing ACC weather and track conditions and supplies timestamped context to dependent strategies.
+- The user has confirmed that all weather fields currently exposed by the ACC implementation match the values shown in ACC.
+- Weather Strategy must also monitor ACC's predicted weather progression for the remainder of the session when reliable forecast fields are exposed.
+- Forecast values must remain separate from observed current conditions and retain their target horizon/time and receive timestamp.
+- Forecast meaning, horizon, update cadence and semantics must be documented before forecast-driven strategic recommendations are enabled.
+- Missing, stale or ambiguous forecast data must be reported as unavailable; do not extrapolate current rain into a forecast or invent probabilities, rain duration, transition times or drying rates.
+- Weather Strategy owns weather observations, trend/transition detection and condition history. Tyre Strategy owns tyre-condition assessment and tyre-change recommendations; Pit-Stop Strategy owns the final integrated stop decision.
+- Weather alone must never trigger a tyre change, setup change or pit-stop recommendation. Dependent strategies must combine weather context with their own validated evidence.
+- Reuse existing decoded consumers and freshness-aware snapshots; do not add another shared-memory reader.
+- Maintain compact session history for observed conditions, forecast progression, detected transitions and dependent-strategy notifications.
+- All recommendations remain advisory and read-only. The driver performs every in-game action manually.
+
+### Weather Strategy readiness
+
+- The user-confirmed value comparison covers all weather fields currently exposed by the implementation. Units, enum interpretation, freshness, timestamp alignment and update cadence still need to be preserved and tested per field.
+- Forecast target horizon, update cadence and relationship to ACC's displayed forecast require explicit validation before future-looking recommendations.
+- Track-grip transitions and wind interpretation must remain gated by their documented semantics.
+- Controlled dry-to-wet, wet-to-dry, temperature-change, reconnect and new-session tests are required.
+- No application code was changed as part of this documentation update.
+
+
+## 23. Dedicated Pit-Stop Strategy specification (2026-11-13)
+
+The dedicated Pit-Stop Strategy specification has been created:
+
+- [Race Engineer Pit-Stop Strategy](RACE_ENGINEER_PIT_STOP_STRATEGY.md)
+
+### User-confirmed integrated pit-decision design
+
+- Pit-Stop Strategy is the **single decision-making and recommendation layer** for pit stops. Fuel, Tyre, Brake, Car Health, Weather, Race-State, Pace and Traffic provide evidence/context; they must not issue separate competing routine pit instructions.
+- The integrated strategy combines all relevant evidence and produces one recommendation: stay out, plan a stop, or pit now/urgently, with the supported timing and combined service list.
+- A single issue may justify a stop, but the final pit recommendation still comes from the integrated decision layer. Specialist strategies may issue their own critical informational warnings without issuing separate pit instructions.
+- Use a two-layer model: validated hard constraints first, then a weighted assessment. A validated mandatory rule, fuel infeasibility or confirmed critical condition can require a stop regardless of the weighted score. Candidate or stale telemetry must not become a hard constraint.
+- The agreed initial weighted assessment is fixed at Fuel 25%, Tyres 25%, Car Health 20%, Brakes 15%, Weather 10% and Race-State strategic context 5% (100% total).
+- Pace and Traffic are contextual timing inputs in the initial model, not independent pit-necessity weight contributors.
+- These weights are fixed initially. They must not adapt automatically. Changes may be considered only after sufficient representative race history has been recorded and reviewed, with documented evidence and explicit approval.
+- The weighted score is not a probability. Missing, stale, ambiguous or unvalidated inputs remain unknown; do not treat them as zero need or silently redistribute their weight. Score scale, evidence-coverage rules and decision thresholds require explicit definition and validation before live use.
+- Combine compatible fuel, tyre, damage/repair and other validated services into one stop where timing and constraints support it. Consider race distance, pit-lane loss, service duration, weather, position, gaps and traffic without inventing unavailable values.
+- Maintain persistent chronological pit-stop history per session: observed pit entry/exit, fuel before/after/added, tyre state and changes, damage/brake state and confirmed services, conditions, position/gaps, recommendation, driver action and subsequent pace/consistency outcomes.
+- Every history value must retain provenance: automatically observed, calculated from validated observations, imported or driver-confirmed. Unexposed service details remain unknown until confirmed; a pit visit alone does not prove refuelling, tyre change or repair.
+- Use compact event and before/after summaries, reusing existing telemetry/session history. Do not add another shared-memory reader or unnecessary high-frequency recording.
+- All recommendations remain advisory and read-only. Race Engineer never operates pit controls, MFD or any in-game function.
+
+### Pit-Stop Strategy readiness
+
+- Strategy-output aggregation and timestamp/freshness alignment are not yet implemented or live-validated.
+- Mandatory-stop rules, finish behaviour, fuel feasibility, service constraints, pit-lane loss, repair duration and pit entry/exit/service detection require source-specific validation.
+- The score scale, per-strategy severity mappings, minimum evidence coverage, hard-constraint precedence, decision thresholds and hysteresis/deduplication must be defined and tested before score-driven recommendations.
+- Pit-history persistence, provenance, driver-confirmation workflow and post-stop outcome analysis require implementation and tests.
+- Initial weights remain fixed as specified; future adjustment requires sufficient comparable evidence and explicit approval.
+- No application code was changed as part of this documentation update.
+
+
+## 24. Shared Telemetry Requirements Matrix (2026-11-13)
+
+The cross-strategy shared telemetry requirements matrix has been created:
+
+- [Race Engineer Shared Telemetry Requirements Matrix](RACE_ENGINEER_SHARED_TELEMETRY_REQUIREMENTS_MATRIX.md)
+
+The matrix consolidates the ten strategy specifications and identifies:
+- Shared Physics, Graphics, Static, application-history, derived and driver-confirmed inputs.
+- Which strategies consume each data family.
+- Current validation state and restrictions on candidate/inferred/unavailable data.
+- Existing snapshot aggregator and Fuel observation API contracts.
+- Shared services needed for lap/sector history, race progress, fuel, tyres, brakes, damage, weather, opponents/traffic, setup, pit decisions/history and radio.
+- Cross-stream freshness/timestamp rules, ownership boundaries and anti-double-counting rules.
+- Prioritised validation gaps and an implementation sequence based on shared dependencies.
+
+### Source/API findings verified in this pass
+
+- `src/race_engineer_acquisition/engineering_snapshot.py` implements `RaceEngineerSnapshotAggregator` and reads the existing Physics and Graphics consumer snapshots plus acquisition health. It does not read shared memory or drain queues.
+- Physics and Graphics have separate capture timestamps and independent freshness limits (default 500 ms and 1,000 ms respectively). The aggregate snapshot explicitly does not claim that their samples are synchronized.
+- Static currently appears in this aggregate as raw read-health information only; it does not expose decoded Static metadata through `RaceEngineerTelemetrySnapshot.static`.
+- `src/race_engineer_acquisition/fuel_engineer.py` implements a conservative observation builder for current fuel, fuel-per-lap, estimated laps remaining, MFD fuel-to-add and fuel-used. It does not yet calculate finish fuel, shortfall, saving or refuelling amount; a configured reserve is still required to enable its calculation gate.
+- Focused tests for the snapshot aggregator and Fuel observation builder were inspected but not executed.
+
+### Remaining source-audit limitation
+
+The low-level Physics/Graphics decoder implementations, complete consumer API surface, Static metadata consumer and existing session-history/pit-event storage APIs were not fully verified in this pass. The matrix explicitly marks this as a P0 source/API audit task; decoder field names taken from existing audit documents must be reconciled against the actual decoder source before implementation.
+
+No application code was changed as part of this documentation update.
+
+## 25. Fan-out telemetry distribution architecture (2026-11-13)
+
+The shared telemetry matrix defines the required fan-out architecture in Section 9:
+
+- [Shared Telemetry Requirements Matrix — Fan-out architecture](RACE_ENGINEER_SHARED_TELEMETRY_REQUIREMENTS_MATRIX.md#9-required-fan-out-data-distribution-architecture)
+
+### Required architecture
+
+ACC shared memory is acquired and decoded once per source stream. Existing consumer snapshots are published as immutable latest-value state, while meaningful transitions are published as identified events. Independent strategy consumers receive the same data without destructive queue reads or shared mutable state.
+
+The target fan-out consumers are Fuel, Tyre, Brake, Car Health, Weather, Race-State, Pace, Traffic, Setup and Pit-Stop. Shared domain calculations (such as lap/sector normalisation, fuel observations, stint boundaries and weather context) must have one owner and be reused by strategies.
+
+Strategy outputs are submitted to one central coordinator for priority, communication-mode handling, critical-warning bypass, deduplication and TTS serialization. Pit-Stop Strategy remains the sole owner of routine pit recommendations. The architecture remains strictly read-only with respect to ACC.
+
+### Audit and implementation gates
+
+1. Inspect the actual acquisition workers and decoded consumer APIs to verify one reader per source and establish whether current consumers already receive independent fan-out or merely read a latest-value cache.
+2. Inspect queue ownership, callback/subscriber registration and thread boundaries. Confirm no consumer destructively drains data needed by another.
+3. Inspect event production and persistence for completed laps, pit entry/exit, session transitions and damage/weather changes. Add stable event identity, gap detection and deduplication where absent.
+4. Define latest-value delivery for live state and reliable/gap-detectable delivery for history-critical events. A failed or slow strategy must not block acquisition or other consumers.
+5. Define per-calculation freshness and cross-stream timestamp-skew gates.
+6. Inspect strategy output and TTS call sites; route findings through one coordinator rather than allowing independent strategy speech.
+7. Add acceptance tests for multi-consumer fan-out, subscriber failure isolation, event gaps/replay/deduplication, stale/misaligned data and centralized radio arbitration.
+
+### Current implementation status
+
+- **Verified:** the existing `RaceEngineerSnapshotAggregator` reads existing Physics/Graphics consumer snapshots and acquisition health without opening another shared-memory reader or draining their queues.
+- **Not yet verified:** whether the underlying acquisition/consumer layer already provides full independent fan-out to multiple strategy subscribers; the snapshot aggregator alone does not prove this.
+- **Not yet implemented/verified:** complete strategy subscriber lifecycle, reliable event fan-out, failure isolation, event-gap reconciliation and centralized strategy-output/radio arbitration.
+- **Required next source-audit focus:** trace acquisition worker → decoder → consumer publication → every consumer/subscriber → strategy output/TTS call site. Record the real ownership and delivery semantics before changing implementation.
+
+No application code was changed as part of this architecture documentation update.
+
 
 ## 26. Strategy consumer architecture decision (2026-11-13)
 
