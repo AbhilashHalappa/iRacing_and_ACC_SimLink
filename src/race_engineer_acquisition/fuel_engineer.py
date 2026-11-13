@@ -77,7 +77,7 @@ def build_fuel_engineer_snapshot(
     )
 
     fuel_used = (
-        _nonnegative_finite(getattr(graphics_data, "used_fuel", None))
+        _nonnegative_finite(getattr(graphics_data, "used_fuel_l", None))
         if graphics_data is not None else None
     )
     reserve = _nonnegative_finite(safety_reserve_l)
