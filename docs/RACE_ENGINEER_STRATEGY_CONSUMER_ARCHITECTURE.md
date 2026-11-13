@@ -350,3 +350,69 @@ Use repeatable ACC recordings or deterministic replay for comparable workloads. 
 ## 15. Change log
 
 - **2026-11-13:** Initial architecture decision documented. Overview pipeline explicitly frozen; strategy-only snapshot/event distribution, dispatcher integration, shared calculations, independent consumers, central decision/communication coordination, compact history and performance measurement defined. No application code changed.
+
+## 16. Fan-out dispatcher source audit (2026-11-13)
+
+**Audited source:** `src/race_engineer_acquisition/fanout.py`, `tests/acquisition/test_fanout.py`, `src/race_engineer_acquisition/supervisor.py`, `src/race_engineer_acquisition/physics_consumer.py`, `src/race_engineer_acquisition/graphics_consumer.py`, `src/race_engineer_acquisition/ring_buffer.py`, `src/race_engineer_acquisition/engineering_snapshot.py` and `src/race_engineer_acquisition/service.py`.
+
+### 16.1 What the existing dispatcher provides
+
+- A dispatcher consumes one `AcquisitionRingBuffer` and offers each item to independently registered bounded consumer queues.
+- Consumers have separate queues and explicit `try_get` / `acknowledge` processing lifecycle.
+- Queue capacity includes queued and in-flight items.
+- Rejection, failure, high-water and pending counts are exposed, including first/last lost or failed capture sequences.
+- A consumer can be marked failed and its queued/in-flight work is accounted as failed without directly clearing another consumer's queue.
+- The dispatch loop offers to each consumer independently; a full optional consumer queue does not prevent offers to other consumers.
+- Registration is only permitted before the dispatcher starts. The dispatcher is single-run and closes consumer dispatch when it exits.
+- The dispatcher does not create or supervise consumer worker threads. Its caller must run it in a supervised worker and separately arrange each consumer's processing worker.
+
+### 16.2 Critical integration finding
+
+The existing Physics and Graphics acquisition rings are currently consumed directly by their respective decoder consumers. Those rings are single-producer/single-consumer queues. Attaching the existing `FanOutDispatcher` to either ring would make it compete with the decoder for raw samples unless the runtime were restructured to make the dispatcher the sole ring consumer and explicitly rewire the decoder as one downstream consumer.
+
+That raw-stream topology is not the required strategy architecture: strategy consumers need decoded, freshness-aware data and domain events, not another copy of raw Physics/Graphics pages. Inserting the current dispatcher before the decoders and broadcasting raw pages to every strategy would add unnecessary decoding/queue work and violate the desired shared-calculation ownership.
+
+The current `FanOutDispatcher` accepts an `AcquisitionRingBuffer` as its source. It is therefore not directly attachable to the existing latest decoded snapshots or to the aggregator's immutable `RaceEngineerTelemetrySnapshot` without an adapter or API change.
+
+**Decision:** do not connect the existing dispatcher directly to the Physics/Graphics acquisition rings for strategy distribution. Preserve the current decoder ownership and Overview path.
+
+### 16.3 Gaps against the target strategy contract
+
+| Capability | Current implementation | Required treatment |
+|---|---|---|
+| Decoded snapshot input | Acquisition-ring input only | Add a strategy-side decoded-state publication boundary; do not steal raw ring items. |
+| Latest-value coalescing | Bounded FIFO rejects new offers when full | Add replaceable latest-state delivery or a one-slot/versioned mailbox for live snapshots. |
+| Event delivery | Generic FIFO item delivery | Define typed event identity, session identity, ordering and gap/reconciliation policy. |
+| Event recovery | Records first/last lost capture sequence only | Add gap detection and recoverable replay/reconciliation for history-critical events. |
+| Subscription filtering | Every item offered to every registered consumer | Add per-consumer event/data-family subscriptions to avoid unnecessary work. |
+| Consumer lifecycle | Static registration before start; failed queue remains closed | Define controlled unregister/restart/re-register lifecycle without disrupting healthy consumers. |
+| Sequence identity | Uses integer `capture_sequence` as the in-flight dictionary key | Use a collision-safe identity (e.g. stream/session plus sequence, or unique event ID) for multi-stream and mixed event types. |
+| Scheduling | Dispatcher has no consumer worker orchestration | Define bounded shared scheduling and fair processing; do not default to one high-frequency thread per strategy. |
+| Latency metrics | Counts, queue depth, high-water and sequence loss | Add enqueue-to-start and processing duration/age metrics plus per-consumer health. |
+| Required delivery | Rejection is counted, but source item is already dequeued | Define what “required” means and provide explicit recovery; a required flag alone does not guarantee delivery. |
+
+### 16.4 Additional implementation observations
+
+- `FanOutDispatcher.run()` polls its source and waits for 0.5 ms when empty. That is a polling loop, so its idle CPU cost must be measured before reuse.
+- `BoundedConsumerQueue.offer()` is non-waiting with respect to queue capacity, but it acquires a normal lock. It is not a lock-free or strictly non-blocking publish API.
+- The dispatcher iterates through consumers sequentially. Queue operations are short, but contention on one consumer's queue lock can delay offers to later consumers; this must be considered in the decoded publisher design.
+- A queue rejection is explicit and observable, but the item is not retried or recovered by the current dispatcher. `required=True` increments a rejection metric; it does not restore the lost item or block/repair delivery.
+- The current queue uses `capture_sequence` as its in-flight key. A future mixed-stream/event bus must not assume capture sequences are globally unique across streams, sessions or event types.
+- The dispatcher takes a fixed consumer tuple at startup. Dynamic strategy registration and graceful consumer restart are not supported by this implementation.
+- Existing tests cover independent queues, slow/full consumer isolation, failed consumers, acknowledgement accounting, shutdown draining, capacity and required-delivery rejection. They are deterministic unit tests; they do not establish runtime worker scheduling, decoded-snapshot coalescing, event replay, latency, CPU overhead or live ACC behaviour.
+
+### 16.5 Recommended direction
+
+Reuse the existing dispatcher's proven bounded-queue and accounting concepts, but do not force the raw-ring dispatcher into the decoded strategy layer unchanged.
+
+Before implementation, compare two minimal options:
+
+1. **Adapt the dispatcher:** generalise its input from an acquisition ring to a small publish interface that accepts immutable decoded snapshots/events, add separate latest-value and event delivery semantics, and preserve bounded consumer accounting.
+2. **Add a lightweight strategy broker:** maintain shared latest-value state plus bounded event mailboxes, with the current dispatcher retained for its existing acquisition/recording use cases.
+
+Select the smaller and cheaper option after measuring lock contention, thread count, queue overhead and latency. The strategy publication boundary must not run expensive strategy calculations or blocking callbacks on the decoder thread. Any decoder-to-publisher notification must be bounded, constant-time and failure-isolated, or use another already-existing safe service boundary.
+
+### 16.6 Validation status
+
+This was a read-only source audit. The dispatcher and its tests were inspected but not executed. No application code, tests or Overview behaviour were changed. No Windows build, CPU benchmark or live ACC test was performed.
+
