@@ -1044,3 +1044,40 @@ Use an edge-triggered dirty flag/event to coalesce multiple high-rate updates in
 6. Implement the broker incrementally only after those contracts are reviewed; then benchmark CPU, memory, acquisition cadence and Overview responsiveness.
 
 **Status:** source audit verified the current 20 Hz Overview cadence and identified a proposed safe handoff. No notifier/broker code was added. Event-producer audit, tests, build, benchmarks and live ACC validation remain pending.
+
+
+## 30. Two-stage raw and decoded fan-out decision (2026-11-13)
+
+The target distribution architecture is now **two-stage fan-out**, as specified in [Race Engineer Strategy Consumer Architecture — Section 19](RACE_ENGINEER_STRATEGY_CONSUMER_ARCHITECTURE.md#19-two-stage-telemetry-fan-out-architecture--superseding-decision-2026-11-13). This supersedes the earlier roadmap wording that described only a strategy-specific decoded broker.
+
+### Confirmed design
+
+1. **Stage 1 — raw fan-out:** each Physics, Graphics and Static acquisition ring has one dispatcher as its sole reader. It distributes the immutable raw sample independently to the existing raw recorder, the one decoder for that format, and optional raw diagnostics.
+2. **Stage 2 — decoded fan-out:** each decoder publishes immutable latest-state snapshots and typed domain events to an independent decoded distribution layer. Strategy and future analysis consumers subscribe here; they never open ACC mappings or decode the same raw bytes again.
+3. **Overview protection:** do not change Overview's UI, current Qt 20 Hz publishing callback, TelemetryBridge HTTP/SSE contract or React consumer during the initial migration. New strategy consumers use the decoded distribution layer first. An Overview compatibility subscription can be considered later only after payload and cadence equivalence tests.
+4. **Recorder reuse:** the existing raw recorders remain Stage 1 consumers. No duplicate recorder or decoded recorder is introduced by this decision. Recorder failure and queue overflow must be explicit; no incomplete recording may be reported as complete.
+5. **Stream isolation:** Physics, Graphics and Static retain independent acquisition, raw fan-out and decoding. Cross-stream composition must preserve freshness and skew metadata.
+6. **Delivery classes:** latest-value snapshots may coalesce; history-critical events require bounded, identified, ordered and gap-detectable delivery with reconciliation. Consumer queues and failure metrics remain independent.
+
+### Source-level integration audit
+
+Inspected on `feature/race-engineer-page`:
+
+- `src/race_engineer_acquisition/supervisor.py`: creates independent Physics, Graphics and Static acquisition rings. Physics and Graphics decoder consumers are directly attached to their raw rings; Static remains a raw ring consumed by the Qt host for identity.
+- `src/race_engineer_acquisition/fanout.py`: existing single-reader `FanOutDispatcher` and independent `BoundedConsumerQueue` implementations are reusable foundations. Queue offers are non-blocking; full/closed/failed queues reject and record sequence loss. Explicit acknowledgements distinguish queued, in-flight, processed and failed items.
+- `src/race_engineer_acquisition/recorder.py`: existing Physics recorder writes raw `payload` bytes and capture/persistence metadata. Its worker consumes a bounded recorder queue and acknowledges after persistence. It is not a decoded-state recorder.
+- `src/race_engineer_acquisition/graphics.py` and `static.py`: raw snapshot structures preserve full mapping payloads; Static emits an initial page and later changed pages.
+- `src/race_engineer_acquisition/physics_consumer.py` and `graphics_consumer.py`: each exposes a lock-protected latest decoded snapshot, not a decoded subscriber bus.
+- `src/desktop/qt_host.py`: Overview publisher runs every 50 ms (20 Hz) and the callback directly drains Static for identity. This is a protected compatibility path.
+
+### Integration blockers / safeguards
+
+- The default live runtime does not yet use the raw dispatcher. Direct decoder reads must be migrated to dispatcher-owned queues before Stage 1 is active; attaching a dispatcher alongside the existing decoder would create competing readers and steal samples.
+- Static cannot be migrated until its Qt-host direct ring read is replaced by a single-owner identity/metadata consumer or equivalent handoff.
+- The current dispatcher records required-queue rejection but does not retry or apply backpressure. Recorder queue overflow must therefore cause an explicit recording-degraded/failed state with affected sequence ranges; it must not silently lose samples or block acquisition/disk-independent consumers.
+- Decoded publication needs a separate broker and safe handoff from decoder publication. Do not put broker work, strategy calculations, history writes or TTS into decoder threads or the 20 Hz Overview timer.
+- Completed-lap, pit/session, damage and weather event producers plus authoritative reconciliation sources still need their own source audit.
+
+### Validation status
+
+This was a GitHub source inspection and documentation update only. No tests were executed, no Windows build was run, no benchmark or live ACC session was performed, and no application code or Overview path was changed.
