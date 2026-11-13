@@ -689,3 +689,35 @@ This document is authoritative for nearby-car awareness, catching slower traffic
 - Until these gates pass, Traffic Strategy must use only the facts the available telemetry can reliably establish and clearly report unavailable information.
 
 No application code was changed as part of this documentation update.
+
+
+## 19. Dedicated Race-State Strategy specification (2026-11-13)
+
+The dedicated Race-State Strategy specification has been created:
+
+- [Race Engineer Race-State Strategy](RACE_ENGINEER_RACE_STATE_STRATEGY.md)
+
+This document is authoritative for session-state awareness, flag and track-status interpretation, penalty/warning lifecycle, safety-car/neutralisation availability gates, session transitions, race-finish handling, communication, UI requirements and validation.
+
+### Race-State Strategy boundaries
+
+- Report only race-control states whose raw values, enum meanings, units and lifecycle have been validated against ACC.
+- Preserve unknown raw codes as unknown; never guess a flag, penalty or neutralisation meaning.
+- Keep lap validity separate from flags and penalties.
+- Use completed-lap count separately from the candidate race lap limit.
+- Treat session timer expiry and actual race completion as distinct until timed-race finish-line behaviour is validated.
+- Do not claim safety car, VSC, FCY, red flag or chequered states unless a reliable source is explicitly identified and tested.
+- ACC HUD and server instructions remain authoritative; Race Engineer provides supplementary information only.
+- Reuse existing decoded consumers and event infrastructure; do not add another shared-memory reader.
+- All behaviour remains strictly read-only. No penalty acknowledgement, MFD operation, pit action or game control is permitted.
+
+### Current telemetry validation gates
+
+- Session time remaining is validated for display, and completed-lap count is validated.
+- Session type/state and race-control integer codes remain candidates requiring controlled transition and HUD correlation.
+- Race lap limit / laps remaining semantics remain unvalidated.
+- Penalty and warning fields require enum, unit and lifecycle validation before announcement.
+- Safety-car/neutralisation and chequered/finish sources have not been established as validated inputs.
+- Timer expiry alone must never trigger a confirmed race-finished announcement.
+
+No application code was changed as part of this documentation update.
