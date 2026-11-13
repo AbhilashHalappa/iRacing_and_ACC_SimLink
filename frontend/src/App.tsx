@@ -539,7 +539,7 @@ function App() {
         </div>)}
       </div></section> : active==="Race Engineer" ? <section className="workspace">
         <div className="overview-heading"><div><div className="eyebrow">READ-ONLY ACC ENGINEERING</div><h2>Fuel Engineer</h2><p>Live fuel observations from ACC Physics and Graphics. All values are advisory; the driver remains in control.</p></div><div className="connection-chip"><span className={telemetry?.fuel_engineer?.current_fuel_fresh?"connected":""}/>{telemetry?.fuel_engineer?.current_fuel_fresh?"FUEL DATA LIVE":"FUEL DATA WAITING"}</div></div>
-        <div className="dashboard-grid">
+        <div className="dashboard-grid race-engineer-grid">
           <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon"><Fuel/></span><h3>Fuel status</h3></div></div><div className="tile-body"><div className="balanced-grid">
             <div className="balanced-field"><span>FUEL REMAINING</span><b>{display(telemetry?.fuel_engineer?.current_fuel_l,1," L")}</b></div>
             <div className="balanced-field"><span>FUEL USED</span><b>{display(telemetry?.fuel_engineer?.fuel_used_l,1," L")}</b></div>
