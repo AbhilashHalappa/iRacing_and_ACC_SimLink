@@ -781,3 +781,32 @@ This document is authoritative for in-session/on-board setting recommendations, 
 - Setup-file format coverage and association with the active car/session require validation before import can be treated as reliable.
 - Persistent event history, confirmation workflow, before/after windows and confounder handling require implementation and tests.
 - No application code was changed as part of this documentation update.
+
+
+## 22. Dedicated Weather Strategy specification (2026-11-13)
+
+The dedicated Weather Strategy specification has been created:
+
+- [Race Engineer Weather Strategy](RACE_ENGINEER_WEATHER_STRATEGY.md)
+
+### User-confirmed Weather Strategy decisions
+
+- Weather Strategy monitors changing ACC weather and track conditions and supplies timestamped context to dependent strategies.
+- The user has confirmed that all weather fields currently exposed by the ACC implementation match the values shown in ACC.
+- Weather Strategy must also monitor ACC's predicted weather progression for the remainder of the session when reliable forecast fields are exposed.
+- Forecast values must remain separate from observed current conditions and retain their target horizon/time and receive timestamp.
+- Forecast meaning, horizon, update cadence and semantics must be documented before forecast-driven strategic recommendations are enabled.
+- Missing, stale or ambiguous forecast data must be reported as unavailable; do not extrapolate current rain into a forecast or invent probabilities, rain duration, transition times or drying rates.
+- Weather Strategy owns weather observations, trend/transition detection and condition history. Tyre Strategy owns tyre-condition assessment and tyre-change recommendations; Pit-Stop Strategy owns the final integrated stop decision.
+- Weather alone must never trigger a tyre change, setup change or pit-stop recommendation. Dependent strategies must combine weather context with their own validated evidence.
+- Reuse existing decoded consumers and freshness-aware snapshots; do not add another shared-memory reader.
+- Maintain compact session history for observed conditions, forecast progression, detected transitions and dependent-strategy notifications.
+- All recommendations remain advisory and read-only. The driver performs every in-game action manually.
+
+### Weather Strategy readiness
+
+- The user-confirmed value comparison covers all weather fields currently exposed by the implementation. Units, enum interpretation, freshness, timestamp alignment and update cadence still need to be preserved and tested per field.
+- Forecast target horizon, update cadence and relationship to ACC's displayed forecast require explicit validation before future-looking recommendations.
+- Track-grip transitions and wind interpretation must remain gated by their documented semantics.
+- Controlled dry-to-wet, wet-to-dry, temperature-change, reconnect and new-session tests are required.
+- No application code was changed as part of this documentation update.
