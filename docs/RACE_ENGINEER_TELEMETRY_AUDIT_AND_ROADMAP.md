@@ -75,8 +75,8 @@ The repository already has a useful read-only acquisition foundation:
 | Requirement | Current source / evidence | Status | Audit decision |
 |---|---|---|---|
 | Current fuel | Physics fuel_kg (legacy internal field name) | **Available — validated unit: litres (L)** | User confirmed in ACC that fuel values are displayed in litres. Preserve the decoded numeric value exactly; interpret and display it as litres. The internal `fuel_kg` name is misleading and must not be used as the UI unit. |
-| Fuel per lap | Graphics fuel_per_lap_l | **Available — candidate / integrated** | Decoded and used by Overview. Target capture shows plausible dynamic values; direct synchronized comparison against ACC consumption display remains required. |
-| Estimated laps remaining | Graphics fuel_estimated_laps | **Available — candidate / integrated** | Decoded and used by Overview. Compare against ACC's laps-remaining display, including after refuelling. |
+| Fuel per lap | Graphics fuel_per_lap_l | **Available — validated against ACC** | User confirmed 3.66 L/lap matches ACC's in-game display. Keep freshness and finite-value checks; this confirms the observed display, not every car/condition. |
+| Estimated laps remaining | Graphics fuel_estimated_laps | **Available — validated against ACC** | User confirmed 16.5 laps matches ACC's in-game display. Keep freshness and finite-value checks; recheck after refuelling and across relevant session states. |
 | Fuel used | Graphics used_fuel_l | **Available — candidate** | Dynamic values observed, but semantics/units are not independently correlated. Do not use as the primary consumption estimator yet. |
 | Maximum tank capacity | Static max_fuel | **Available — candidate** | Static Variant B decoder exposes the field; verify against car and ACC before using as a hard limit. |
 | Fuel required to finish | Current fuel + validated consumption + race distance/time remaining | **Calculated — feasible** | Depends on validated current-fuel units, per-lap consumption and race-distance estimate. |
@@ -86,7 +86,7 @@ The repository already has a useful read-only acquisition foundation:
 | Pit-stop refuelling recommendation | Fuel shortfall, MFD fuel-to-add and pit strategy | **Calculated — feasible** | Recommendation only. Never write to the MFD or initiate a stop. |
 | Safety fuel reserve | User requirement selected; reserve amount not yet decided | **Decision required** | Do not invent a reserve value. Make it configurable after the baseline fuel model is validated. |
 
-**Fuel release gate:** the current-fuel unit uncertainty is closed: ACC fuel values are litres (L), as confirmed by the user in-game. Keep the decoded numeric value unchanged and display it as litres. Fuel shortfall, finish-fuel and saving projections remain gated until the Graphics fuel-per-lap and estimated-laps values are validated against ACC; a safety reserve also remains undecided. This does not block unrelated Stage 1/Stage 2 work.
+**Fuel release gate:** current fuel is confirmed in litres (L), and the user has now confirmed that Graphics fuel-per-lap (3.66 L/lap) and estimated laps remaining (16.5 laps) match ACC's in-game values. The fuel-observation builder now treats both Graphics semantics as validated by default while still requiring fresh, finite, non-negative samples. Finish-fuel, shortfall/surplus and saving projections remain gated until a safety reserve is configured and the remaining-race-distance inputs are validated.
 
 ### 3.3 Tyre monitoring
 
@@ -480,3 +480,12 @@ Added `src/race_engineer_acquisition/fuel_engineer.py` with a pure, read-only bu
 **Validation status:** source and test files are committed to the branch. Tests have not been run in the user's Windows environment; no ACC live-session comparison has been performed. No UI, TTS, MFD, fuel setting, or game-control behaviour was changed.
 
 **Next fuel step:** wire this observation snapshot into the Race Engineer service/page after confirming the page/service integration point, then run a controlled ACC stint to compare the Graphics fuel-per-lap and estimated-laps values with ACC's own display. Keep safety reserve selection separate.
+
+
+### Fuel telemetry validation update (2026-11-13)
+
+The user compared the live Race Engineer/Overview values with ACC and confirmed both match:
+- Estimated laps remaining: **16.5 laps**
+- Fuel per lap: **3.66 L/lap**
+
+The fuel-observation builder now defaults these two semantics to validated, while continuing to reject stale, non-finite and negative samples. This is a validation of the observed ACC display values; future checks after refuelling and across session states remain useful. Finish-fuel and shortfall recommendations remain disabled until a safety reserve is configured and remaining-race-distance inputs are validated.
