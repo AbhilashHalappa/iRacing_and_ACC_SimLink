@@ -954,3 +954,35 @@ The dedicated strategy-consumer architecture has been documented:
 
 This is an agreed design, not an implementation claim. The strategy-only publisher, dispatcher runtime integration, shared calculation services, strategy consumers, decision/communication coordinators and compact strategy history remain to be implemented or verified. No application code was changed as part of this documentation update.
 
+## 27. Fan-out dispatcher integration audit (2026-11-13)
+
+The detailed source audit is recorded in [Race Engineer Strategy Consumer Architecture — Section 16](RACE_ENGINEER_STRATEGY_CONSUMER_ARCHITECTURE.md#16-fan-out-dispatcher-source-audit-2026-11-13).
+
+### Verified findings
+
+- `src/race_engineer_acquisition/fanout.py` implements a generic bounded dispatcher that consumes one `AcquisitionRingBuffer` and offers each item to independent per-consumer queues.
+- Per-consumer queue accounting includes offered, dispatched, processed, failed, rejected, queued and in-flight items, with first/last lost and failed capture sequences.
+- Consumer registration is fixed before dispatcher start. The dispatcher does not own or start consumer workers.
+- Current Physics and Graphics acquisition rings are consumed directly by their dedicated decoder workers. These are SPSC rings; adding the dispatcher as another reader would compete with and steal raw samples from the decoder.
+- Strategy consumers require decoded, freshness-aware state and domain events. The existing raw-ring dispatcher is not directly connected to the decoded snapshots or `RaceEngineerSnapshotAggregator`.
+- The live acquisition runtime does not instantiate the dispatcher or register strategy consumers.
+- Existing fan-out tests cover deterministic queue isolation and accounting, but not decoded snapshot coalescing, event replay/recovery, worker scheduling, latency, CPU overhead or live ACC behaviour.
+
+### Decision
+
+Do not attach the existing dispatcher directly to the Physics or Graphics acquisition rings for strategy distribution. Preserve the current acquisition/decoder ownership and Overview pipeline.
+
+Reuse its bounded-queue, acknowledgement and failure-accounting concepts. Before coding, compare a minimal generic decoded snapshot/event publisher adaptation with a separate lightweight strategy broker. The chosen design must support latest-value coalescing, typed history-critical events, per-consumer subscriptions, gap detection/reconciliation, bounded scheduling and measurable failure isolation.
+
+### Outstanding work
+
+1. Inspect exact decoded snapshot publication points and identify a safe low-cost notification boundary.
+2. Decide whether the existing dispatcher should be generalised or whether a small decoded strategy broker is simpler and cheaper.
+3. Specify collision-safe event identity across streams and sessions.
+4. Specify live-state coalescing separately from history-critical event delivery.
+5. Define consumer lifecycle/restart and shared worker scheduling.
+6. Add deterministic tests for slow/failed consumers, coalescing, event gaps/recovery, multi-stream identity, lifecycle and bounded memory.
+7. Run tests, Windows build, controlled replay and CPU/memory/latency comparisons before enabling more strategy consumers.
+
+**Validation status:** source and test files were inspected only. Tests were not executed. No application code or Overview path was changed. No performance benchmark or live ACC validation was performed.
+
