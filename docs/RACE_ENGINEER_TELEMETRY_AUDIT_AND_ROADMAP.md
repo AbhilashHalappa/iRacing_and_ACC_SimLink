@@ -1013,3 +1013,34 @@ Following the detailed source audit of `FanOutDispatcher`, the initial strategy 
 7. Benchmark CPU, memory, event latency, acquisition health and Overview responsiveness before/after integration; then validate with Windows build and controlled ACC sessions.
 
 **Status:** Architecture choice approved and documented; source-level publication-hook audit, implementation, tests, build, benchmark and live ACC validation remain pending. No application code or Overview path was changed.
+
+
+## 29. Decoded snapshot publication-boundary audit (2026-11-13)
+
+The exact runtime path and proposed safe handoff are documented in [Race Engineer Strategy Consumer Architecture — Section 18](RACE_ENGINEER_STRATEGY_CONSUMER_ARCHITECTURE.md#18-decoded-publication-boundary-and-runtime-cadence-audit-2026-11-13).
+
+### Verified source findings
+
+- Physics and Graphics decoder workers update lock-protected latest decoded samples and capture timestamps after successful decoding. Their snapshot properties are pull-based; neither consumer currently exposes a subscriber callback or push notification.
+- `RaceEngineerSnapshotAggregator.snapshot()` reads those existing snapshots and acquisition health on demand, preserving independent stream freshness and timestamps.
+- `RaceEngineerService.snapshot()` invokes that aggregator and currently builds Fuel observations; it is not a strategy event bus.
+- `src/desktop/qt_host.py` runs the existing Overview `_publish_snapshot()` callback on a 50 ms / 20 Hz Qt timer. That callback reads the consumer snapshots, handles out-lap display state, drains the Static ring for identity, builds freshness and service data, then publishes through TelemetryBridge.
+- The Overview timer and bridge path must remain untouched. Strategy work must not be added to that callback or made a dependency of Overview delivery.
+- Static metadata currently has a separate SPSC owner in the Qt host and is not part of the decoded Physics/Graphics aggregate.
+
+### Recommended handoff
+
+Add an optional, minimal, failure-isolated dirty notification after a decoder consumer updates its latest sample and releases its lock. The notifier only marks the stream dirty/signals a broker-owned waitable event. A separate broker worker wakes, reads the latest immutable consumer snapshots and health, applies freshness rules and coalesces intermediate samples. It does not drain acquisition rings, run strategy calculations, write history or call TTS. Strategy work is scheduled separately on the bounded shared scheduler.
+
+Use an edge-triggered dirty flag/event to coalesce multiple high-rate updates into one pending wake-up. The notifier must be constant-time and non-blocking; benchmark its overhead before enabling strategy consumers.
+
+### Remaining audit and implementation gates
+
+1. Audit existing completed-lap, pit/session, damage and weather event producers and their authoritative reconciliation sources.
+2. Define Static identity ownership separately; do not drain its ring from a second consumer.
+3. Specify notifier shutdown, race-free dirty-flag reset, lost-wakeup prevention and failure metrics.
+4. Define cross-stream freshness/skew policy for broker snapshots.
+5. Add deterministic tests for notification coalescing, latest-state correctness, stale streams, notifier failure, shutdown and no decoder blocking.
+6. Implement the broker incrementally only after those contracts are reviewed; then benchmark CPU, memory, acquisition cadence and Overview responsiveness.
+
+**Status:** source audit verified the current 20 Hz Overview cadence and identified a proposed safe handoff. No notifier/broker code was added. Event-producer audit, tests, build, benchmarks and live ACC validation remain pending.
