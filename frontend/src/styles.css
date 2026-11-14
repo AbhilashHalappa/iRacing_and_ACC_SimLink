@@ -422,6 +422,7 @@ button { cursor: pointer; }
 .stream-health-chip.stream-stale i { background: #f0a33b; }
 .stream-health-chip.stream-missing i,
 .stream-health-chip.stream-unavailable i { background: #e05b62; }
+.stream-health-chip.stream-waiting i { background: #8b929d; box-shadow: none; }
 .tile-content-health { min-width: 0; }
 .tile-content-health.is-stale .tile-content-values {
   opacity: .42;
