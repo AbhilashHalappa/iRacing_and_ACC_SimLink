@@ -602,9 +602,9 @@ Physics, Graphics and Static remain independent from acquisition through raw dis
 
 ### 19.4 Overview compatibility and migration boundary
 
-The Overview UI and its existing presentation, Qt publisher cadence, TelemetryBridge HTTP/SSE contract and React consumer are protected.
+Overview is a Stage 2 decoded-data consumer, alongside the Strategy Engine and future consumers. Its existing UI, Qt publisher, TelemetryBridge HTTP/SSE contract, React consumer, payload shape and 20 Hz cadence are frozen for this work.
 
-The two-stage architecture does not authorize an immediate Overview rewrite or a change to its visible behaviour. Initial integration must preserve the current Overview delivery contract. Strategy and other new consumers should be onboarded through Stage 2 first. An Overview compatibility subscription/adapter may be evaluated later, but only if it can preserve the same payload semantics, freshness behaviour and cadence and passes regression validation. The broker must never become a prerequisite for Overview rendering.
+The Stage 2 distribution must isolate Overview, Strategy Engine and future consumers from one another. This implementation may add Stage 2 infrastructure and new consumer subscriptions, but it must not modify existing Overview code or make Overview depend on Strategy Engine health. Preserve the current Overview implementation and behaviour exactly; do not insert strategy processing into its publisher, bridge or React update path.
 
 Static needs special care: current live runtime drains the Static SPSC ring from the Qt host for car/track identity. A Static raw dispatcher cannot be introduced while that direct reader remains active. Migration must transfer sole ownership to the dispatcher and replace the Qt direct drain with a bounded identity/metadata consumer or compatibility handoff, without changing Overview identity behaviour.
 
@@ -623,13 +623,13 @@ The current branch source audit confirms:
 
 ### 19.6 Implementation sequence and gates
 
-1. **Contract and tests first:** define per-stream raw snapshot, decoded snapshot, event and health contracts; add deterministic tests for independent delivery, ordering, capacity, acknowledgements, queue rejection, consumer failure, shutdown and restart.
-2. **Physics raw fan-out pilot:** migrate the Physics ring from direct decoder ownership to one dispatcher with separate decoder and existing raw-recorder queues. Prove that raw recording and decoding both receive the same capture sequence range.
-3. **Graphics raw fan-out:** apply the same pattern independently, preserving complete raw mapping payloads.
-4. **Static raw fan-out:** migrate only after defining a safe identity consumer/Qt compatibility handoff; never introduce a competing Static ring reader.
-5. **Decoded distribution:** publish immutable decoded state and domain events through a separate bounded broker. Start with Strategy consumers; retain Overview's current path.
-6. **Optional Overview compatibility:** evaluate only after the new distribution path is proven and only with exact payload/cadence regression tests.
-7. **Performance and live validation:** compare acquisition cadence, queue age/depth, sequence gaps, CPU, memory, decoder latency, recorder completeness, event latency and Overview stability against a baseline. Run unit tests, Windows build and controlled ACC validation before enabling consumers.
+1. **Stage 2 contracts and tests first:** define decoded snapshot, event and health contracts using existing decoded outputs; include source timestamps, capture sequence, freshness, validity and stream health.
+2. **Stage 2 distribution:** extend the decoded broker with independent latest-value mailboxes and a separate bounded, identified, ordered, gap-detectable event channel.
+3. **Add new consumers:** connect the first documented Race Engineer strategy consumer using the approved strategy implementation order. Add future consumers through their own Stage 2 subscriptions.
+4. **Reconciliation and lifecycle:** test multiple subscribers, snapshot coalescing, event gaps, consumer isolation, freshness, shutdown and restart. Add an authoritative reconciliation path before event-driven decisions are enabled.
+5. **Performance and live validation:** compare CPU, memory, decoded publication cadence, queue age/depth, coalesced snapshots, event gaps/latency and Overview stability against a baseline. Run unit tests, Windows build and controlled ACC validation before enabling strategy recommendations.
+
+**Explicit scope boundary for this implementation:** Stage 1 is frozen. Do not change acquisition readers, raw dispatchers, raw recorders, decoder ownership or raw queues. Any Stage 1 migration is a separate future workstream and is not a prerequisite for Stage 2 or Race Engineer.
 
 **Acceptance criteria:** one reader per ACC mapping; one decoder per format; recorder and decoder independently receive raw samples; no disk I/O or consumer processing on acquisition threads; no silent loss; bounded memory; visible sequence gaps and failure states; independent consumer isolation; unchanged Overview behaviour; no strategy work in decoder threads or the Qt Overview timer.
 
@@ -682,11 +682,11 @@ The raw Physics recorder and its standalone fan-out recording pipeline already e
 
 Before any future recorder/runtime integration, inspect and reuse the existing recorder, writer, bounded queue, sequence accounting, recovery and failure reporting. Do not introduce a second recorder or silently change the meaning of recorded payloads. The existence of a recorder does not imply that Stage 1 is already wired into the default live runtime; distinguish implemented components from runtime integration status.
 
-### 20.5 Overview remains a separate protected consumer
+### 20.5 Overview is a protected Stage 2 consumer
 
-The current Overview Qt publisher, its 20 Hz cadence, TelemetryBridge HTTP/SSE contract and React UI remain untouched during this implementation.
+The approved architecture places Overview, Strategy Engine and future consumers downstream of Stage 2 decoded-data distribution.
 
-Race Engineer must subscribe through Stage 2 independently. It must not be inserted into the Overview timer or UI transport, and Overview must not become dependent on strategy broker health. Any later Overview subscription migration requires separate approval and payload/cadence equivalence tests.
+The existing Overview code remains untouched: no changes to its UI, Qt publisher, timer/cadence, TelemetryBridge, HTTP/SSE payload or React consumer. New Race Engineer consumers subscribe independently through Stage 2. Overview must not depend on strategy broker health, strategy calculations, persistence or TTS.
 
 ### 20.6 Required implementation order
 
@@ -712,7 +712,7 @@ Race Engineer must subscribe through Stage 2 independently. It must not be inser
 
 ## 21. Stage 2 decoded snapshot broker — first implementation increment (2026-11-13)
 
-The first code increment for the agreed decoded-only Race Engineer boundary is now present on `feature/race-engineer-page`.
+The initial decoded snapshot broker exists on `feature/race-engineer-page`. This branch adds the next Stage 2 increment: bounded, identified event delivery. Stage 1 remains frozen and existing Overview code remains unchanged.
 
 ### Implemented in source
 
@@ -724,16 +724,23 @@ The first code increment for the agreed decoded-only Race Engineer boundary is n
 - Broker startup and shutdown are tied to the desktop service lifecycle. The Qt host changes are limited to starting/stopping the broker; the Overview timer, callback body, UI, payload shape and cadence are not changed.
 - Added deterministic tests in `tests/test_decoded_distribution.py` for multiple subscribers, latest-state publication, coalescing and closed-subscriber isolation.
 
-### Explicitly not implemented in this increment
+### Stage 2 event-channel extension on feature/stage2-decoded-fanout
 
-- No raw acquisition dispatcher or recorder changes.
-- No Physics/Graphics decoder algorithm or shared-memory acquisition changes.
-- No Static ring ownership or identity-path changes.
-- No history-critical domain-event channel yet. Completed-lap, pit/session, damage and weather events still require their separately identified, ordered and reconcilable delivery path.
-- No new strategy calculations, pit-decision coordinator, radio/TTS behaviour or UI features.
-- No Overview UI, publisher, timer, bridge or React consumer changes.
+- Added `src/race_engineer_acquisition/decoded_events.py` with immutable event envelopes, broker-assigned event IDs/sequences, source provenance, schema version and detached payloads.
+- Added independent bounded FIFO mailboxes for event subscribers. Events are not coalesced like latest-state snapshots.
+- Queue overflow is explicit: the next delivery batch reports the expected sequence, first available sequence and a gap flag. A consumer must reconcile against authoritative decoded state/history before acting after a gap.
+- Integrated event subscription and publication APIs into `DecodedTelemetryBroker`; snapshot and event subscriptions remain separate and independently bounded.
+- Added deterministic test cases for ordered delivery, independent subscribers, bounded overflow/gap reporting, subscriber isolation, payload immutability and broker integration.
+
+### Still not implemented
+
+- No Stage 1 acquisition, raw dispatcher, recorder, raw queue or decoder changes.
+- No completed-lap, pit/session, damage or weather event producer yet. The new channel is infrastructure; it does not claim those events are already generated or semantically validated.
+- No durable event journal/replay. Gap recovery currently requires reconciliation from an authoritative decoded snapshot/history; the concrete reconciler must be implemented before event-driven decisions rely on the channel.
+- No new strategy scheduling, decision coordinator, radio/TTS behaviour or UI features.
+- No Overview UI, publisher, timer, bridge, payload or React consumer changes.
 
 ### Validation status
 
-Source changes and test cases have been committed. Automated tests, type/lint checks, Windows build, performance measurement and live ACC validation have **not** been run in this environment. This increment must not be described as runtime-validated until those checks are executed.
+Source changes and test cases have been committed on `feature/stage2-decoded-fanout`. Automated tests, type/lint checks, Windows build, performance measurement and live ACC validation have **not** been run in this environment. This increment must not be described as runtime-validated until those checks are executed.
 
