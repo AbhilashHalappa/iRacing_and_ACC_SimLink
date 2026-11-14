@@ -10,8 +10,9 @@ import json
 import math
 from pathlib import Path
 import sqlite3
-from threading import RLock
 from typing import Any, Mapping
+from queue import Full, Queue
+from threading import RLock, Thread
 
 
 def _number(value: Any) -> float | None:
@@ -66,15 +67,26 @@ class StrategyLapHistory:
         self._blockers: set[str] = set()
         self._recovery_pending = False
         self._db: sqlite3.Connection | None = None
+        self._writer_queue: Queue[Any] | None = None
+        self._writer_thread: Thread | None = None
+        self._persistence_error: str | None = None
+        self._closed = False
         if self._path is not None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._db = sqlite3.connect(str(self._path))
+            self._db = sqlite3.connect(str(self._path), check_same_thread=False)
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=NORMAL")
             self._db.execute("CREATE TABLE IF NOT EXISTS session_meta (id INTEGER PRIMARY KEY CHECK(id=1), session_id TEXT NOT NULL, track TEXT, car TEXT, baseline_lap INTEGER NOT NULL, last_cursor INTEGER, complete INTEGER NOT NULL, gap_count INTEGER NOT NULL, blockers TEXT NOT NULL)")
             self._db.execute("CREATE TABLE IF NOT EXISTS lap_records (session_id TEXT NOT NULL, lap_number INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, lap_number))")
             self._db.commit()
             self._load()
+            self._writer_queue = Queue(maxsize=512)
+            self._writer_thread = Thread(
+                target=self._writer_loop,
+                name="ACC-Strategy-Lap-History-Writer",
+                daemon=True,
+            )
+            self._writer_thread.start()
 
     @property
     def recovery_pending(self) -> bool:
@@ -96,15 +108,63 @@ class StrategyLapHistory:
         self._complete = False
         self._blockers.add("Persisted lap history is awaiting live ACC session/cursor verification.")
 
+    def _enqueue_persistence(self, operation: tuple[Any, ...]) -> bool:
+        queue = self._writer_queue
+        if queue is None or self._closed:
+            return False
+        try:
+            queue.put_nowait(operation)
+            return True
+        except Full:
+            self._complete = False
+            self._persistence_error = "The compact history persistence queue is full."
+            self._blockers.add(self._persistence_error)
+            return False
+
+    def _writer_loop(self) -> None:
+        assert self._writer_queue is not None
+        assert self._db is not None
+        while True:
+            operation = self._writer_queue.get()
+            try:
+                if operation is None:
+                    break
+                kind = operation[0]
+                if kind == "reset":
+                    self._db.execute("DELETE FROM lap_records")
+                elif kind == "record":
+                    _, session_id, lap_number, payload = operation
+                    self._db.execute(
+                        "INSERT OR REPLACE INTO lap_records(session_id,lap_number,payload) VALUES(?,?,?)",
+                        (session_id, lap_number, payload),
+                    )
+                elif kind == "meta":
+                    _, values = operation
+                    self._db.execute(
+                        "INSERT INTO session_meta(id,session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET session_id=excluded.session_id,track=excluded.track,car=excluded.car,baseline_lap=excluded.baseline_lap,last_cursor=excluded.last_cursor,complete=excluded.complete,gap_count=excluded.gap_count,blockers=excluded.blockers",
+                        values,
+                    )
+                self._db.commit()
+            except Exception as exc:
+                with self._lock:
+                    self._complete = False
+                    self._persistence_error = f"{type(exc).__name__}: {exc}"
+                    self._blockers.add("Compact lap history could not be persisted.")
+            finally:
+                self._writer_queue.task_done()
+        self._db.close()
+        self._db = None
+
     def _persist_meta(self) -> None:
         if self._db is None or self._session_id is None:
             return
-        self._db.execute(
-            "INSERT INTO session_meta(id,session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET session_id=excluded.session_id,track=excluded.track,car=excluded.car,baseline_lap=excluded.baseline_lap,last_cursor=excluded.last_cursor,complete=excluded.complete,gap_count=excluded.gap_count,blockers=excluded.blockers",
-            (self._session_id, self._track, self._car, self._baseline_lap, self._last_cursor, int(self._complete), self._gap_count, json.dumps(sorted(self._blockers))),
+        values = (
+            self._session_id, self._track, self._car, self._baseline_lap,
+            self._last_cursor, int(self._complete), self._gap_count,
+            json.dumps(sorted(self._blockers)),
         )
-        self._db.commit()
-        self._persisted_complete = self._complete
+        if self._enqueue_persistence(("meta", values)):
+            self._persisted_complete = self._complete
 
     def _reset_session(self, session_id: str, completed_laps: int, track: str | None, car: str | None) -> None:
         self._session_id = session_id
@@ -118,9 +178,7 @@ class StrategyLapHistory:
         self._persisted_complete = self._complete
         self._recovery_pending = False
         self._blockers = set() if self._complete else {"Application attached after the session had already completed laps; earlier lap history is unavailable."}
-        if self._db is not None:
-            self._db.execute("DELETE FROM lap_records")
-            self._db.commit()
+        self._enqueue_persistence(("reset",))
         self._persist_meta()
 
     def observe_live_cursor(self, session_id: str, completed_laps: int, *, track: str | None = None, car: str | None = None) -> None:
@@ -277,11 +335,10 @@ class StrategyLapHistory:
                 if record.out_lap is None:
                     self._blockers.add("Existing Overview out-lap classification is unavailable for one or more records.")
                 if self._db is not None:
-                    self._db.execute(
-                        "INSERT OR REPLACE INTO lap_records(session_id,lap_number,payload) VALUES(?,?,?)",
-                        (record.session_id, record.lap_number, json.dumps(asdict(record))),
-                    )
-                    self._db.commit()
+                    self._enqueue_persistence((
+                        "record", record.session_id, record.lap_number,
+                        json.dumps(asdict(record)),
+                    ))
                 self._last_cursor = lap_number
             if changed:
                 self._persist_meta()
@@ -308,11 +365,19 @@ class StrategyLapHistory:
                 "classification_pending_count": sum(r.classification != "classified" for r in self._records),
                 "blockers": sorted(self._blockers),
                 "high_resolution_telemetry_stored": False,
+                "persistence_error": self._persistence_error,
             }
 
     def close(self) -> None:
         with self._lock:
+            if self._closed:
+                return
             self._persist_meta()
-            if self._db is not None:
-                self._db.close()
-                self._db = None
+            self._closed = True
+            queue = self._writer_queue
+            thread = self._writer_thread
+        if queue is not None and thread is not None:
+            queue.put(None)
+            thread.join()
+            self._writer_thread = None
+            self._writer_queue = None

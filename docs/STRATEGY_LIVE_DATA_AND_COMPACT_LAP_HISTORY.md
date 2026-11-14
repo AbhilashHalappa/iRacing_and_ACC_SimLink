@@ -67,7 +67,7 @@ A record may contain only values available and sufficiently fresh at the lap bou
 | Vehicle condition | Validated brake temperature, damage and relevant condition measurements |
 | Provenance | Graphics and Physics capture sequence/timestamp for the sampled values; freshness/availability state |
 
-Physics and Graphics are independent streams and are not guaranteed to be synchronized. Every captured field must retain its own source timestamp/sequence. A missing or stale measurement stays null/unavailable; it is never filled with a value from an unrelated lap.
+Physics and Graphics are independent streams and are not guaranteed to be synchronized. The Stage 2 lap event carries this compact boundary sample alongside ACC lap timing and classification, avoiding correlation against a later coalesced snapshot. Every captured field must retain its own source timestamp/sequence. A missing or stale measurement stays null/unavailable; it is never filled with a value from an unrelated lap.
 
 Session-level identity such as track and car should be stored once per session, not duplicated in every lap record. Keep storage bounded to the current session and a configured recent-lap limit. Persist compact lap records only; do not persist high-frequency telemetry for strategy.
 
@@ -106,7 +106,7 @@ History completeness and per-strategy eligibility are separate. A known invalid 
 - No high-frequency telemetry persistence.
 - One compact record per completed lap.
 - Bounded in-memory history and bounded persistent session history (SQLite, one current session, up to 256 recent lap records).
-- Persistence is performed only at session/lap-history changes, never at the Physics/Graphics sample rate. It runs downstream of acquisition and decoding; it must not become a high-frequency writer.
+- Persistence is performed only at session/lap-history changes, never at the Physics/Graphics sample rate. A dedicated bounded background writer handles SQLite I/O away from Overview publication, acquisition and decoder threads.
 - On recovery, verify session identity and lap continuity. If identity or continuity cannot be established, retain diagnostic records if useful but mark the history incomplete and disable calculations that depend on completeness.
 
 ## 8. Non-goals and preservation constraints
