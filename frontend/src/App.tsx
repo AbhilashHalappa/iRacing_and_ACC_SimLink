@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import TrackMapTile from "./TrackMapTile";
 import { getStreamDisplayState } from "./streamStatus.mjs";
+import { getBlockedTileStreams } from "./tileAvailability.mjs";
 import { penaltyTimeDisplay, sessionTimeDisplay } from "./timeDisplay.mjs";
 import {
   Activity, Gauge, Flag, ChartNoAxesCombined, CloudSun, Map, Fuel,
@@ -261,7 +262,7 @@ function DriverTraceTile({points}:{points:DriverTracePoint[]}) {
   </div>;
 }
 
-function TileContentBody({ id, glow, telemetry, targetPressures, trace }: { id: TileId; glow:GlowConfig; telemetry:any; targetPressures:TargetPressureConfig; trace:DriverTracePoint[] }) {
+function TileContentBody({ id, glow, telemetry, targetPressures, trace, mapTrack }: { id: TileId; glow:GlowConfig; telemetry:any; targetPressures:TargetPressureConfig; trace:DriverTracePoint[]; mapTrack?: { track?: string | null; track_configuration?: string | null } }) {
   const data=telemetry?.physics?.data ?? null;
   const graphics=telemetry?.graphics?.data ?? null;
   const wheels=data?.wheels ?? {};
@@ -329,7 +330,7 @@ function TileContentBody({ id, glow, telemetry, targetPressures, trace }: { id: 
     case "laps": { const validity=graphics?.is_valid_lap===true?"VALID":graphics?.is_valid_lap===false?"INVALID":"—"; return <div className={`lap-metrics glance-laps lap-glow lap-${telemetry?.graphics?.lap_status??(validity==="VALID"?"valid":validity==="INVALID"?"invalid":"unknown")}`} style={{"--glow-intensity":glow.intensity/100,"--glow-blur":`${5+12*glow.intensity/100}px`} as React.CSSProperties}><div className="lap-primary"><span>CURRENT</span><b>{lapTimeDisplay(graphics?.current_time_str,graphics?.current_time_ms,true)}</b><small>{["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics?.lap_status??"").toLowerCase())?"OUT LAP":`LAP ${typeof graphics?.completed_laps==="number"?graphics.completed_laps+1:"—"} · ${validity}`}</small></div><div><span>LAST</span><b>{lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)}</b></div><div><span>BEST</span><b>{lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</b></div></div>; }
     case "lap_history": { const best=typeof graphics?.best_time_ms==="number"&&graphics.best_time_ms>0?graphics.best_time_ms:null; const history=(telemetry?.lap_history??[]) as LapHistoryEntry[]; return <div className="history-table"><div className="history-head"><span>RECORD</span><span>TIME</span><span>DELTA</span><span>S1</span><span>S2</span><span>S3</span></div>{history.length===0?<div className="history-empty">No completed timed laps recorded in this session yet.<br/>LAST · {lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)} · BEST · {lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</div>:<div className="history-rows">{[...history].reverse().map((lap)=> <div className="history-row" key={lap.lap}><span> LAP {lap.lap} · {lap.valid===true?"VALID":lap.valid===false?"INVALID":"REVIEW"}</span><b>{lapTimeDisplay(null,lap.timeMs)}</b><span>{lapDeltaDisplay(best===null?null:lap.timeMs-best)}</span><span>{lapTimeDisplay(null,lap.s1Ms)}</span><span>{lapTimeDisplay(null,lap.s2Ms)}</span><span>{lapTimeDisplay(null,lap.s3Ms)}</span></div>)}</div>}</div>; }
     case "weather": return <div className="field-grid balanced-grid glance-weather">{[["ROAD TEMP",display(data?.road_temp_c,1," °C")],["AIR TEMP",display(data?.air_temp_c,1," °C")],["TRACK GRIP",graphicsTrackGrip(graphics?.track_grip_status)],["NOW / +10 / +30",[graphics?.rain_intensity,graphics?.rain_10min,graphics?.rain_30min].map(graphicsRainIcon).join(" / ")],["WIND SPEED",display(graphics?.wind_speed,2," km/h")],["WIND DIRECTION",graphicsWindDirection(graphics?.wind_direction)]].map(([a,b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
-    case "map": return <TrackMapTile track={telemetry?.vehicle?.track} configuration={telemetry?.vehicle?.track_configuration} graphics={graphics} lapStatus={telemetry?.graphics?.lap_status ?? graphics?.lap_status}/>;
+    case "map": return <TrackMapTile track={mapTrack?.track} configuration={mapTrack?.track_configuration} graphics={graphics} lapStatus={telemetry?.graphics?.lap_status ?? graphics?.lap_status}/>;
     case "session": { const position=typeof graphics?.position==="number"&&graphics.position>0?graphics.position:null; const activeCars=typeof graphics?.active_cars==="number"&&graphics.active_cars>0?graphics.active_cars:null; const positionDisplay=position!==null&&activeCars!==null?`${position} / ${activeCars}`:"—"; return <div className="balanced-grid">{[["TRACK",telemetry?.vehicle?.track??"—"],["SESSION TYPE",graphicsSession(graphics?.session)],["SESSION STATUS",graphicsStatus(graphics?.status)],["TIME LEFT",sessionTimeDisplay(graphics?.session_time_left_s)],["LAP COUNT",typeof graphics?.completed_laps==="number"?String(graphics.completed_laps):"—"],["POSITION",positionDisplay],["TYRE COMPOUND",tyreCompoundDisplay(graphics?.tyre_compound)]].map(([a,b]) => <div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}</div>; }
     case "brakes": return <div className="corner-grid extended-corners glance-corners glow-corners" style={{"--glow-intensity":glow.intensity/100} as React.CSSProperties}>{corners.map(c=>{const w=wheels[c]??{};const t=w.brake_temp_c;return <div key={c} className={typeof t==="number"?band(t,glow.brake,"glow"):""}><span>{c}</span><b>{display(t,0,"°C")}</b><small>DISC TEMP · ACC</small><small>Pressure {display(w.brake_pressure,1)}</small><small>Pad {display(w.pad_life,1)} · Disc {display(w.disc_life,1)}</small></div>})}</div>;
     case "tyres": return <div className="corner-grid extended-corners glance-corners glance-tyres glow-corners" style={{"--glow-intensity":glow.intensity/100} as React.CSSProperties}>{corners.map(c=>{const w=wheels[c]??{};const t=w.tyre_core_temp_c;return <div key={c} className={typeof t==="number"?band(t,glow.tyre,"glow"):""}><span>{c}</span><b>{display(t,0,"°C")}</b><small>CORE TEMP · ACC</small><small>Pressure {display(w.tyre_pressure_psi,1," psi")}</small><small>Slip {display(w.slip_ratio,2)} · Angle {display(w.slip_angle,1,"°")}</small></div>})}</div>;
@@ -367,17 +368,22 @@ function TileContent({ id, glow, telemetry, targetPressures, trace, freshness }:
   trace: DriverTracePoint[];
   freshness: Partial<Record<StreamName, StreamFreshness>>;
 }) {
-  const blocked = (tileStreamDependencies[id] ?? []).filter((stream) => freshness[stream]?.state !== "fresh");
+  const accConnected = Boolean(telemetry?.connected);
+  const dependencies = tileStreamDependencies[id] ?? [];
+  const blocked = getBlockedTileStreams(accConnected, dependencies, freshness);
+  // Keep persisted lap history available and retain track identity solely for
+  // the learned map. All live Physics/Graphics/Static payloads are masked.
+  const displayTelemetry = accConnected ? telemetry : { lap_history: telemetry?.lap_history };
   const healthLabel = blocked.map((stream) => {
-    const state = freshness[stream]?.state ?? "missing";
+    const state = accConnected ? (freshness[stream]?.state ?? "missing") : "waiting";
     return `${stream.toUpperCase()} ${state.toUpperCase()}`;
   }).join(" · ");
   return <div className={blocked.length ? "tile-content-health is-stale" : "tile-content-health"}>
     {blocked.length > 0 && <div className="tile-stale-banner" role="status">
-      <strong>LAST-KNOWN VALUES · NOT LIVE</strong><span>{healthLabel}</span>
+      <strong>{accConnected ? "LAST-KNOWN VALUES · NOT LIVE" : "WAITING FOR ACC TELEMETRY"}</strong><span>{healthLabel}</span>
     </div>}
     <div className="tile-content-values">
-      <TileContentBody id={id} glow={glow} telemetry={telemetry} targetPressures={targetPressures} trace={trace}/>
+      <TileContentBody key={blocked.length ? "waiting" : "live"} id={id} glow={glow} telemetry={displayTelemetry} targetPressures={targetPressures} trace={accConnected ? trace : []} mapTrack={id === "map" ? telemetry?.vehicle : undefined}/>
     </div>
   </div>;
 }
@@ -394,6 +400,16 @@ function App() {
   const previousTraceNormalizedPosition=useRef<number|null>(null);
   const previousTraceSample=useRef<string>("");
   useEffect(()=>{
+    if(!telemetry?.connected){
+      setDriverTrace(current=>current.length?[]:current);
+      traceSession.current=null;
+      lapDistanceOrigin.current=null;
+      previousTraceDistance.current=null;
+      previousTraceCompletedLaps.current=null;
+      previousTraceNormalizedPosition.current=null;
+      previousTraceSample.current="";
+      return;
+    }
     const g=telemetry?.graphics?.data, p=telemetry?.physics?.data;
     if(!g||!p||typeof g.normalized_car_position!=="number"||!Number.isFinite(g.normalized_car_position)||g.normalized_car_position<0||g.normalized_car_position>1) return;
     const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
