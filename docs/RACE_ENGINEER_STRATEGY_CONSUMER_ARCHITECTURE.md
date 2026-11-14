@@ -744,3 +744,46 @@ The initial decoded snapshot broker exists on `feature/race-engineer-page`. This
 
 Source changes and test cases have been committed on `feature/stage2-decoded-fanout`. Automated tests, type/lint checks, Windows build, performance measurement and live ACC validation have **not** been run in this environment. This increment must not be described as runtime-validated until those checks are executed.
 
+
+
+## 22. Completed-lap event producer and progress reconciliation
+
+The Stage 2 broker now derives completed-lap events from the existing freshness-gated decoded Graphics snapshot. This is the first shared domain-event producer and is intended to support the Fuel consumer first, followed by other consumers of lap history.
+
+### Producer boundary and semantics
+
+- `CompletedLapEventObserver` consumes only `RaceEngineerTelemetrySnapshot.graphics`; it does not read raw pages, acquisition rings or decoder internals.
+- It requires a fresh Graphics view and ACC LIVE status (`status == 2`).
+- It uses `completed_laps` as the lap counter. The first fresh LIVE observation seeds the cursor and does not fabricate a historical event.
+- A single increment emits one `lap.completed` event with ACC `last_time_ms`, `last_time_str`, `is_valid_lap`, Graphics capture sequence and source timestamp.
+- ACC validity is preserved as observed; an ACC-invalid lap remains invalid. Timing availability and validity are separate fields.
+- Session-index/session-type changes and decreasing counters re-seed the observer without emitting a false lap.
+- A counter jump greater than one emits `lap.completion_gap` with the missing count and an explicit reconciliation requirement. It does not invent the missing lap times or validity.
+- The producer treats the ACC completed-lap counter as the timed-lap boundary. It does not create an event for an out-lap merely because the car crosses start/finish.
+
+### Reconciliation contract
+
+`DecodedTelemetryBroker.reconcile_lap_progress()` returns the latest fresh ACC lap cursor: session identity, completed-lap count, latest completed-lap timing/validity and source sequence/timestamp.
+
+This is **state/cursor reconciliation only**. It does not replay missing historical laps or reconstruct their lap times. The result explicitly reports `historical_laps_recovered = false`; consumers must mark affected lap-history windows incomplete and must not use fabricated laps in rolling calculations. The helper rechecks current monotonic sample age and stream lifecycle when called, rather than trusting an old freshness flag.
+
+### Tests added
+
+- First-snapshot seeding without a false event.
+- One-lap transition and source provenance.
+- ACC-invalid lap preservation.
+- Multi-lap counter jump produces a gap event, not fabricated lap records.
+- Session change/counter reset re-seeding.
+- Stale and non-LIVE observations rejected.
+- Latest-state reconciliation and explicit non-recovery of historical laps.
+- Broker-level event publication and reconciliation integration.
+
+### Remaining gates
+
+- The actual ACC timing/validity values at the exact counter transition still require controlled live ACC validation.
+- A durable completed-lap history/replay source is not yet connected. Reconciliation can restore the current cursor, but cannot recover every missed lap record.
+- The five-valid-lap Fuel rolling average must not be enabled until it consumes a complete, reconciled lap history and excludes ACC-invalid laps and out-laps.
+- No Fuel pit recommendation, radio output or ACC write/control is enabled by this event producer.
+- Stage 1 and existing Overview code remain unchanged.
+
+Automated tests have been added but must be run locally before this increment is considered test-passing.
