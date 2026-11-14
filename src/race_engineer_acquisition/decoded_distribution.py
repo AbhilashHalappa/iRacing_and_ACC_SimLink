@@ -19,6 +19,7 @@ from .decoded_events import (
 )
 
 from .engineering_snapshot import RaceEngineerSnapshotAggregator, RaceEngineerTelemetrySnapshot
+from .lap_events import CompletedLapEventObserver
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +97,7 @@ class DecodedTelemetryBroker:
     def __init__(self, runtime: Any, *, clock_ns=time.perf_counter_ns) -> None:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime, clock_ns=clock_ns)
         self._events = DecodedEventPublisher(clock_ns=clock_ns)
+        self._lap_event_observer = CompletedLapEventObserver()
         self._clock_ns = clock_ns
         self._dirty = Event()
         self._stop = Event()
@@ -199,6 +201,7 @@ class DecodedTelemetryBroker:
 
     def _publish_once(self) -> None:
         telemetry = self._aggregator.snapshot()
+        lap_events = self._lap_event_observer.observe(telemetry)
         with self._lock:
             self._revision += 1
             envelope = DecodedSnapshotEnvelope(
@@ -214,6 +217,18 @@ class DecodedTelemetryBroker:
             # Each mailbox is independently locked and coalescing.
             # No consumer callback runs on this worker.
             subscriber._publish(envelope)
+
+        # Domain events are published from the same immutable decoded aggregate,
+        # through a separate bounded channel. No decoder/Overview callback runs.
+        for candidate in lap_events:
+            self._events.publish(
+                candidate.event_type,
+                session_id=candidate.session_id,
+                source_stream="graphics",
+                source_capture_sequence=candidate.source_capture_sequence,
+                source_timestamp_ns=candidate.source_timestamp_ns,
+                payload=candidate.payload,
+            )
 
     def _run(self) -> None:
         while not self._stop.is_set():
