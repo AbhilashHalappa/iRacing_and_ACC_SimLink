@@ -61,6 +61,7 @@ class StrategyLapHistory:
         self._last_event_sequence: int | None = None
         self._last_cursor: int | None = None
         self._complete = False
+        self._persisted_complete = False
         self._gap_count = 0
         self._blockers: set[str] = set()
         self._recovery_pending = False
@@ -81,7 +82,8 @@ class StrategyLapHistory:
         if row is None:
             return
         self._session_id, self._track, self._car, self._baseline_lap, self._last_cursor, was_complete, self._gap_count, blockers = row
-        self._complete = bool(was_complete)
+        self._persisted_complete = bool(was_complete)
+        self._complete = self._persisted_complete
         self._blockers = set(json.loads(blockers))
         rows = self._db.execute("SELECT payload FROM lap_records WHERE session_id=? ORDER BY lap_number", (self._session_id,)).fetchall()
         self._records = [StrategyLapRecord(**{**item, "tyre_pressure_psi": tuple(item["tyre_pressure_psi"]), "tyre_core_temp_c": tuple(item["tyre_core_temp_c"]), "brake_temp_c": tuple(item["brake_temp_c"]), "car_damage": tuple(item["car_damage"])}) for (payload,) in rows for item in (json.loads(payload),)]
@@ -97,6 +99,7 @@ class StrategyLapHistory:
             (self._session_id, self._track, self._car, self._baseline_lap, self._last_cursor, int(self._complete), self._gap_count, json.dumps(sorted(self._blockers))),
         )
         self._db.commit()
+        self._persisted_complete = self._complete
 
     def _reset_session(self, session_id: str, completed_laps: int, track: str | None, car: str | None) -> None:
         self._session_id = session_id
@@ -107,6 +110,7 @@ class StrategyLapHistory:
         self._last_event_sequence = None
         self._gap_count = 0
         self._complete = completed_laps == 0
+        self._persisted_complete = self._complete
         self._recovery_pending = False
         self._blockers = set() if self._complete else {"Application attached after the session had already completed laps; earlier lap history is unavailable."}
         if self._db is not None:
@@ -132,7 +136,7 @@ class StrategyLapHistory:
                 latest = self._records[-1].lap_number if self._records else self._baseline_lap
                 if completed_laps == latest:
                     self._recovery_pending = False
-                    self._complete = bool(self._gap_count == 0)
+                    self._complete = bool(self._persisted_complete and self._gap_count == 0)
                     self._blockers.discard("Persisted lap history is awaiting live ACC session/cursor verification.")
                     if not self._complete:
                         self._blockers.add("Persisted history contains an earlier data gap.")

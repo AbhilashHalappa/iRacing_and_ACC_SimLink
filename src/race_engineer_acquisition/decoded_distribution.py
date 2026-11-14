@@ -48,16 +48,6 @@ class LatestSnapshotSubscription:
         self._closed = False
 
     @property
-    def out_lap_status(self) -> dict[str, Any]:
-        with self._lock:
-            return {
-                "active": self._out_lap_active if self._out_lap_fresh else False,
-                "fresh": self._out_lap_fresh,
-                "last_completed_lap_out_lap": self._last_completed_lap_out_lap,
-                "source": "ACCOutLapObserver",
-            }
-
-    @property
     def latest(self) -> DecodedSnapshotEnvelope | None:
         with self._lock:
             return self._latest
@@ -297,6 +287,16 @@ class DecodedTelemetryBroker:
         if envelope is None:
             return None
         return reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
+
+    @property
+    def out_lap_status(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "active": self._out_lap_active if self._out_lap_fresh else False,
+                "fresh": self._out_lap_fresh,
+                "last_completed_lap_out_lap": self._last_completed_lap_out_lap,
+                "source": "ACCOutLapObserver",
+            }
 
     @property
     def latest(self) -> DecodedSnapshotEnvelope | None:

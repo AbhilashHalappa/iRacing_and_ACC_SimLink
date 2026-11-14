@@ -38,22 +38,35 @@ class RaceEngineerService:
     def _update_lap_history(
         self, telemetry: Any, *, track: str | None, car: str | None
     ) -> dict[str, Any]:
-        batch = self._lap_events.read_batch()
-        self._lap_history.consume(batch, telemetry)
         graphics_view = telemetry.graphics
         graphics = graphics_view.data if graphics_view.is_fresh else None
+        cursor = None
+        session_id = None
         if (
             graphics is not None
             and getattr(graphics, "status", None) == 2
             and isinstance(getattr(graphics, "completed_laps", None), int)
             and not isinstance(getattr(graphics, "completed_laps", None), bool)
         ):
+            cursor = graphics.completed_laps
             session_id = (
                 f"acc-session:{getattr(graphics, 'session_index', None)}:"
                 f"{getattr(graphics, 'session', None)}"
             )
+
+        # Verify a persisted session against its first fresh ACC cursor before
+        # appending new events. If the cursor moved while the app was closed,
+        # the history remains incomplete rather than inventing missing laps.
+        if self._lap_history.recovery_pending and cursor is not None and session_id is not None:
             self._lap_history.observe_live_cursor(
-                session_id, graphics.completed_laps, track=track, car=car
+                session_id, cursor, track=track, car=car
+            )
+
+        batch = self._lap_events.read_batch()
+        self._lap_history.consume(batch, telemetry)
+        if cursor is not None and session_id is not None:
+            self._lap_history.observe_live_cursor(
+                session_id, cursor, track=track, car=car
             )
         return self._lap_history.snapshot()
 

@@ -46,7 +46,7 @@ The Strategy Engine consumes decoded state and domain events only. It must not r
 - Completed-lap boundaries come from the existing Stage 2 decoded Graphics lap-completion event.
 - Lap validity comes directly from ACC Graphics `is_valid_lap`. Do not independently calculate or reinterpret validity.
 - Out-lap classification must reuse the existing Overview/desktop out-lap observer result. Do not introduce a second out-lap detector or infer out-lap status from lap validity.
-- The orange Overview glow is presentation. Strategy history must receive the observer's underlying classification state, not inspect UI styling.
+- The orange Overview glow is presentation. Strategy history must receive the observer's underlying classification state, not inspect UI styling. The existing `ACCOutLapObserver` is owned by the Stage 2 decoded broker and supplies both the unchanged Overview `lap_status` field and the completed-lap classification; there is one observer instance, not a duplicate strategy detector.
 - Classification must be associated with the lap that was active before the start/finish transition. Do not accidentally apply the newly started lap's state to the lap that just completed.
 - Unknown or unavailable classification remains unknown. It must not be promoted to false.
 - The existing out-lap observer currently detects the initial garage-to-track out-lap. Its known scope must not be silently expanded to mid-race pit exits.
@@ -105,8 +105,8 @@ History completeness and per-strategy eligibility are separate. A known invalid 
 - No second ACC reader.
 - No high-frequency telemetry persistence.
 - One compact record per completed lap.
-- Bounded in-memory history and bounded persistent session history.
-- Persistence must run away from acquisition and decoder threads and must not block Overview publication.
+- Bounded in-memory history and bounded persistent session history (SQLite, one current session, up to 256 recent lap records).
+- Persistence is performed only at session/lap-history changes, never at the Physics/Graphics sample rate. It runs downstream of acquisition and decoding; it must not become a high-frequency writer.
 - On recovery, verify session identity and lap continuity. If identity or continuity cannot be established, retain diagnostic records if useful but mark the history incomplete and disable calculations that depend on completeness.
 
 ## 8. Non-goals and preservation constraints
