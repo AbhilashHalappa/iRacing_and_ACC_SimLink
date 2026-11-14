@@ -11,6 +11,19 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
+class LapProgressReconciliation:
+    """Fresh authoritative lap cursor for recovery after a detected event gap."""
+
+    session_id: str
+    completed_laps: int
+    latest_lap_time_ms: int | None
+    latest_lap_valid: bool | None
+    source_capture_sequence: int | None
+    source_timestamp_ns: int | None
+    historical_laps_recovered: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class LapEventCandidate:
     event_type: str
     session_id: str
@@ -127,3 +140,42 @@ class CompletedLapEventObserver:
                 },
             ),
         )
+
+
+
+def reconcile_lap_progress(telemetry: Any) -> LapProgressReconciliation | None:
+    """Return the latest fresh ACC lap cursor after a consumer detects a gap.
+
+    This repairs the consumer's current progress cursor, not missing historical
+    lap records. Historical laps remain unrecovered until a durable lap-history
+    source is connected; callers must not fill the gap with fabricated laps.
+    """
+    view = telemetry.graphics
+    if not view.is_fresh or view.data is None:
+        return None
+    graphics = view.data
+    if getattr(graphics, "status", None) != CompletedLapEventObserver.LIVE_STATUS:
+        return None
+    completed = CompletedLapEventObserver._integer(
+        getattr(graphics, "completed_laps", None)
+    )
+    if completed is None:
+        return None
+    session_index = CompletedLapEventObserver._integer(
+        getattr(graphics, "session_index", None)
+    )
+    session_type = CompletedLapEventObserver._integer(
+        getattr(graphics, "session", None)
+    )
+    lap_time = CompletedLapEventObserver._integer(
+        getattr(graphics, "last_time_ms", None)
+    )
+    lap_valid = getattr(graphics, "is_valid_lap", None)
+    return LapProgressReconciliation(
+        session_id=f"acc-session:{session_index}:{session_type}",
+        completed_laps=completed,
+        latest_lap_time_ms=lap_time if lap_time and lap_time > 0 else None,
+        latest_lap_valid=lap_valid if isinstance(lap_valid, bool) else None,
+        source_capture_sequence=view.capture_sequence,
+        source_timestamp_ns=view.capture_timestamp_ns,
+    )
