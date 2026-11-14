@@ -56,7 +56,7 @@ class FuelEngineerTests(unittest.TestCase):
 
     def test_invalid_or_negative_values_fail_closed(self):
         result = build_fuel_engineer_snapshot(
-            telemetry(fuel=-1.0, per_lap=math.nan, laps=-2.0, mfd=-4.0),
+            telemetry(fuel=-1.0, per_lap=math.nan, laps=-2.0, mfd=-4.0, used=-1.0),
         )
         self.assertIsNone(result.current_fuel_l)
         self.assertIsNone(result.fuel_per_lap_candidate_l)
