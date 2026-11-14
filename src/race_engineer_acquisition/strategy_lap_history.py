@@ -90,8 +90,8 @@ class StrategyLapHistory:
             self._db = sqlite3.connect(str(self._path), check_same_thread=False)
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=NORMAL")
-            # Keep the legacy singleton table intact for migration/audit, but
-            # store each run-scoped session independently from now on.
+            # Keep the legacy singleton table as a current-session compatibility
+            # view; v2 is the durable multi-session metadata store.
             self._db.execute("CREATE TABLE IF NOT EXISTS session_meta (id INTEGER PRIMARY KEY CHECK(id=1), session_id TEXT NOT NULL, track TEXT, car TEXT, baseline_lap INTEGER NOT NULL, last_cursor INTEGER, complete INTEGER NOT NULL, gap_count INTEGER NOT NULL, blockers TEXT NOT NULL)")
             self._db.execute("CREATE TABLE IF NOT EXISTS session_meta_v2 (session_id TEXT PRIMARY KEY, track TEXT, car TEXT, baseline_lap INTEGER NOT NULL, last_cursor INTEGER, complete INTEGER NOT NULL, gap_count INTEGER NOT NULL, blockers TEXT NOT NULL)")
             self._db.execute("CREATE TABLE IF NOT EXISTS lap_records (session_id TEXT NOT NULL, lap_number INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, lap_number))")
@@ -186,6 +186,12 @@ class StrategyLapHistory:
                     _, values = operation
                     self._db.execute(
                         "INSERT INTO session_meta_v2(session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET track=excluded.track,car=excluded.car,baseline_lap=excluded.baseline_lap,last_cursor=excluded.last_cursor,complete=excluded.complete,gap_count=excluded.gap_count,blockers=excluded.blockers",
+                        values,
+                    )
+                    # Preserve the old singleton query contract for diagnostics
+                    # while retaining every session in session_meta_v2.
+                    self._db.execute(
+                        "INSERT INTO session_meta(id,session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET session_id=excluded.session_id,track=excluded.track,car=excluded.car,baseline_lap=excluded.baseline_lap,last_cursor=excluded.last_cursor,complete=excluded.complete,gap_count=excluded.gap_count,blockers=excluded.blockers",
                         values,
                     )
                 self._db.commit()
