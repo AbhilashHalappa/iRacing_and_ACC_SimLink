@@ -234,3 +234,57 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
         assert reconciliation.completed_laps == 2
     finally:
         broker.close()
+
+
+def test_same_acc_session_labels_get_distinct_ids_after_non_live_boundary():
+    runtime = _Runtime()
+    broker = DecodedTelemetryBroker(runtime)
+    events = broker.subscribe_events("session-boundary-events", capacity=8)
+    broker.start()
+    try:
+        def publish_graphics(status: int, completed_laps: int, sequence: int):
+            now = time.perf_counter_ns()
+            runtime.graphics_consumer._snapshot = SimpleNamespace(
+                lifecycle_state="running",
+                processed_count=sequence,
+                decode_error_count=0,
+                last_capture_sequence=sequence,
+                last_error=None,
+                latest=SimpleNamespace(
+                    packet_id=sequence,
+                    status=status,
+                    completed_laps=completed_laps,
+                    session_index=0,
+                    session=0,
+                    last_time_ms=100000,
+                    last_time_str="1:40.000",
+                    is_valid_lap=True,
+                ),
+                latest_capture_timestamp_ns=now,
+            )
+            runtime.graphics_consumer._notifier()
+
+        publish_graphics(2, 0, 1)
+        assert _wait_for(lambda: broker.strategy_session_id is not None)
+        publish_graphics(2, 1, 2)
+        assert _wait_for(lambda: broker.metrics["event_delivery"]["published_count"] >= 1)
+
+        first = events.read_batch()
+        assert len(first.events) == 1
+        first_session_id = first.events[0].session_id
+        assert first_session_id is not None and first_session_id.startswith("acc-run:")
+
+        publish_graphics(0, 1, 3)
+        assert _wait_for(lambda: broker.strategy_session_id is None)
+        publish_graphics(2, 0, 4)
+        assert _wait_for(lambda: broker.strategy_session_id is not None)
+        publish_graphics(2, 1, 5)
+        assert _wait_for(lambda: broker.metrics["event_delivery"]["published_count"] >= 2)
+
+        second = events.read_batch()
+        assert len(second.events) == 1
+        second_session_id = second.events[0].session_id
+        assert second_session_id is not None and second_session_id.startswith("acc-run:")
+        assert second_session_id != first_session_id
+    finally:
+        broker.close()
