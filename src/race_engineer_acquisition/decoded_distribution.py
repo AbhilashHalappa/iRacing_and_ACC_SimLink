@@ -55,7 +55,7 @@ class LatestSnapshotSubscription:
         envelope = self.latest
         if envelope is None:
             return None
-        return reconcile_lap_progress(envelope.telemetry)
+        return reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
 
     @property
     def latest(self) -> DecodedSnapshotEnvelope | None:
