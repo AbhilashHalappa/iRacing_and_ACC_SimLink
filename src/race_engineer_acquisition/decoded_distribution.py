@@ -7,7 +7,7 @@ publication happen on this broker's own worker thread.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from threading import Event, Lock, Thread
 import time
 from uuid import uuid4
@@ -227,6 +227,11 @@ class DecodedTelemetryBroker:
             self._session_generation = None
             self._strategy_session_id = None
             self._lap_event_observer.reset()
+            session_key = (
+                getattr(graphics_data, "session_index", None),
+                getattr(graphics_data, "session", None),
+            )
+            self._out_lap_observer.reset(session_key)
         elif graphics_data is not None and getattr(graphics_data, "status", None) == CompletedLapEventObserver.LIVE_STATUS:
             if self._session_generation is None:
                 self._session_generation = uuid4().hex
