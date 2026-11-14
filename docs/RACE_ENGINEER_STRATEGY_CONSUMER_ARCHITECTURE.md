@@ -787,3 +787,27 @@ This is **state/cursor reconciliation only**. It does not replay missing histori
 - Stage 1 and existing Overview code remain unchanged.
 
 Automated tests have been added but must be run locally before this increment is considered test-passing.
+
+
+## 23. Fuel lap-history consumer — guarded first integration (2026-11-14)
+
+### Implemented
+
+- Added `fuel_lap_history.py`, a Stage 2 event consumer that records observed completed-lap metadata in a bounded-scope in-memory session history.
+- Connected `RaceEngineerService` to drain the existing independent Fuel lap-event subscription during service snapshots.
+- Event sequence discontinuities, explicit completed-lap counter gaps, malformed lap numbers and session changes keep history incomplete. Missing lap records are never fabricated.
+- A cursor reconciliation is recorded as cursor-only recovery. It does not mark historical records recovered.
+- Lap-time candidates are excluded unless ACC validity is explicitly true and out-lap classification is explicitly false and classified.
+- The service now exposes `fuel_lap_history` diagnostics and explicitly keeps strategy recommendations disabled.
+
+### Deliberate safety limits
+
+- The current completed-lap producer still emits `out_lap=None` and `pending_out_lap_classification`; therefore no lap from that producer qualifies for rolling averages yet.
+- The consumer is in-memory only. It does not claim restart durability or historical replay.
+- The existing raw Physics/Graphics recorder remains unchanged and is not yet wired into a decoded historical lap reconstruction workflow.
+- Rolling five-lap calculations remain disabled until out-lap classification is authoritative and session history can be recovered/reconciled without gaps.
+- No fuel target, pit recommendation, radio speech, TTS, Overview, Qt publisher or frontend behavior is enabled or changed.
+
+### Validation required
+
+Run the focused Fuel lap-history, lap-event, decoded-event, broker and service regression tests on Windows. Then validate event consumption through a controlled ACC session. Source commits alone do not establish passing tests or live runtime behavior.
