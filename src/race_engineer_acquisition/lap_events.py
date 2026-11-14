@@ -136,16 +136,17 @@ class CompletedLapEventObserver:
                     "validity_source": "ACC_Graphics.is_valid_lap" if validity_known else None,
                     "timing_source": "ACC_Graphics.last_time_ms",
                     "timing_available": bool(lap_time_ms and lap_time_ms > 0),
-                    # Reuse the existing Overview ACCOutLapObserver result.
-                    # Unknown stays unknown; validity is never used as a proxy.
-                    "out_lap": completed_lap_out_lap,
+                    # Strategy history records completed timed laps only.
+                    # The Overview's ACCOutLapObserver remains responsible for
+                    # its live out-lap indication, but its garage/track heuristic
+                    # must not relabel the first ACC-timed completion as an out-lap.
+                    # ACC completed_laps advances at the timed lap boundary.
+                    "out_lap": False,
                     "lap_classification": (
-                        "classified" if isinstance(completed_lap_out_lap, bool)
-                        else "pending_out_lap_classification"
+                        "classified" if validity_known
+                        else "pending_classification"
                     ),
-                    "out_lap_source": (
-                        "ACCOutLapObserver" if isinstance(completed_lap_out_lap, bool) else None
-                    ),
+                    "out_lap_source": "ACC_completed_lap_boundary",
                     "session_index": session_index,
                     "session_type": session_type,
                 },
