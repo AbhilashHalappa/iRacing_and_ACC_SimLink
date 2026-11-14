@@ -275,7 +275,12 @@ def test_same_acc_session_labels_get_distinct_ids_after_non_live_boundary():
         assert first_session_id is not None and first_session_id.startswith("acc-run:")
 
         publish_graphics(0, 1, 3)
-        assert _wait_for(lambda: broker.strategy_session_id is None)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.data is not None
+            and broker.latest.telemetry.graphics.data.status == 0
+            and broker.strategy_session_id is None
+        )
         publish_graphics(2, 0, 4)
         assert _wait_for(lambda: broker.strategy_session_id is not None)
         publish_graphics(2, 1, 5)
