@@ -369,15 +369,16 @@ function TileContent({ id, glow, telemetry, targetPressures, trace, freshness }:
   freshness: Partial<Record<StreamName, StreamFreshness>>;
 }) {
   const dependencies = tileStreamDependencies[id] ?? [];
-  const blocked = getBlockedTileStreams(Boolean(telemetry?.connected), dependencies, freshness);
-  const displayTelemetry = telemetry?.connected ? telemetry : null;
+  const accConnected = Boolean(telemetry?.connected);
+  const blocked = getBlockedTileStreams(accConnected, dependencies, freshness);
+  const displayTelemetry = accConnected ? telemetry : null;
   const healthLabel = blocked.map((stream) => {
-    const state = freshness[stream]?.state ?? "missing";
+    const state = accConnected ? (freshness[stream]?.state ?? "missing") : "waiting";
     return `${stream.toUpperCase()} ${state.toUpperCase()}`;
   }).join(" · ");
   return <div className={blocked.length ? "tile-content-health is-stale" : "tile-content-health"}>
     {blocked.length > 0 && <div className="tile-stale-banner" role="status">
-      <strong>LAST-KNOWN VALUES · NOT LIVE</strong><span>{healthLabel}</span>
+      <strong>{accConnected ? "LAST-KNOWN VALUES · NOT LIVE" : "WAITING FOR ACC TELEMETRY"}</strong><span>{healthLabel}</span>
     </div>}
     <div className="tile-content-values">
       <TileContentBody key={blocked.length ? "waiting" : "live"} id={id} glow={glow} telemetry={displayTelemetry} targetPressures={targetPressures} trace={displayTelemetry ? trace : []}/>
