@@ -106,3 +106,19 @@ def test_reconciliation_refuses_stale_or_non_live_state():
 
     assert reconcile_lap_progress(_telemetry(laps=7, fresh=False)) is None
     assert reconcile_lap_progress(_telemetry(laps=7, status=1)) is None
+
+
+def test_reconciliation_rechecks_sample_age_even_if_old_view_says_fresh():
+    from src.race_engineer_acquisition.lap_events import reconcile_lap_progress
+
+    telemetry = _telemetry(laps=7, timestamp=1000)
+    assert reconcile_lap_progress(telemetry, now_ns=1_000_002_000) is None
+
+
+def test_unknown_acc_validity_is_not_upgraded_to_valid():
+    observer = CompletedLapEventObserver()
+    observer.observe(_telemetry(laps=1))
+    telemetry = _telemetry(laps=2, valid=None)
+    event = observer.observe(telemetry)[0]
+    assert event.payload["lap_valid"] is None
+    assert event.payload["validity_known"] is False
