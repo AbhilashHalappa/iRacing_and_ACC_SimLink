@@ -36,6 +36,7 @@ def _event(sequence, lap, *, valid=True, out_lap=False, session="s1"):
         event_type="lap.completed",
         session_id=session,
         source_timestamp_ns=1_000,
+        source_capture_sequence=30 + lap,
         payload={
             "lap_number": lap,
             "lap_time_ms": 100_000 + lap,
@@ -128,3 +129,34 @@ def test_sqlite_history_refuses_recovery_when_acc_cursor_has_advanced(tmp_path):
     assert result["history_complete"] is False
     assert any("does not match" in item for item in result["blockers"])
     recovered.close()
+
+def test_history_uses_compact_boundary_sample_carried_by_stage2_event():
+    history = StrategyLapHistory()
+    history.observe_live_cursor("s1", 0)
+    event = _event(1, 1)
+    event.payload["strategy_sample"] = {
+        "physics": {
+            "capture_sequence": 55,
+            "capture_timestamp_ns": 1_000,
+            "fuel_remaining_l": 44.8,
+            "tyre_pressure_psi": [27.0, 27.1, 27.2, 27.3],
+            "tyre_core_temp_c": [80.0, 81.0, 82.0, 83.0],
+            "brake_temp_c": [400.0, 410.0, 420.0, 430.0],
+            "car_damage": [0.0, 0.0, 0.0, 0.0, 0.0],
+        },
+        "graphics": {
+            "capture_sequence": 66,
+            "capture_timestamp_ns": 1_000,
+            "fuel_per_lap_l": 2.4,
+            "fuel_used_l": 4.8,
+            "tyre_compound": "Dry",
+        },
+    }
+    history.consume(_batch(event), telemetry=None)
+    history.observe_live_cursor("s1", 1)
+    record = history.snapshot()["recent_records"][0]
+    assert record["fuel_remaining_l"] == 44.8
+    assert record["fuel_per_lap_l"] == 2.4
+    assert record["physics_capture_sequence"] == 55
+    assert record["graphics_capture_sequence"] == 31
+    history.close()

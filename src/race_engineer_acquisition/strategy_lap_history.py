@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 import sqlite3
 from threading import RLock
-from typing import Any
+from typing import Any, Mapping
 
 
 def _number(value: Any) -> float | None:
@@ -76,6 +76,11 @@ class StrategyLapHistory:
             self._db.commit()
             self._load()
 
+    @property
+    def recovery_pending(self) -> bool:
+        with self._lock:
+            return self._recovery_pending
+
     def _load(self) -> None:
         assert self._db is not None
         row = self._db.execute("SELECT session_id, track, car, baseline_lap, last_cursor, complete, gap_count, blockers FROM session_meta WHERE id=1").fetchone()
@@ -132,13 +137,14 @@ class StrategyLapHistory:
             if identity_mismatch:
                 self._reset_session(session_id, completed_laps, track, car)
                 return
+            recovery_was_pending = self._recovery_pending
             if self._recovery_pending:
                 latest = self._records[-1].lap_number if self._records else self._baseline_lap
                 if completed_laps == latest:
                     self._recovery_pending = False
                     self._complete = bool(self._persisted_complete and self._gap_count == 0)
                     self._blockers.discard("Persisted lap history is awaiting live ACC session/cursor verification.")
-                    if not self._complete:
+                    if not self._complete and self._gap_count:
                         self._blockers.add("Persisted history contains an earlier data gap.")
                 else:
                     self._recovery_pending = False
@@ -146,20 +152,22 @@ class StrategyLapHistory:
                     self._gap_count += 1
                     self._blockers.add("Live ACC lap cursor does not match the last persisted lap; one or more lap records may be missing.")
             elif self._last_cursor is not None and completed_laps > self._last_cursor:
-                # The event consumer should have delivered these transitions
-                # before cursor reconciliation. A cursor-only advance is loss.
                 self._complete = False
                 self._gap_count += 1
                 self._blockers.add("ACC lap cursor advanced without matching completed-lap records.")
             elif self._last_cursor is not None and completed_laps < self._last_cursor:
                 self._reset_session(session_id, completed_laps, track, car)
                 return
+            changed = recovery_was_pending or self._last_cursor != completed_laps
             self._last_cursor = completed_laps
-            if self._track is None:
+            if self._track is None and track is not None:
                 self._track = track
-            if self._car is None:
+                changed = True
+            if self._car is None and car is not None:
                 self._car = car
-            self._persist_meta()
+                changed = True
+            if changed:
+                self._persist_meta()
 
     @staticmethod
     def _tuple_values(value: Any) -> tuple[float | None, ...]:
@@ -169,6 +177,7 @@ class StrategyLapHistory:
 
     def consume(self, batch: Any, telemetry: Any | None = None) -> None:
         with self._lock:
+            changed = bool(batch.events) or bool(batch.gap_detected)
             if batch.gap_detected:
                 self._mark_gap("Decoded lap-event delivery had a sequence gap.")
             for event in batch.events:
@@ -180,51 +189,84 @@ class StrategyLapHistory:
                     continue
                 if event.event_type != "lap.completed" or not event.session_id:
                     continue
-                if self._session_id != event.session_id:
-                    # Establish a conservative baseline. Without an observed
-                    # zero-lap start, the earlier portion of this session is unknown.
-                    self._reset_session(event.session_id, max(0, int(event.payload.get("lap_number", 1)) - 1), self._track, self._car)
-                    if self._baseline_lap > 0:
-                        self._complete = False
                 payload = event.payload
                 lap_number = payload.get("lap_number")
                 if isinstance(lap_number, bool) or not isinstance(lap_number, int) or lap_number < 1:
                     self._mark_gap("Completed-lap event has no valid lap number.")
                     continue
+                if self._session_id != event.session_id:
+                    self._reset_session(event.session_id, lap_number - 1, self._track, self._car)
                 if self._records and lap_number <= self._records[-1].lap_number:
                     self._mark_gap("Completed-lap event order is not strictly increasing.")
                     continue
-                physics_view = getattr(telemetry, "physics", None)
-                graphics_view = getattr(telemetry, "graphics", None)
-                physics = physics_view.data if physics_view is not None and physics_view.is_fresh else None
-                graphics = graphics_view.data if graphics_view is not None and graphics_view.is_fresh else None
+                if self._records and lap_number > self._records[-1].lap_number + 1:
+                    self._mark_gap("Completed-lap records contain a lap-number gap.")
+
+                strategy_sample = payload.get("strategy_sample")
+                physics_values = None
+                graphics_values = None
+                physics_sequence = None
+                physics_timestamp = None
+                if isinstance(strategy_sample, Mapping):
+                    candidate_physics = strategy_sample.get("physics")
+                    candidate_graphics = strategy_sample.get("graphics")
+                    if isinstance(candidate_physics, Mapping):
+                        physics_values = candidate_physics
+                        physics_timestamp = candidate_physics.get("capture_timestamp_ns")
+                        physics_sequence = candidate_physics.get("capture_sequence")
+                    if isinstance(candidate_graphics, Mapping):
+                        graphics_values = candidate_graphics
+                else:
+                    # Compatibility for direct unit/legacy event producers.
+                    physics_view = getattr(telemetry, "physics", None)
+                    graphics_view = getattr(telemetry, "graphics", None)
+                    physics_data = physics_view.data if physics_view is not None and physics_view.is_fresh else None
+                    graphics_data = graphics_view.data if graphics_view is not None and graphics_view.is_fresh else None
+                    physics_timestamp = physics_view.capture_timestamp_ns if physics_data is not None else None
+                    physics_sequence = physics_view.capture_sequence if physics_data is not None else None
+                    physics_values = {
+                        "fuel_remaining_l": getattr(physics_data, "fuel_kg", None),
+                        "tyre_pressure_psi": getattr(physics_data, "tyre_pressure_psi", ()),
+                        "tyre_core_temp_c": getattr(physics_data, "tyre_core_temp_c", ()),
+                        "brake_temp_c": getattr(physics_data, "brake_temp_c", ()),
+                        "car_damage": getattr(physics_data, "car_damage", ()),
+                    } if physics_data is not None else None
+                    graphics_values = {
+                        "fuel_per_lap_l": getattr(graphics_data, "fuel_per_lap_l", None),
+                        "fuel_used_l": getattr(graphics_data, "used_fuel_l", None),
+                        "tyre_compound": getattr(graphics_data, "tyre_compound", None),
+                    } if graphics_data is not None else None
+
                 boundary_ns = event.source_timestamp_ns
-                physics_ts = physics_view.capture_timestamp_ns if physics is not None else None
                 physics_near_boundary = (
-                    physics is not None and physics_ts is not None and boundary_ns is not None
-                    and abs(physics_ts - boundary_ns) <= 1_000_000_000
+                    physics_values is not None
+                    and isinstance(physics_timestamp, int)
+                    and boundary_ns is not None
+                    and abs(physics_timestamp - boundary_ns) <= 1_000_000_000
                 )
                 if not physics_near_boundary:
-                    physics = None
-                validity = payload.get("lap_valid") if payload.get("validity_known") else None
+                    physics_values = None
+                    physics_sequence = None
+                    physics_timestamp = None
+                validity = payload.get("lap_valid") if isinstance(payload.get("lap_valid"), bool) else None
                 out_lap = payload.get("out_lap") if isinstance(payload.get("out_lap"), bool) else None
                 classification = "classified" if validity is not None and out_lap is not None else "pending_classification"
                 record = StrategyLapRecord(
                     session_id=event.session_id, lap_number=lap_number,
-                    lap_time_ms=payload.get("lap_time_ms") if isinstance(payload.get("lap_time_ms"), int) else None,
+                    lap_time_ms=payload.get("lap_time_ms") if isinstance(payload.get("lap_time_ms"), int) and not isinstance(payload.get("lap_time_ms"), bool) else None,
                     lap_valid=validity, out_lap=out_lap, classification=classification,
-                    fuel_remaining_l=_number(getattr(physics, "fuel_kg", None)) if physics is not None else None,
-                    fuel_per_lap_l=_number(getattr(graphics, "fuel_per_lap_l", None)) if graphics is not None else None,
-                    fuel_used_l=_number(getattr(graphics, "used_fuel_l", None)) if graphics is not None else None,
-                    tyre_compound=getattr(graphics, "tyre_compound", None) if graphics is not None else None,
-                    tyre_pressure_psi=self._tuple_values(getattr(physics, "tyre_pressure_psi", None)) if physics is not None else (),
-                    tyre_core_temp_c=self._tuple_values(getattr(physics, "tyre_core_temp_c", None)) if physics is not None else (),
-                    brake_temp_c=self._tuple_values(getattr(physics, "brake_temp_c", None)) if physics is not None else (),
-                    car_damage=self._tuple_values(getattr(physics, "car_damage", None)) if physics is not None else (),
-                    graphics_capture_sequence=getattr(graphics_view, "capture_sequence", None) if graphics_view is not None else None,
-                    graphics_capture_timestamp_ns=getattr(graphics_view, "capture_timestamp_ns", None) if graphics_view is not None else None,
-                    physics_capture_sequence=getattr(physics_view, "capture_sequence", None) if physics_near_boundary else None,
-                    physics_capture_timestamp_ns=physics_ts if physics_near_boundary else None,
+                    fuel_remaining_l=_number(physics_values.get("fuel_remaining_l")) if physics_values is not None else None,
+                    fuel_per_lap_l=_number(graphics_values.get("fuel_per_lap_l")) if graphics_values is not None else None,
+                    fuel_used_l=_number(graphics_values.get("fuel_used_l")) if graphics_values is not None else None,
+                    tyre_compound=graphics_values.get("tyre_compound") if graphics_values is not None else None,
+                    tyre_pressure_psi=self._tuple_values(physics_values.get("tyre_pressure_psi")) if physics_values is not None else (),
+                    tyre_core_temp_c=self._tuple_values(physics_values.get("tyre_core_temp_c")) if physics_values is not None else (),
+                    brake_temp_c=self._tuple_values(physics_values.get("brake_temp_c")) if physics_values is not None else (),
+                    car_damage=self._tuple_values(physics_values.get("car_damage")) if physics_values is not None else (),
+                    graphics_capture_sequence=getattr(event, "source_capture_sequence", None),
+                    graphics_capture_timestamp_ns=event.source_timestamp_ns,
+                    physics_capture_sequence=physics_sequence,
+                    physics_capture_timestamp_ns=physics_timestamp,
                     event_sequence=event.sequence,
                 )
                 self._records.append(record)
@@ -235,10 +277,14 @@ class StrategyLapHistory:
                 if record.out_lap is None:
                     self._blockers.add("Existing Overview out-lap classification is unavailable for one or more records.")
                 if self._db is not None:
-                    self._db.execute("INSERT OR REPLACE INTO lap_records(session_id,lap_number,payload) VALUES(?,?,?)", (record.session_id, record.lap_number, json.dumps(asdict(record))))
+                    self._db.execute(
+                        "INSERT OR REPLACE INTO lap_records(session_id,lap_number,payload) VALUES(?,?,?)",
+                        (record.session_id, record.lap_number, json.dumps(asdict(record))),
+                    )
                     self._db.commit()
                 self._last_cursor = lap_number
-            self._persist_meta()
+            if changed:
+                self._persist_meta()
 
     def _mark_gap(self, reason: str) -> None:
         self._complete = False

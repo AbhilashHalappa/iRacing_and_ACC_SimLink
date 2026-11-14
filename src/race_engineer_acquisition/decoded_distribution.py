@@ -234,6 +234,47 @@ class DecodedTelemetryBroker:
         lap_events = self._lap_event_observer.observe(
             telemetry, completed_lap_out_lap=completed_lap_out_lap
         )
+        # Publish the lap event before exposing the matching snapshot revision.
+        # The compact boundary sample travels with the event, so history never
+        # has to correlate against a later/coalesced live snapshot.
+        physics_sample = None
+        if physics_view.is_fresh and physics_view.data is not None:
+            physics_data = physics_view.data
+            physics_sample = {
+                "capture_sequence": physics_view.capture_sequence,
+                "capture_timestamp_ns": physics_view.capture_timestamp_ns,
+                "fuel_remaining_l": getattr(physics_data, "fuel_kg", None),
+                "tyre_pressure_psi": tuple(getattr(physics_data, "tyre_pressure_psi", ())),
+                "tyre_core_temp_c": tuple(getattr(physics_data, "tyre_core_temp_c", ())),
+                "brake_temp_c": tuple(getattr(physics_data, "brake_temp_c", ())),
+                "car_damage": tuple(getattr(physics_data, "car_damage", ())),
+            }
+        graphics_sample = None
+        if graphics_view.is_fresh and graphics_view.data is not None:
+            graphics_data = graphics_view.data
+            graphics_sample = {
+                "capture_sequence": graphics_view.capture_sequence,
+                "capture_timestamp_ns": graphics_view.capture_timestamp_ns,
+                "fuel_per_lap_l": getattr(graphics_data, "fuel_per_lap_l", None),
+                "fuel_used_l": getattr(graphics_data, "used_fuel_l", None),
+                "tyre_compound": getattr(graphics_data, "tyre_compound", None),
+            }
+        for candidate in lap_events:
+            payload = dict(candidate.payload)
+            if candidate.event_type == "lap.completed":
+                payload["strategy_sample"] = {
+                    "physics": physics_sample,
+                    "graphics": graphics_sample,
+                }
+            self._events.publish(
+                candidate.event_type,
+                session_id=candidate.session_id,
+                source_stream="graphics",
+                source_capture_sequence=candidate.source_capture_sequence,
+                source_timestamp_ns=candidate.source_timestamp_ns,
+                payload=payload,
+            )
+
         with self._lock:
             self._revision += 1
             envelope = DecodedSnapshotEnvelope(
@@ -246,21 +287,7 @@ class DecodedTelemetryBroker:
             self._last_error = None
             subscribers = tuple(self._subscribers.values())
         for subscriber in subscribers:
-            # Each mailbox is independently locked and coalescing.
-            # No consumer callback runs on this worker.
             subscriber._publish(envelope)
-
-        # Domain events are published from the same immutable decoded aggregate,
-        # through a separate bounded channel. No decoder/Overview callback runs.
-        for candidate in lap_events:
-            self._events.publish(
-                candidate.event_type,
-                session_id=candidate.session_id,
-                source_stream="graphics",
-                source_capture_sequence=candidate.source_capture_sequence,
-                source_timestamp_ns=candidate.source_timestamp_ns,
-                payload=candidate.payload,
-            )
 
     def _run(self) -> None:
         while not self._stop.is_set():

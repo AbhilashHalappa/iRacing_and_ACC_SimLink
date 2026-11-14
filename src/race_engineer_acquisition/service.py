@@ -64,7 +64,18 @@ class RaceEngineerService:
 
         batch = self._lap_events.read_batch()
         self._lap_history.consume(batch, telemetry)
-        if cursor is not None and session_id is not None:
+        event_timestamps = [
+            event.source_timestamp_ns for event in batch.events
+            if event.source_timestamp_ns is not None
+        ]
+        latest_event_timestamp = max(event_timestamps) if event_timestamps else None
+        graphics_timestamp = graphics_view.capture_timestamp_ns
+        snapshot_covers_events = (
+            latest_event_timestamp is None
+            or graphics_timestamp is None
+            or graphics_timestamp >= latest_event_timestamp
+        )
+        if cursor is not None and session_id is not None and snapshot_covers_events:
             self._lap_history.observe_live_cursor(
                 session_id, cursor, track=track, car=car
             )
