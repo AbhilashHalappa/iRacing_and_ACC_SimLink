@@ -15,6 +15,10 @@ from queue import Full, Queue
 from threading import RLock, Thread
 
 
+def _integer(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -34,10 +38,20 @@ class StrategyLapRecord:
     fuel_per_lap_l: float | None
     fuel_used_l: float | None
     tyre_compound: str | None
+    position: int | None
+    gap_ahead_ms: int | None
+    gap_behind_ms: int | None
+    penalty_time_s: float | None
+    mandatory_pit_done: bool | None
+    driver_stint_left_ms: int | None
+    rain_intensity: int | None
+    track_grip_status: int | None
     tyre_pressure_psi: tuple[float | None, ...]
     tyre_core_temp_c: tuple[float | None, ...]
     brake_temp_c: tuple[float | None, ...]
     car_damage: tuple[float | None, ...]
+    air_temp_c: float | None
+    road_temp_c: float | None
     graphics_capture_sequence: int | None
     graphics_capture_timestamp_ns: int | None
     physics_capture_sequence: int | None
@@ -103,7 +117,20 @@ class StrategyLapHistory:
         self._complete = self._persisted_complete
         self._blockers = set(json.loads(blockers))
         rows = self._db.execute("SELECT payload FROM lap_records WHERE session_id=? ORDER BY lap_number", (self._session_id,)).fetchall()
-        self._records = [StrategyLapRecord(**{**item, "tyre_pressure_psi": tuple(item["tyre_pressure_psi"]), "tyre_core_temp_c": tuple(item["tyre_core_temp_c"]), "brake_temp_c": tuple(item["brake_temp_c"]), "car_damage": tuple(item["car_damage"])}) for (payload,) in rows for item in (json.loads(payload),)]
+        optional_fields = (
+            "position", "gap_ahead_ms", "gap_behind_ms", "penalty_time_s",
+            "mandatory_pit_done", "driver_stint_left_ms", "rain_intensity",
+            "track_grip_status", "air_temp_c", "road_temp_c",
+        )
+        loaded_records = []
+        for (payload,) in rows:
+            item = json.loads(payload)
+            for field in optional_fields:
+                item.setdefault(field, None)
+            for field in ("tyre_pressure_psi", "tyre_core_temp_c", "brake_temp_c", "car_damage"):
+                item[field] = tuple(item[field])
+            loaded_records.append(StrategyLapRecord(**item))
+        self._records = loaded_records[-self._max_records:]
         self._recovery_pending = True
         self._complete = False
         self._blockers.add("Persisted lap history is awaiting live ACC session/cursor verification.")
@@ -294,11 +321,21 @@ class StrategyLapHistory:
                         "tyre_core_temp_c": getattr(physics_data, "tyre_core_temp_c", ()),
                         "brake_temp_c": getattr(physics_data, "brake_temp_c", ()),
                         "car_damage": getattr(physics_data, "car_damage", ()),
+                        "air_temp_c": getattr(physics_data, "air_temp_c", None),
+                        "road_temp_c": getattr(physics_data, "road_temp_c", None),
                     } if physics_data is not None else None
                     graphics_values = {
                         "fuel_per_lap_l": getattr(graphics_data, "fuel_per_lap_l", None),
                         "fuel_used_l": getattr(graphics_data, "used_fuel_l", None),
                         "tyre_compound": getattr(graphics_data, "tyre_compound", None),
+                        "position": getattr(graphics_data, "position", None),
+                        "gap_ahead_ms": getattr(graphics_data, "gap_ahead_ms", None),
+                        "gap_behind_ms": getattr(graphics_data, "gap_behind_ms", None),
+                        "penalty_time_s": getattr(graphics_data, "penalty_time_s", None),
+                        "mandatory_pit_done": getattr(graphics_data, "mandatory_pit_done", None),
+                        "driver_stint_left_ms": getattr(graphics_data, "driver_stint_left_ms", None),
+                        "rain_intensity": getattr(graphics_data, "rain_intensity", None),
+                        "track_grip_status": getattr(graphics_data, "track_grip_status", None),
                     } if graphics_data is not None else None
 
                 boundary_ns = event.source_timestamp_ns
@@ -323,10 +360,20 @@ class StrategyLapHistory:
                     fuel_per_lap_l=_number(graphics_values.get("fuel_per_lap_l")) if graphics_values is not None else None,
                     fuel_used_l=_number(graphics_values.get("fuel_used_l")) if graphics_values is not None else None,
                     tyre_compound=graphics_values.get("tyre_compound") if graphics_values is not None else None,
+                    position=_integer(graphics_values.get("position")) if graphics_values is not None else None,
+                    gap_ahead_ms=_integer(graphics_values.get("gap_ahead_ms")) if graphics_values is not None else None,
+                    gap_behind_ms=_integer(graphics_values.get("gap_behind_ms")) if graphics_values is not None else None,
+                    penalty_time_s=_number(graphics_values.get("penalty_time_s")) if graphics_values is not None else None,
+                    mandatory_pit_done=graphics_values.get("mandatory_pit_done") if graphics_values is not None and isinstance(graphics_values.get("mandatory_pit_done"), bool) else None,
+                    driver_stint_left_ms=_integer(graphics_values.get("driver_stint_left_ms")) if graphics_values is not None else None,
+                    rain_intensity=_integer(graphics_values.get("rain_intensity")) if graphics_values is not None else None,
+                    track_grip_status=_integer(graphics_values.get("track_grip_status")) if graphics_values is not None else None,
                     tyre_pressure_psi=self._tuple_values(physics_values.get("tyre_pressure_psi")) if physics_values is not None else (),
                     tyre_core_temp_c=self._tuple_values(physics_values.get("tyre_core_temp_c")) if physics_values is not None else (),
                     brake_temp_c=self._tuple_values(physics_values.get("brake_temp_c")) if physics_values is not None else (),
                     car_damage=self._tuple_values(physics_values.get("car_damage")) if physics_values is not None else (),
+                    air_temp_c=_number(physics_values.get("air_temp_c")) if physics_values is not None else None,
+                    road_temp_c=_number(physics_values.get("road_temp_c")) if physics_values is not None else None,
                     graphics_capture_sequence=getattr(event, "source_capture_sequence", None),
                     graphics_capture_timestamp_ns=event.source_timestamp_ns,
                     physics_capture_sequence=physics_sequence,

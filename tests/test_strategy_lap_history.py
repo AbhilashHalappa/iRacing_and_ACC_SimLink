@@ -143,6 +143,8 @@ def test_history_uses_compact_boundary_sample_carried_by_stage2_event():
             "tyre_core_temp_c": [80.0, 81.0, 82.0, 83.0],
             "brake_temp_c": [400.0, 410.0, 420.0, 430.0],
             "car_damage": [0.0, 0.0, 0.0, 0.0, 0.0],
+            "air_temp_c": 22.0,
+            "road_temp_c": 30.0,
         },
         "graphics": {
             "capture_sequence": 66,
@@ -150,6 +152,14 @@ def test_history_uses_compact_boundary_sample_carried_by_stage2_event():
             "fuel_per_lap_l": 2.4,
             "fuel_used_l": 4.8,
             "tyre_compound": "Dry",
+            "position": 4,
+            "gap_ahead_ms": 1250,
+            "gap_behind_ms": 980,
+            "penalty_time_s": 5.0,
+            "mandatory_pit_done": False,
+            "driver_stint_left_ms": 600000,
+            "rain_intensity": 0,
+            "track_grip_status": 2,
         },
     }
     history.consume(_batch(event), telemetry=None)
@@ -159,4 +169,9 @@ def test_history_uses_compact_boundary_sample_carried_by_stage2_event():
     assert record["fuel_per_lap_l"] == 2.4
     assert record["physics_capture_sequence"] == 55
     assert record["graphics_capture_sequence"] == 31
+    assert record["position"] == 4
+    assert record["gap_ahead_ms"] == 1250
+    assert record["mandatory_pit_done"] is False
+    assert record["air_temp_c"] == 22.0
+    assert record["road_temp_c"] == 30.0
     history.close()

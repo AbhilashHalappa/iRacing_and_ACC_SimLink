@@ -248,6 +248,8 @@ class DecodedTelemetryBroker:
                 "tyre_core_temp_c": tuple(getattr(physics_data, "tyre_core_temp_c", ())),
                 "brake_temp_c": tuple(getattr(physics_data, "brake_temp_c", ())),
                 "car_damage": tuple(getattr(physics_data, "car_damage", ())),
+                "air_temp_c": getattr(physics_data, "air_temp_c", None),
+                "road_temp_c": getattr(physics_data, "road_temp_c", None),
             }
         graphics_sample = None
         if graphics_view.is_fresh and graphics_view.data is not None:
@@ -258,6 +260,14 @@ class DecodedTelemetryBroker:
                 "fuel_per_lap_l": getattr(graphics_data, "fuel_per_lap_l", None),
                 "fuel_used_l": getattr(graphics_data, "used_fuel_l", None),
                 "tyre_compound": getattr(graphics_data, "tyre_compound", None),
+                "position": getattr(graphics_data, "position", None),
+                "gap_ahead_ms": getattr(graphics_data, "gap_ahead_ms", None),
+                "gap_behind_ms": getattr(graphics_data, "gap_behind_ms", None),
+                "penalty_time_s": getattr(graphics_data, "penalty_time_s", None),
+                "mandatory_pit_done": getattr(graphics_data, "mandatory_pit_done", None),
+                "driver_stint_left_ms": getattr(graphics_data, "driver_stint_left_ms", None),
+                "rain_intensity": getattr(graphics_data, "rain_intensity", None),
+                "track_grip_status": getattr(graphics_data, "track_grip_status", None),
             }
         for candidate in lap_events:
             payload = dict(candidate.payload)

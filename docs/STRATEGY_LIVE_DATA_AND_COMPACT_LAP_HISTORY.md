@@ -64,6 +64,8 @@ A record may contain only values available and sufficiently fresh at the lap bou
 | Timing | ACC last lap time |
 | Fuel | Fuel remaining, Graphics fuel-per-lap and used-fuel observations |
 | Tyres | Compound, four tyre pressures, four core temperatures and other validated per-wheel measurements |
+| Race / pit context | Position, gaps ahead/behind, penalties, mandatory-pit state and driver-stint time remaining |
+| Conditions | Rain intensity, track-grip status, air and road temperatures |
 | Vehicle condition | Validated brake temperature, damage and relevant condition measurements |
 | Provenance | Graphics and Physics capture sequence/timestamp for the sampled values; freshness/availability state |
 
