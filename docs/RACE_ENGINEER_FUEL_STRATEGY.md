@@ -260,3 +260,14 @@ The first pure Fuel Strategy calculation module is implemented in
 
 This is a calculation foundation, not a release-ready Fuel Strategy. Do not
 enable pit or radio recommendations from this slice alone.
+
+
+## 15. Stage 2 completed-lap event input — implementation increment
+
+The Stage 2 broker now publishes `lap.completed` events from fresh decoded Graphics state and emits `lap.completion_gap` when the authoritative completed-lap counter advances by more than one between observations.
+
+The event preserves ACC's completed-lap time and validity observation, source capture sequence and source timestamp. ACC-invalid laps remain invalid. Session changes/counter resets re-seed the observer. The initial live observation seeds state without generating a historical lap.
+
+After a gap, `DecodedTelemetryBroker.reconcile_lap_progress()` can restore the current session/lap cursor from the latest fresh Graphics state. It does not replay missing lap history; consumers must treat the affected history window as incomplete.
+
+**Fuel integration remains gated:** the Fuel consumer has not yet been connected to this event subscription, and the rolling five-valid-lap average must not be calculated from incomplete history. The producer and reconciliation tests have been added but have not yet been executed locally or validated in a live ACC session. No pit or radio recommendation is enabled.
