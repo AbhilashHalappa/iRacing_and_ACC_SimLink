@@ -138,6 +138,12 @@ class StrategyLapHistory:
                         "INSERT OR REPLACE INTO lap_records(session_id,lap_number,payload) VALUES(?,?,?)",
                         (session_id, lap_number, payload),
                     )
+                elif kind == "trim":
+                    _, session_id, max_records = operation
+                    self._db.execute(
+                        "DELETE FROM lap_records WHERE session_id=? AND lap_number NOT IN (SELECT lap_number FROM lap_records WHERE session_id=? ORDER BY lap_number DESC LIMIT ?)",
+                        (session_id, session_id, max_records),
+                    )
                 elif kind == "meta":
                     _, values = operation
                     self._db.execute(
@@ -339,6 +345,9 @@ class StrategyLapHistory:
                         "record", record.session_id, record.lap_number,
                         json.dumps(asdict(record)),
                     ))
+                    self._enqueue_persistence((
+                        "trim", record.session_id, self._max_records
+                    ))
                 self._last_cursor = lap_number
             if changed:
                 self._persist_meta()
@@ -347,6 +356,14 @@ class StrategyLapHistory:
         self._complete = False
         self._gap_count += 1
         self._blockers.add(reason)
+
+    def read_records(self, *, limit: int | None = None) -> tuple[StrategyLapRecord, ...]:
+        """Return immutable compact records for internal strategy consumers."""
+        if limit is not None and limit < 1:
+            raise ValueError("limit must be positive")
+        with self._lock:
+            records = self._records if limit is None else self._records[-limit:]
+            return tuple(records)
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:

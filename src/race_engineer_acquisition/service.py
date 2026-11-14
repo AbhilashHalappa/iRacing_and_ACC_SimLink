@@ -31,6 +31,10 @@ class RaceEngineerService:
         self._lap_history.close()
         return stopped
 
+    def read_strategy_laps(self, *, limit: int | None = None):
+        """Read compact shared lap records for internal strategy calculations."""
+        return self._lap_history.read_records(limit=limit)
+
     def out_lap_status(self) -> dict[str, Any]:
         """Expose the same ACCOutLapObserver state used by lap classification."""
         return self._broker.out_lap_status
