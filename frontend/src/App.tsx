@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import TrackMapTile from "./TrackMapTile";
 import { getStreamDisplayState } from "./streamStatus.mjs";
-import { getBlockedTileStreams } from "./tileAvailability.mjs";
 import { penaltyTimeDisplay, sessionTimeDisplay } from "./timeDisplay.mjs";
 import {
   Activity, Gauge, Flag, ChartNoAxesCombined, CloudSun, Map, Fuel,
@@ -368,20 +367,17 @@ function TileContent({ id, glow, telemetry, targetPressures, trace, freshness }:
   trace: DriverTracePoint[];
   freshness: Partial<Record<StreamName, StreamFreshness>>;
 }) {
-  const dependencies = tileStreamDependencies[id] ?? [];
-  const accConnected = Boolean(telemetry?.connected);
-  const blocked = getBlockedTileStreams(accConnected, dependencies, freshness);
-  const displayTelemetry = accConnected ? telemetry : null;
+  const blocked = (tileStreamDependencies[id] ?? []).filter((stream) => freshness[stream]?.state !== "fresh");
   const healthLabel = blocked.map((stream) => {
-    const state = accConnected ? (freshness[stream]?.state ?? "missing") : "waiting";
+    const state = freshness[stream]?.state ?? "missing";
     return `${stream.toUpperCase()} ${state.toUpperCase()}`;
   }).join(" · ");
   return <div className={blocked.length ? "tile-content-health is-stale" : "tile-content-health"}>
     {blocked.length > 0 && <div className="tile-stale-banner" role="status">
-      <strong>{accConnected ? "LAST-KNOWN VALUES · NOT LIVE" : "WAITING FOR ACC TELEMETRY"}</strong><span>{healthLabel}</span>
+      <strong>LAST-KNOWN VALUES · NOT LIVE</strong><span>{healthLabel}</span>
     </div>}
     <div className="tile-content-values">
-      <TileContentBody key={blocked.length ? "waiting" : "live"} id={id} glow={glow} telemetry={displayTelemetry} targetPressures={targetPressures} trace={displayTelemetry ? trace : []}/>
+      <TileContentBody id={id} glow={glow} telemetry={telemetry} targetPressures={targetPressures} trace={trace}/>
     </div>
   </div>;
 }
@@ -398,16 +394,6 @@ function App() {
   const previousTraceNormalizedPosition=useRef<number|null>(null);
   const previousTraceSample=useRef<string>("");
   useEffect(()=>{
-    if(!telemetry?.connected){
-      setDriverTrace(current=>current.length?[]:current);
-      traceSession.current=null;
-      lapDistanceOrigin.current=null;
-      previousTraceDistance.current=null;
-      previousTraceCompletedLaps.current=null;
-      previousTraceNormalizedPosition.current=null;
-      previousTraceSample.current="";
-      return;
-    }
     const g=telemetry?.graphics?.data, p=telemetry?.physics?.data;
     if(!g||!p||typeof g.normalized_car_position!=="number"||!Number.isFinite(g.normalized_car_position)||g.normalized_car_position<0||g.normalized_car_position>1) return;
     const sessionKey=[telemetry?.vehicle?.track??"",telemetry?.vehicle?.track_configuration??"",g.session_index??"",g.session??""].join("|");
