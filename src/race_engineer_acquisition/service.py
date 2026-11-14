@@ -18,6 +18,9 @@ class RaceEngineerService:
     def __init__(self, runtime: Any) -> None:
         self._broker = DecodedTelemetryBroker(runtime)
         self._fuel_subscription = self._broker.subscribe("fuel-engineer-observation")
+        self._fuel_lap_events = self._broker.subscribe_events(
+            "fuel-engineer-lap-events", capacity=128
+        )
 
     def start(self) -> None:
         """Start the independent decoded-data distribution worker."""
@@ -26,7 +29,16 @@ class RaceEngineerService:
     def close(self) -> bool:
         """Stop distribution cleanly during desktop shutdown."""
         self._fuel_subscription.close()
+        self._fuel_lap_events.close()
         return self._broker.close()
+
+    def read_fuel_lap_events(self, *, max_events: int | None = None):
+        """Read ordered lap events for Fuel; inspect gap flags before processing."""
+        return self._fuel_lap_events.read_batch(max_events=max_events)
+
+    def reconcile_fuel_lap_progress(self):
+        """Restore the current lap cursor after an event gap; history is not replayed."""
+        return self._broker.reconcile_lap_progress()
 
     @staticmethod
     def _fuel_radio_preview(fuel: Any) -> str:
