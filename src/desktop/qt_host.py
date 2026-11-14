@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 import time
 
 from PySide6.QtCore import QStandardPaths, QTimer, QUrl
@@ -16,6 +17,24 @@ from ..race_engineer_acquisition.service import RaceEngineerService
 from .stream_health import build_stream_freshness
 
 
+def _migrate_legacy_strategy_history(legacy_path: Path, new_path: Path) -> None:
+    """Copy the previous Qt AppLocalDataLocation database into repository data."""
+    if new_path.exists() or not legacy_path.is_file():
+        return
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    source = sqlite3.connect(str(legacy_path))
+    destination = sqlite3.connect(str(new_path))
+    try:
+        source.backup(destination)
+    except Exception:
+        destination.close()
+        new_path.unlink(missing_ok=True)
+        raise
+    finally:
+        source.close()
+    destination.close()
+
+
 class ACCDesktopWindow(QMainWindow):
     def __init__(self, *, app: QApplication, static_root: Path | None = None) -> None:
         super().__init__()
@@ -25,11 +44,29 @@ class ACCDesktopWindow(QMainWindow):
         self.setMinimumSize(1024, 680)
         self.setStyleSheet("QMainWindow { background: #0b1118; }")
 
-        app_data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
-        app_data.mkdir(parents=True, exist_ok=True)
+        # Keep runtime-owned data beside the source checkout. Resolve from this
+        # file rather than the process working directory so launch location does
+        # not change where history and the WebEngine profile are stored.
+        project_root = Path(__file__).resolve().parents[2]
+        app_data = project_root / "user_data"
+        strategy_data = app_data / "strategy"
+        strategy_data.mkdir(parents=True, exist_ok=True)
+
+        # Preserve history created by earlier builds that used Qt AppLocalDataLocation.
+        legacy_app_data = Path(
+            QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.AppLocalDataLocation
+            )
+        )
+        _migrate_legacy_strategy_history(
+            legacy_app_data / "strategy_lap_history.sqlite3",
+            strategy_data / "strategy_lap_history.sqlite3",
+        )
+
         self._runtime = create_acc_acquisition_runtime()
         self._race_engineer_service = RaceEngineerService(
-            self._runtime, history_path=app_data / "strategy_lap_history.sqlite3"
+            self._runtime,
+            history_path=strategy_data / "strategy_lap_history.sqlite3",
         )
         self._car_model: str | None = None
         self._track: str | None = None
@@ -43,8 +80,8 @@ class ACCDesktopWindow(QMainWindow):
             raise
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
 
-        # Use a named, disk-backed profile: the implicit QWebEngineView profile
-        # is not a dependable store for settings that must survive app restarts.
+        # Use a named, disk-backed profile under the source checkout so browser
+        # state and cache follow the same project-local data root.
         profile_data = app_data / "webengine"
         cache_data = app_data / "webengine-cache"
         profile_data.mkdir(parents=True, exist_ok=True)
