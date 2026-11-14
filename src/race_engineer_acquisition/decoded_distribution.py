@@ -7,7 +7,7 @@ publication happen on this broker's own worker thread.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from threading import Event, Lock, Thread
 import time
 from uuid import uuid4
@@ -348,7 +348,11 @@ class DecodedTelemetryBroker:
         envelope = self.latest
         if envelope is None:
             return None
-        return reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
+        result = reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
+        session_id = self.strategy_session_id
+        if result is not None and session_id is not None:
+            return replace(result, session_id=session_id)
+        return result
 
     @property
     def strategy_session_id(self) -> str | None:
