@@ -175,3 +175,89 @@ def test_history_uses_compact_boundary_sample_carried_by_stage2_event():
     assert record["air_temp_c"] == 22.0
     assert record["road_temp_c"] == 30.0
     history.close()
+
+
+def test_sqlite_keeps_prior_session_records_when_new_session_reuses_acc_labels(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "strategy-history.sqlite3"
+    history = StrategyLapHistory(path)
+    history.observe_live_cursor("acc-run:first:0:0", 0, track="Monza", car="car")
+    history.consume(_batch(_event(1, 1, session="acc-run:first:0:0")), _telemetry())
+    history.observe_live_cursor("acc-run:first:0:0", 1, track="Monza", car="car")
+
+    # A second ACC run can report the exact same session_index/session_type
+    # and lap number. Its unique broker identity must create a new history.
+    history.observe_live_cursor("acc-run:second:0:0", 0, track="Monza", car="car")
+    history.consume(_batch(_event(2, 1, session="acc-run:second:0:0")), _telemetry())
+    history.observe_live_cursor("acc-run:second:0:0", 1, track="Monza", car="car")
+    history.close()
+
+    db = sqlite3.connect(path)
+    sessions = db.execute(
+        "SELECT session_id FROM session_meta_v2 ORDER BY session_id"
+    ).fetchall()
+    records = db.execute(
+        "SELECT session_id, lap_number FROM lap_records ORDER BY session_id"
+    ).fetchall()
+    db.close()
+
+    assert sessions == [("acc-run:first:0:0",), ("acc-run:second:0:0",)]
+    assert records == [
+        ("acc-run:first:0:0", 1),
+        ("acc-run:second:0:0", 1),
+    ]
+
+
+def test_legacy_singleton_metadata_is_migrated_without_deleting_laps(tmp_path):
+    import json
+    import sqlite3
+
+    path = tmp_path / "legacy-history.sqlite3"
+    db = sqlite3.connect(path)
+    db.execute(
+        "CREATE TABLE session_meta (id INTEGER PRIMARY KEY CHECK(id=1), "
+        "session_id TEXT NOT NULL, track TEXT, car TEXT, baseline_lap INTEGER NOT NULL, "
+        "last_cursor INTEGER, complete INTEGER NOT NULL, gap_count INTEGER NOT NULL, "
+        "blockers TEXT NOT NULL)"
+    )
+    db.execute(
+        "CREATE TABLE lap_records (session_id TEXT NOT NULL, lap_number INTEGER NOT NULL, "
+        "payload TEXT NOT NULL, PRIMARY KEY(session_id, lap_number))"
+    )
+    db.execute(
+        "INSERT INTO session_meta VALUES(1, 'legacy-session', 'Spa', 'car', 0, 1, 1, 0, '[]')"
+    )
+    payload = {
+        "session_id": "legacy-session", "lap_number": 1, "lap_time_ms": 100001,
+        "lap_valid": True, "out_lap": False, "classification": "classified",
+        "fuel_remaining_l": None, "fuel_per_lap_l": None, "fuel_used_l": None,
+        "tyre_compound": None, "position": None, "gap_ahead_ms": None,
+        "gap_behind_ms": None, "penalty_time_s": None, "mandatory_pit_done": None,
+        "driver_stint_left_ms": None, "rain_intensity": None, "track_grip_status": None,
+        "tyre_pressure_psi": [], "tyre_core_temp_c": [], "brake_temp_c": [],
+        "car_damage": [], "air_temp_c": None, "road_temp_c": None,
+        "graphics_capture_sequence": None, "graphics_capture_timestamp_ns": None,
+        "physics_capture_sequence": None, "physics_capture_timestamp_ns": None,
+        "event_sequence": 1,
+    }
+    db.execute(
+        "INSERT INTO lap_records VALUES('legacy-session', 1, ?)",
+        (json.dumps(payload),),
+    )
+    db.commit()
+    db.close()
+
+    history = StrategyLapHistory(path)
+    assert history.recovery_pending is True
+    assert history.read_records()[0].session_id == "legacy-session"
+    history.close()
+
+    db = sqlite3.connect(path)
+    assert db.execute(
+        "SELECT COUNT(*) FROM lap_records WHERE session_id='legacy-session'"
+    ).fetchone()[0] == 1
+    assert db.execute(
+        "SELECT COUNT(*) FROM session_meta_v2 WHERE session_id='legacy-session'"
+    ).fetchone()[0] == 1
+    db.close()
