@@ -55,10 +55,9 @@ class RaceEngineerService:
             and not isinstance(getattr(graphics, "completed_laps", None), bool)
         ):
             cursor = graphics.completed_laps
-            session_id = (
-                f"acc-session:{getattr(graphics, 'session_index', None)}:"
-                f"{getattr(graphics, 'session', None)}"
-            )
+            # Use the broker's run-scoped identity. ACC session_index and
+            # session type are reusable labels, not unique session IDs.
+            session_id = self._broker.strategy_session_id
 
         # Verify a persisted session against its first fresh ACC cursor before
         # appending new events. If the cursor moved while the app was closed,
