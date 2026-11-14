@@ -9,6 +9,12 @@ from .health import AcquisitionHealth, AcquisitionHealthSnapshot
 from .fuel_engineer import FuelEngineerSnapshot, build_fuel_engineer_snapshot
 from .fuel_strategy import FuelStrategyAssessment, assess_fuel_strategy
 from .service import RaceEngineerService
+from .decoded_events import (
+    DecodedDomainEvent,
+    EventDeliveryBatch,
+    DecodedEventSubscription,
+    DecodedEventPublisher,
+)
 from .decoded_distribution import (
     DecodedTelemetryBroker,
     DecodedSnapshotEnvelope,
@@ -38,6 +44,10 @@ __all__ = [
     "FuelStrategyAssessment",
     "assess_fuel_strategy",
     "RaceEngineerService",
+    "DecodedDomainEvent",
+    "EventDeliveryBatch",
+    "DecodedEventSubscription",
+    "DecodedEventPublisher",
     "DecodedTelemetryBroker",
     "DecodedSnapshotEnvelope",
     "LatestSnapshotSubscription",
