@@ -220,10 +220,18 @@ class DecodedTelemetryBroker:
         completed_lap_out_lap = None
         out_lap_fresh = graphics_view.is_fresh and physics_view.is_fresh
         graphics_data = graphics_view.data if graphics_view.is_fresh else None
-        if graphics_data is not None and getattr(graphics_data, "status", None) != CompletedLapEventObserver.LIVE_STATUS:
-            # A fresh non-LIVE state is the session boundary. Re-seed both
-            # observers on the next LIVE state; never infer a session change
-            # from the reusable ACC session_index/session_type pair alone.
+        graphics_status = (
+            getattr(graphics_data, "status", None)
+            if graphics_data is not None else None
+        )
+        if (
+            graphics_data is not None
+            and graphics_status != CompletedLapEventObserver.LIVE_STATUS
+            and graphics_status != CompletedLapEventObserver.PAUSE_STATUS
+        ):
+            # OFF/REPLAY are treated as session boundaries. PAUSE is a
+            # transient state inside the same ACC session: retain the run ID
+            # and lap cursor so the next LIVE sample continues the same history.
             self._session_generation = None
             self._strategy_session_id = None
             self._lap_event_observer.reset()
@@ -232,7 +240,10 @@ class DecodedTelemetryBroker:
                 getattr(graphics_data, "session", None),
             )
             self._out_lap_observer.reset(session_key)
-        elif graphics_data is not None and getattr(graphics_data, "status", None) == CompletedLapEventObserver.LIVE_STATUS:
+        elif (
+            graphics_data is not None
+            and graphics_status == CompletedLapEventObserver.LIVE_STATUS
+        ):
             if self._session_generation is None:
                 self._session_generation = uuid4().hex
             self._strategy_session_id = (
