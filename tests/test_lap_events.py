@@ -87,7 +87,7 @@ def test_reconciliation_resyncs_latest_cursor_without_claiming_history_replay():
 
     result = reconcile_lap_progress(_telemetry(
         laps=7, last_time_ms=99876, valid=False, sequence=44, timestamp=9000
-    ))
+    ), now_ns=9001)
     assert result is not None
     assert result.session_id == "acc-session:1:2"
     assert result.completed_laps == 7
