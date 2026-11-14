@@ -139,3 +139,29 @@ def test_closed_subscriber_does_not_affect_other_subscribers():
         assert second.latest.telemetry.graphics.capture_sequence == 2
     finally:
         assert broker.close()
+
+
+def test_broker_exposes_separate_ordered_event_subscription():
+    runtime = _Runtime()
+    broker = DecodedTelemetryBroker(runtime)
+    snapshots = broker.subscribe("snapshot-consumer")
+    events = broker.subscribe_events("event-consumer", capacity=2)
+    broker.start()
+    try:
+        broker.publish_event(
+            "lap.completed",
+            session_id="session-1",
+            source_stream="graphics",
+            source_capture_sequence=12,
+            source_timestamp_ns=1200,
+            payload={"completed_laps": 12, "valid": True},
+        )
+        batch = events.read_batch()
+        assert len(batch.events) == 1
+        assert batch.events[0].event_type == "lap.completed"
+        assert batch.events[0].source_capture_sequence == 12
+        assert snapshots.latest is not None
+        assert broker.metrics["event_delivery"]["published_count"] == 1
+    finally:
+        assert broker.close()
+        assert events.closed
