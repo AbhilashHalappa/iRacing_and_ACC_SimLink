@@ -236,6 +236,73 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
         broker.close()
 
 
+
+def test_acc_pause_and_resume_preserves_strategy_session_identity_and_lap_cursor():
+    runtime = _Runtime()
+    broker = DecodedTelemetryBroker(runtime)
+    events = broker.subscribe_events("pause-resume-events", capacity=8)
+    broker.start()
+    try:
+        def publish_graphics(status: int, completed_laps: int, sequence: int):
+            now = time.perf_counter_ns()
+            runtime.graphics_consumer._snapshot = SimpleNamespace(
+                lifecycle_state="running",
+                processed_count=sequence,
+                decode_error_count=0,
+                last_capture_sequence=sequence,
+                last_error=None,
+                latest=SimpleNamespace(
+                    packet_id=sequence,
+                    status=status,
+                    completed_laps=completed_laps,
+                    session_index=0,
+                    session=0,
+                    last_time_ms=100000,
+                    last_time_str="1:40.000",
+                    is_valid_lap=True,
+                ),
+                latest_capture_timestamp_ns=now,
+            )
+            runtime.graphics_consumer._notifier()
+
+        publish_graphics(2, 0, 1)
+        assert _wait_for(lambda: broker.strategy_session_id is not None)
+        original_session_id = broker.strategy_session_id
+
+        publish_graphics(2, 1, 2)
+        assert _wait_for(lambda: broker.metrics["event_delivery"]["published_count"] == 1)
+        first_batch = events.read_batch()
+        assert len(first_batch.events) == 1
+        assert first_batch.events[0].session_id == original_session_id
+        assert first_batch.events[0].payload["lap_number"] == 1
+
+        # ACC_STATUS.AC_PAUSE == 3. The session identity and lap observer
+        # must survive this temporary state.
+        publish_graphics(3, 1, 3)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.data is not None
+            and broker.latest.telemetry.graphics.data.status == 3
+        )
+        assert broker.strategy_session_id == original_session_id
+
+        publish_graphics(2, 1, 4)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.data is not None
+            and broker.latest.telemetry.graphics.data.status == 2
+        )
+        assert broker.strategy_session_id == original_session_id
+
+        publish_graphics(2, 2, 5)
+        assert _wait_for(lambda: broker.metrics["event_delivery"]["published_count"] == 2)
+        second_batch = events.read_batch()
+        assert len(second_batch.events) == 1
+        assert second_batch.events[0].session_id == original_session_id
+        assert second_batch.events[0].payload["lap_number"] == 2
+    finally:
+        broker.close()
+
 def test_same_acc_session_labels_get_distinct_ids_after_non_live_boundary():
     runtime = _Runtime()
     broker = DecodedTelemetryBroker(runtime)
