@@ -759,7 +759,7 @@ The Stage 2 broker now derives completed-lap events from the existing freshness-
 - ACC validity is preserved as observed; an ACC-invalid lap remains invalid. Timing availability and validity are separate fields.
 - Session-index/session-type changes and decreasing counters re-seed the observer without emitting a false lap.
 - A counter jump greater than one emits `lap.completion_gap` with the missing count and an explicit reconciliation requirement. It does not invent the missing lap times or validity.
-- The producer treats the ACC completed-lap counter as the timed-lap boundary. It does not create an event for an out-lap merely because the car crosses start/finish.
+- The producer treats an increment of ACC's completed-lap counter as a lap-boundary event. It does **not** yet classify pit-out laps: `out_lap` is explicitly unknown and `lap_classification` remains pending. Consumers must not include such events in rolling valid-lap history until the shared lap classifier supplies a confirmed classification.
 
 ### Reconciliation contract
 
