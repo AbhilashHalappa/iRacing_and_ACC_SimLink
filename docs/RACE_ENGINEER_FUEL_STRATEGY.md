@@ -2,7 +2,7 @@
 
 **Repository:** AbhilashHalappa/Race-Engineer-ACC-New  
 **Target branch:** feature/race-engineer-page  
-**Status:** Approved strategy requirements; implementation and live-race validation pending  
+**Status:** Approved requirements; initial feasibility engine implemented; runtime integration and live-race validation pending  
 **Last updated:** 2026-11-13
 
 ## 1. Purpose
@@ -225,3 +225,38 @@ Do not speak routine no-stop confirmations or repeat an unchanged recommendation
 ## 13. Relationship to other Race Engineer documents
 
 This is the dedicated Fuel Strategy specification. The telemetry audit/roadmap remains the cross-strategy implementation and validation tracker. Each additional strategy (for example tyre, brake, race/pit, vehicle condition or setup) should receive its own focused specification document, with shared telemetry facts referenced rather than duplicated.
+
+## 14. Initial implementation slice (2026-11-14)
+
+The first pure Fuel Strategy calculation module is implemented in
+`src/race_engineer_acquisition/fuel_strategy.py`.
+
+### Implemented
+
+- Applies the approved initial three-lap reserve.
+- Calculates reserve fuel in litres from fresh, positive Graphics fuel-per-lap data.
+- Exposes ACC estimated laps available and the number of laps remaining after the reserve.
+- Calculates target fuel and projected finish margin only when fresh current fuel,
+  fresh fuel-per-lap data, and an explicitly validated number of laps to the
+  actual race finish are supplied.
+- Fails closed when any required input is stale, invalid, or unvalidated.
+- Reports a fuel shortfall as an assessment only. It does not independently
+  issue a pit recommendation or fuel-to-add amount.
+- Has no ACC write/control path and does not call TTS.
+
+### Still pending
+
+- A reliable, identified and gap-detectable completed-lap event channel and
+  reconciliation behaviour.
+- A validated race-progress provider for actual remaining laps, including
+  timed-race finish-line behaviour.
+- Rolling five-valid-lap history and consumption cross-checks.
+- Fuel-saving feasibility, pit-arrival projection, tank-capacity and refuelling
+  constraint handling.
+- Strategy output lifecycle, actionable-change deduplication and central
+  Pit-Stop decision integration.
+- Background runtime scheduling, UI presentation, radio integration,
+  automated test execution and live ACC validation.
+
+This is a calculation foundation, not a release-ready Fuel Strategy. Do not
+enable pit or radio recommendations from this slice alone.
