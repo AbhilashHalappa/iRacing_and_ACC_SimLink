@@ -175,11 +175,12 @@ class DecodedEventPublisher:
                 schema_version=schema_version,
                 payload=_freeze(payload),
             )
-            subscribers = tuple(self._subscribers.values())
             self._published_count += 1
-        for subscriber in subscribers:
-            subscriber._offer(event)
-        return event
+            # Fan-out remains inside the publisher lock so concurrent producers
+            # cannot deliver sequence N+1 before sequence N to any subscriber.
+            for subscriber in self._subscribers.values():
+                subscriber._offer(event)
+            return event
 
     @property
     def metrics(self) -> dict[str, int | bool]:
