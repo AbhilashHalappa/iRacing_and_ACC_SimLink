@@ -143,7 +143,9 @@ class CompletedLapEventObserver:
 
 
 
-def reconcile_lap_progress(telemetry: Any) -> LapProgressReconciliation | None:
+def reconcile_lap_progress(
+    telemetry: Any, *, now_ns: int | None = None
+) -> LapProgressReconciliation | None:
     """Return the latest fresh ACC lap cursor after a consumer detects a gap.
 
     This repairs the consumer's current progress cursor, not missing historical
@@ -151,7 +153,19 @@ def reconcile_lap_progress(telemetry: Any) -> LapProgressReconciliation | None:
     source is connected; callers must not fill the gap with fabricated laps.
     """
     view = telemetry.graphics
-    if not view.is_fresh or view.data is None:
+    if view.data is None or view.capture_timestamp_ns is None:
+        return None
+    if now_ns is None:
+        import time
+        now_ns = time.perf_counter_ns()
+    age_ns = now_ns - view.capture_timestamp_ns
+    if (
+        not view.is_fresh
+        or age_ns < 0
+        or age_ns > view.max_age_ns
+        or view.consumer_lifecycle != "running"
+        or view.acquisition_lifecycle != "running"
+    ):
         return None
     graphics = view.data
     if getattr(graphics, "status", None) != CompletedLapEventObserver.LIVE_STATUS:
