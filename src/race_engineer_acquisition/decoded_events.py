@@ -16,14 +16,16 @@ from typing import Any, Mapping
 
 
 def _freeze(value: Any) -> Any:
-    """Detach common payload containers so published events cannot be mutated."""
+    """Detach JSON-like payload values and reject mutable opaque objects."""
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
     if isinstance(value, Mapping):
-        return MappingProxyType({str(key): _freeze(item) for key, item in value.items()})
+        if any(not isinstance(key, str) for key in value):
+            raise TypeError("event payload mapping keys must be strings")
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(item) for item in value)
-    if isinstance(value, set):
-        return frozenset(_freeze(item) for item in value)
-    return value
+    raise TypeError(f"unsupported mutable event payload value: {type(value).__name__}")
 
 
 @dataclass(frozen=True, slots=True)
