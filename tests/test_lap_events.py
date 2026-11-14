@@ -46,7 +46,8 @@ def test_single_completed_lap_transition_emits_identified_candidate():
     assert event.payload["lap_number"] == 5
     assert event.payload["lap_time_ms"] == 101234
     assert event.payload["lap_valid"] is True
-    assert event.payload["out_lap"] is False
+    assert event.payload["out_lap"] is None
+    assert event.payload["lap_classification"] == "pending_out_lap_classification"
 
 
 def test_acc_invalid_lap_is_preserved_as_invalid():
