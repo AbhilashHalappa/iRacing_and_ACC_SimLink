@@ -46,17 +46,6 @@ class LatestSnapshotSubscription:
         self._coalesced_updates = 0
         self._closed = False
 
-    def reconcile_lap_progress(self) -> LapProgressReconciliation | None:
-        """Resync a consumer's lap cursor from the latest fresh ACC state.
-
-        This does not replay or reconstruct missing historical lap records.
-        A caller must retain that distinction after an event sequence gap.
-        """
-        envelope = self.latest
-        if envelope is None:
-            return None
-        return reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
-
     @property
     def latest(self) -> DecodedSnapshotEnvelope | None:
         with self._lock:
@@ -259,6 +248,17 @@ class DecodedTelemetryBroker:
                 with self._lock:
                     self._error_count += 1
                     self._last_error = f"{type(exc).__name__}: {exc}"
+
+    def reconcile_lap_progress(self) -> LapProgressReconciliation | None:
+        """Resync a consumer's lap cursor from the latest fresh ACC state.
+
+        This does not replay or reconstruct missing historical lap records.
+        A caller must retain that distinction after an event sequence gap.
+        """
+        envelope = self.latest
+        if envelope is None:
+            return None
+        return reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
 
     @property
     def latest(self) -> DecodedSnapshotEnvelope | None:
