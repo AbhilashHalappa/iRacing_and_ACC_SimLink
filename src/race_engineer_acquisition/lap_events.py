@@ -43,6 +43,7 @@ class CompletedLapEventObserver:
     """
 
     LIVE_STATUS = 2
+    PAUSE_STATUS = 3
 
     def __init__(self) -> None:
         self._session_key: tuple[int | None, int | None] | None = None
