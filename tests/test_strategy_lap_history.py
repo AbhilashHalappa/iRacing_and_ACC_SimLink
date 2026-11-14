@@ -261,3 +261,36 @@ def test_legacy_singleton_metadata_is_migrated_without_deleting_laps(tmp_path):
         "SELECT COUNT(*) FROM session_meta_v2 WHERE session_id='legacy-session'"
     ).fetchone()[0] == 1
     db.close()
+
+
+def test_restart_does_not_attach_previous_run_history_to_reused_acc_labels(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "strategy-history.sqlite3"
+    first = StrategyLapHistory(path)
+    first.observe_live_cursor("acc-run:before-restart:0:0", 0)
+    first.consume(
+        _batch(_event(1, 1, session="acc-run:before-restart:0:0")),
+        _telemetry(),
+    )
+    first.observe_live_cursor("acc-run:before-restart:0:0", 1)
+    first.close()
+
+    restarted = StrategyLapHistory(path)
+    assert restarted.recovery_pending is True
+    # The broker deliberately creates a new identity after process restart.
+    # Even with the same ACC session labels and cursor, old laps are not
+    # silently treated as belonging to this new observation window.
+    restarted.observe_live_cursor("acc-run:after-restart:0:0", 1)
+    current = restarted.snapshot()
+    assert current["observed_lap_count"] == 0
+    assert current["history_complete"] is False
+    assert any("attached after the session" in item for item in current["blockers"])
+    restarted.close()
+
+    db = sqlite3.connect(path)
+    old_laps = db.execute(
+        "SELECT lap_number FROM lap_records WHERE session_id='acc-run:before-restart:0:0'"
+    ).fetchall()
+    db.close()
+    assert old_laps == [(1,)]
