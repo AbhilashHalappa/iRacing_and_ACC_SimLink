@@ -110,6 +110,8 @@ History completeness and per-strategy eligibility are separate. A known invalid 
 - Bounded in-memory history and bounded persistent session history (SQLite, one current session, up to 256 recent lap records).
 - Persistence is performed only at session/lap-history changes, never at the Physics/Graphics sample rate. A dedicated bounded background writer handles SQLite I/O away from Overview publication, acquisition and decoder threads.
 - On recovery, verify session identity and lap continuity. If identity or continuity cannot be established, retain diagnostic records if useful but mark the history incomplete and disable calculations that depend on completeness.
+- Runtime-owned writable data is rooted at the repository directory containing `src`, resolved from the desktop source file (not the process working directory or Qt AppData). The strategy database is `user_data/strategy/strategy_lap_history.sqlite3`; the persistent WebEngine profile and cache are `user_data/webengine/` and `user_data/webengine-cache/`.
+- The first startup after this storage change copies an existing database from the previous Qt `AppLocalDataLocation` into the repository-local strategy folder if the new database does not already exist. The original database is left untouched.
 
 ## 8. Non-goals and preservation constraints
 
