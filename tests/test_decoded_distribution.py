@@ -202,17 +202,24 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
         )
         publish_graphics(1, 2, valid=False)
         assert _wait_for(
-            lambda: events.read_batch().events != ()
+            lambda: broker.metrics["event_delivery"]["published_count"] >= 1
         )
-        # The batch above is consumed by the predicate; publish another
-        # transition to verify the event payload and provenance end-to-end.
+        first_batch = events.read_batch()
+        assert len(first_batch.events) == 1
+        first_event = first_batch.events[0]
+        assert first_event.event_type == "lap.completed"
+        assert first_event.payload["lap_number"] == 1
+        assert first_event.payload["lap_valid"] is False
+        assert first_event.source_stream == "graphics"
+        assert first_event.source_capture_sequence == 2
+
         publish_graphics(2, 3, valid=True)
         assert _wait_for(
             lambda: broker.metrics["event_delivery"]["published_count"] >= 2
         )
-        batch = events.read_batch()
-        assert len(batch.events) == 1
-        event = batch.events[0]
+        second_batch = events.read_batch()
+        assert len(second_batch.events) == 1
+        event = second_batch.events[0]
         assert event.event_type == "lap.completed"
         assert event.payload["lap_number"] == 2
         assert event.payload["lap_valid"] is True
