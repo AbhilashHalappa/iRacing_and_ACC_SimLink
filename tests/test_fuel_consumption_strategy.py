@@ -57,15 +57,19 @@ def test_rejects_lap_gaps_and_refuelling_increases():
         current_fuel_fresh=True,
         lap_records=[
             _lap(1, 60.0),
-            _lap(2, 57.0),
-            _lap(3, 60.0),  # refuel or reset
-            _lap(5, 54.0),  # missing lap 4
-            _lap(6, 51.0),
+            _lap(2, 57.0),  # valid interval before refuelling
+            _lap(3, 60.0),  # refuel or reset; 2 -> 3 is rejected
+            _lap(5, 54.0),  # missing lap 4; 3 -> 5 is rejected
+            _lap(6, 51.0),  # valid interval after the gap
         ],
+        min_samples=3,
     )
 
+    # The two independent valid intervals remain measurable, but do not meet
+    # the deliberately higher three-sample readiness threshold.
     assert result.status == "insufficient_data"
-    assert result.consumption_sample_count == 1
+    assert result.consumption_sample_count == 2
+    assert result.measured_fuel_per_lap_l == pytest.approx(3.0)
     assert result.estimated_laps_available is None
 
 
