@@ -16,13 +16,13 @@ def _telemetry(laps: int, *, valid: bool = True):
     ))
 
 
-def test_completed_lap_event_uses_existing_out_lap_classification_independently_of_acc_validity():
+def test_first_completed_timed_lap_is_not_mislabeled_as_out_lap():
     observer = CompletedLapEventObserver()
     observer.observe(_telemetry(0))
     event = observer.observe(
         _telemetry(1, valid=False), completed_lap_out_lap=True
     )[0]
     assert event.payload["lap_valid"] is False
-    assert event.payload["out_lap"] is True
+    assert event.payload["out_lap"] is False
     assert event.payload["lap_classification"] == "classified"
-    assert event.payload["out_lap_source"] == "ACCOutLapObserver"
+    assert event.payload["out_lap_source"] == "ACC_completed_lap_boundary"
