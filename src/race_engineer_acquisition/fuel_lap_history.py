@@ -1,4 +1,8 @@
-"""Conservative in-memory Fuel lap-history consumer for Stage 2 events.
+"""Legacy Fuel-only lap-history implementation retained for compatibility tests.
+
+The desktop runtime now uses shared StrategyLapHistory for all strategy consumers.
+
+
 
 This consumer never reconstructs missing laps. Until out-lap classification and
 historical recovery are authoritative, its history is explicitly incomplete

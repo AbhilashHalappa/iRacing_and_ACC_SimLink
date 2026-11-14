@@ -7,7 +7,7 @@ from typing import Any
 
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
-from .strategy_lap_history import StrategyLapHistory
+from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 
 
 class RaceEngineerService:
@@ -31,7 +31,9 @@ class RaceEngineerService:
         self._lap_history.close()
         return stopped
 
-    def read_strategy_laps(self, *, limit: int | None = None):
+    def read_strategy_laps(
+        self, *, limit: int | None = None
+    ) -> tuple[StrategyLapRecord, ...]:
         """Read compact shared lap records for internal strategy calculations."""
         return self._lap_history.read_records(limit=limit)
 
