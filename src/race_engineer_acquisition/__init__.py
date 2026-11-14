@@ -7,6 +7,7 @@ from .graphics_decoder import DecodedGraphics, decode_graphics
 from .graphics_consumer import GraphicsDecodeConsumer, GraphicsConsumerSnapshot
 from .health import AcquisitionHealth, AcquisitionHealthSnapshot
 from .fuel_engineer import FuelEngineerSnapshot, build_fuel_engineer_snapshot
+from .fuel_strategy import FuelStrategyAssessment, assess_fuel_strategy
 from .service import RaceEngineerService
 from .decoded_distribution import (
     DecodedTelemetryBroker,
@@ -34,6 +35,8 @@ __all__ = [
     "AcquisitionHealthSnapshot",
     "FuelEngineerSnapshot",
     "build_fuel_engineer_snapshot",
+    "FuelStrategyAssessment",
+    "assess_fuel_strategy",
     "RaceEngineerService",
     "DecodedTelemetryBroker",
     "DecodedSnapshotEnvelope",
