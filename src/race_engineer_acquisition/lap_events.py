@@ -58,7 +58,9 @@ class CompletedLapEventObserver:
             return None
         return value
 
-    def observe(self, telemetry: Any) -> tuple[LapEventCandidate, ...]:
+    def observe(
+        self, telemetry: Any, *, completed_lap_out_lap: bool | None = None
+    ) -> tuple[LapEventCandidate, ...]:
         graphics_view = telemetry.graphics
         if not graphics_view.is_fresh or graphics_view.data is None:
             return ()
@@ -134,10 +136,16 @@ class CompletedLapEventObserver:
                     "validity_source": "ACC_Graphics.is_valid_lap" if validity_known else None,
                     "timing_source": "ACC_Graphics.last_time_ms",
                     "timing_available": bool(lap_time_ms and lap_time_ms > 0),
-                    # The completed-lap counter identifies a lap boundary,
-                    # but this event producer does not yet classify pit-out laps.
-                    "out_lap": None,
-                    "lap_classification": "pending_out_lap_classification",
+                    # Reuse the existing Overview ACCOutLapObserver result.
+                    # Unknown stays unknown; validity is never used as a proxy.
+                    "out_lap": completed_lap_out_lap,
+                    "lap_classification": (
+                        "classified" if isinstance(completed_lap_out_lap, bool)
+                        else "pending_out_lap_classification"
+                    ),
+                    "out_lap_source": (
+                        "ACCOutLapObserver" if isinstance(completed_lap_out_lap, bool) else None
+                    ),
                     "session_index": session_index,
                     "session_type": session_type,
                 },

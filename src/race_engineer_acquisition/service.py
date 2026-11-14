@@ -1,55 +1,61 @@
-"""Small Race Engineer service boundary for fresh ACC observations.
-
-This service reuses the existing acquisition consumers through the snapshot
-aggregator. It never reads shared memory, writes to ACC, or controls the MFD.
-"""
+"""Read-only Race Engineer service over Stage 2 decoded data."""
 from __future__ import annotations
 
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
-from .fuel_lap_history import FuelLapHistory
+from .strategy_lap_history import StrategyLapHistory
 
 
 class RaceEngineerService:
-    """Build detached, freshness-gated observations for the desktop bridge."""
+    """Expose fresh live state and shared compact lap history to consumers."""
 
-    def __init__(self, runtime: Any) -> None:
+    def __init__(self, runtime: Any, *, history_path: str | Path | None = None) -> None:
         self._broker = DecodedTelemetryBroker(runtime)
-        self._fuel_subscription = self._broker.subscribe("fuel-engineer-observation")
-        self._fuel_lap_events = self._broker.subscribe_events(
-            "fuel-engineer-lap-events", capacity=128
+        self._live_subscription = self._broker.subscribe("race-engineer-live-state")
+        self._lap_events = self._broker.subscribe_events(
+            "strategy-lap-history-events", capacity=256
         )
-        self._fuel_lap_history = FuelLapHistory()
+        self._lap_history = StrategyLapHistory(history_path)
 
     def start(self) -> None:
-        """Start the independent decoded-data distribution worker."""
         self._broker.start()
 
     def close(self) -> bool:
-        """Stop distribution cleanly during desktop shutdown."""
-        self._fuel_subscription.close()
-        self._fuel_lap_events.close()
-        return self._broker.close()
+        self._live_subscription.close()
+        self._lap_events.close()
+        stopped = self._broker.close()
+        self._lap_history.close()
+        return stopped
 
-    def read_fuel_lap_events(self, *, max_events: int | None = None):
-        """Read ordered lap events for Fuel; inspect gap flags before processing."""
-        return self._fuel_lap_events.read_batch(max_events=max_events)
+    def out_lap_status(self) -> dict[str, Any]:
+        """Expose the same ACCOutLapObserver state used by lap classification."""
+        return self._broker.out_lap_status
 
-    def reconcile_fuel_lap_progress(self):
-        """Restore the current lap cursor after a gap; history is not replayed."""
-        return self._broker.reconcile_lap_progress()
-
-    def _update_fuel_lap_history(self) -> dict[str, Any]:
-        batch = self.read_fuel_lap_events()
-        self._fuel_lap_history.consume(batch)
-        if batch.gap_detected:
-            self._fuel_lap_history.reconcile_cursor(
-                self.reconcile_fuel_lap_progress()
+    def _update_lap_history(
+        self, telemetry: Any, *, track: str | None, car: str | None
+    ) -> dict[str, Any]:
+        batch = self._lap_events.read_batch()
+        self._lap_history.consume(batch, telemetry)
+        graphics_view = telemetry.graphics
+        graphics = graphics_view.data if graphics_view.is_fresh else None
+        if (
+            graphics is not None
+            and getattr(graphics, "status", None) == 2
+            and isinstance(getattr(graphics, "completed_laps", None), int)
+            and not isinstance(getattr(graphics, "completed_laps", None), bool)
+        ):
+            session_id = (
+                f"acc-session:{getattr(graphics, 'session_index', None)}:"
+                f"{getattr(graphics, 'session', None)}"
             )
-        return self._fuel_lap_history.snapshot()
+            self._lap_history.observe_live_cursor(
+                session_id, graphics.completed_laps, track=track, car=car
+            )
+        return self._lap_history.snapshot()
 
     @staticmethod
     def _fuel_radio_preview(fuel: Any) -> str:
@@ -66,15 +72,21 @@ class RaceEngineerService:
             parts.append(f"MFD fuel-to-add {fuel.mfd_fuel_to_add_l:.1f} litres")
         return "Fuel status: " + "; ".join(parts) + "."
 
-    def snapshot(self) -> dict[str, Any]:
-        envelope = self._fuel_subscription.read_latest()
+    def snapshot(
+        self, *, track: str | None = None, car: str | None = None
+    ) -> dict[str, Any]:
+        envelope = self._live_subscription.read_latest()
         if envelope is None:
             raise RuntimeError("decoded telemetry broker has not published its initial snapshot")
         telemetry = envelope.telemetry
         fuel = build_fuel_engineer_snapshot(telemetry)
+        history = self._update_lap_history(telemetry, track=track, car=car)
         return {
             "fuel_engineer": asdict(fuel),
-            "fuel_lap_history": self._update_fuel_lap_history(),
+            "strategy_lap_history": history,
+            # Compatibility alias for clients that already read the Fuel slice.
+            "fuel_lap_history": history,
+            "out_lap_status": self._broker.out_lap_status,
             "fuel_radio_preview": {
                 "text": self._fuel_radio_preview(fuel),
                 "kind": "observation_only",

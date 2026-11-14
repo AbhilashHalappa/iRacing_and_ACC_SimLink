@@ -19,6 +19,7 @@ from .decoded_events import (
 )
 
 from .engineering_snapshot import RaceEngineerSnapshotAggregator, RaceEngineerTelemetrySnapshot
+from .out_lap import ACCOutLapObserver
 from .lap_events import (
     CompletedLapEventObserver,
     LapProgressReconciliation,
@@ -45,6 +46,16 @@ class LatestSnapshotSubscription:
         self._last_read_revision = 0
         self._coalesced_updates = 0
         self._closed = False
+
+    @property
+    def out_lap_status(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "active": self._out_lap_active if self._out_lap_fresh else False,
+                "fresh": self._out_lap_fresh,
+                "last_completed_lap_out_lap": self._last_completed_lap_out_lap,
+                "source": "ACCOutLapObserver",
+            }
 
     @property
     def latest(self) -> DecodedSnapshotEnvelope | None:
@@ -102,6 +113,10 @@ class DecodedTelemetryBroker:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime, clock_ns=clock_ns)
         self._events = DecodedEventPublisher(clock_ns=clock_ns)
         self._lap_event_observer = CompletedLapEventObserver()
+        self._out_lap_observer = ACCOutLapObserver()
+        self._out_lap_active = False
+        self._out_lap_fresh = False
+        self._last_completed_lap_out_lap: bool | None = None
         self._clock_ns = clock_ns
         self._dirty = Event()
         self._stop = Event()
@@ -205,7 +220,30 @@ class DecodedTelemetryBroker:
 
     def _publish_once(self) -> None:
         telemetry = self._aggregator.snapshot()
-        lap_events = self._lap_event_observer.observe(telemetry)
+        graphics_view = telemetry.graphics
+        physics_view = telemetry.physics
+        completed_lap_out_lap = None
+        out_lap_fresh = graphics_view.is_fresh and physics_view.is_fresh
+        if out_lap_fresh and graphics_view.data is not None and physics_view.data is not None:
+            graphics_data = graphics_view.data
+            session_key = (
+                getattr(graphics_data, "session_index", None),
+                getattr(graphics_data, "session", None),
+            )
+            active = self._out_lap_observer.observe(
+                graphics_data, getattr(physics_view.data, "speed_kph", None), session_key
+            )
+            completed_lap_out_lap = self._out_lap_observer.last_completed_lap_out_lap
+        else:
+            active = False
+        with self._lock:
+            self._out_lap_active = bool(active)
+            self._out_lap_fresh = out_lap_fresh
+            if completed_lap_out_lap is not None:
+                self._last_completed_lap_out_lap = completed_lap_out_lap
+        lap_events = self._lap_event_observer.observe(
+            telemetry, completed_lap_out_lap=completed_lap_out_lap
+        )
         with self._lock:
             self._revision += 1
             envelope = DecodedSnapshotEnvelope(

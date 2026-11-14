@@ -11,7 +11,6 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
-from ..race_engineer_acquisition.out_lap import ACCOutLapObserver
 from ..race_engineer_acquisition.static_decoder import decode_static_candidate_b
 from ..race_engineer_acquisition.service import RaceEngineerService
 from .stream_health import build_stream_freshness
@@ -26,12 +25,15 @@ class ACCDesktopWindow(QMainWindow):
         self.setMinimumSize(1024, 680)
         self.setStyleSheet("QMainWindow { background: #0b1118; }")
 
+        app_data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
+        app_data.mkdir(parents=True, exist_ok=True)
         self._runtime = create_acc_acquisition_runtime()
-        self._race_engineer_service = RaceEngineerService(self._runtime)
+        self._race_engineer_service = RaceEngineerService(
+            self._runtime, history_path=app_data / "strategy_lap_history.sqlite3"
+        )
         self._car_model: str | None = None
         self._track: str | None = None
         self._track_configuration: str | None = None
-        self._out_lap_observer = ACCOutLapObserver()
         try:
             self._runtime.supervisor.start()
             self._race_engineer_service.start()
@@ -43,7 +45,6 @@ class ACCDesktopWindow(QMainWindow):
 
         # Use a named, disk-backed profile: the implicit QWebEngineView profile
         # is not a dependable store for settings that must survive app restarts.
-        app_data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
         profile_data = app_data / "webengine"
         cache_data = app_data / "webengine-cache"
         profile_data.mkdir(parents=True, exist_ok=True)
@@ -95,22 +96,12 @@ class ACCDesktopWindow(QMainWindow):
         graphics_consumer = self._runtime.graphics_consumer.snapshot
         physics = consumer.to_payload()
         graphics = graphics_consumer.to_payload()
-        graphics_latest = graphics_consumer.latest
-        physics_latest = consumer.latest
-        if graphics_latest is not None and physics_latest is not None:
-            session_key = (
-                graphics_latest.session_index,
-                graphics_latest.session,
-            )
-            graphics["lap_status"] = (
-                "out"
-                if self._out_lap_observer.observe(
-                    graphics_latest, physics_latest.speed_kph, session_key
-                )
-                else None
-            )
-        else:
-            graphics["lap_status"] = None
+        out_lap_status = self._race_engineer_service.out_lap_status()
+        graphics["lap_status"] = (
+            "out"
+            if out_lap_status["fresh"] and out_lap_status["active"]
+            else None
+        )
         acquisition = self._runtime.supervisor.status
         static_health = self._runtime.acquirers["static"].health.snapshot
         now_ns = time.perf_counter_ns()
@@ -139,7 +130,7 @@ class ACCDesktopWindow(QMainWindow):
                 "track_configuration": self._track_configuration,
             },
             "acquisition": acquisition,
-            **self._race_engineer_service.snapshot(),
+            **self._race_engineer_service.snapshot(track=self._track, car=self._car_model),
         }
         self._bridge.publish(snapshot)
         if connected:
