@@ -7,9 +7,10 @@ publication happen on this broker's own worker thread.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from threading import Event, Lock, Thread
 import time
+from uuid import uuid4
 from typing import Any, Mapping
 
 from .decoded_events import (
@@ -103,6 +104,10 @@ class DecodedTelemetryBroker:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime, clock_ns=clock_ns)
         self._events = DecodedEventPublisher(clock_ns=clock_ns)
         self._lap_event_observer = CompletedLapEventObserver()
+        # A run-scoped identity prevents ACC's reusable session_index/session
+        # pair from merging separate sessions or app launches in lap history.
+        self._session_generation: str | None = None
+        self._strategy_session_id: str | None = None
         self._out_lap_observer = ACCOutLapObserver()
         self._out_lap_active = False
         self._out_lap_fresh = False
@@ -214,8 +219,23 @@ class DecodedTelemetryBroker:
         physics_view = telemetry.physics
         completed_lap_out_lap = None
         out_lap_fresh = graphics_view.is_fresh and physics_view.is_fresh
-        if out_lap_fresh and graphics_view.data is not None and physics_view.data is not None:
-            graphics_data = graphics_view.data
+        graphics_data = graphics_view.data if graphics_view.is_fresh else None
+        if graphics_data is not None and getattr(graphics_data, "status", None) != CompletedLapEventObserver.LIVE_STATUS:
+            # A fresh non-LIVE state is the session boundary. Re-seed both
+            # observers on the next LIVE state; never infer a session change
+            # from the reusable ACC session_index/session_type pair alone.
+            self._session_generation = None
+            self._strategy_session_id = None
+            self._lap_event_observer.reset()
+        elif graphics_data is not None and getattr(graphics_data, "status", None) == CompletedLapEventObserver.LIVE_STATUS:
+            if self._session_generation is None:
+                self._session_generation = uuid4().hex
+            self._strategy_session_id = (
+                f"acc-run:{self._session_generation}:"
+                f"{getattr(graphics_data, 'session_index', None)}:"
+                f"{getattr(graphics_data, 'session', None)}"
+            )
+        if out_lap_fresh and graphics_data is not None and physics_view.data is not None:
             session_key = (
                 getattr(graphics_data, "session_index", None),
                 getattr(graphics_data, "session", None),
@@ -278,7 +298,7 @@ class DecodedTelemetryBroker:
                 }
             self._events.publish(
                 candidate.event_type,
-                session_id=candidate.session_id,
+                session_id=self._strategy_session_id or candidate.session_id,
                 source_stream="graphics",
                 source_capture_sequence=candidate.source_capture_sequence,
                 source_timestamp_ns=candidate.source_timestamp_ns,
@@ -324,6 +344,12 @@ class DecodedTelemetryBroker:
         if envelope is None:
             return None
         return reconcile_lap_progress(envelope.telemetry, now_ns=self._clock_ns())
+
+    @property
+    def strategy_session_id(self) -> str | None:
+        """Unique identity for the currently observed LIVE run/session."""
+        with self._lock:
+            return self._strategy_session_id
 
     @property
     def out_lap_status(self) -> dict[str, Any]:
