@@ -90,8 +90,17 @@ class StrategyLapHistory:
             self._db = sqlite3.connect(str(self._path), check_same_thread=False)
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=NORMAL")
+            # Keep the legacy singleton table intact for migration/audit, but
+            # store each run-scoped session independently from now on.
             self._db.execute("CREATE TABLE IF NOT EXISTS session_meta (id INTEGER PRIMARY KEY CHECK(id=1), session_id TEXT NOT NULL, track TEXT, car TEXT, baseline_lap INTEGER NOT NULL, last_cursor INTEGER, complete INTEGER NOT NULL, gap_count INTEGER NOT NULL, blockers TEXT NOT NULL)")
+            self._db.execute("CREATE TABLE IF NOT EXISTS session_meta_v2 (session_id TEXT PRIMARY KEY, track TEXT, car TEXT, baseline_lap INTEGER NOT NULL, last_cursor INTEGER, complete INTEGER NOT NULL, gap_count INTEGER NOT NULL, blockers TEXT NOT NULL)")
             self._db.execute("CREATE TABLE IF NOT EXISTS lap_records (session_id TEXT NOT NULL, lap_number INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, lap_number))")
+            legacy = self._db.execute("SELECT session_id, track, car, baseline_lap, last_cursor, complete, gap_count, blockers FROM session_meta WHERE id=1").fetchone()
+            if legacy is not None:
+                self._db.execute(
+                    "INSERT OR IGNORE INTO session_meta_v2(session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(?,?,?,?,?,?,?,?)",
+                    legacy,
+                )
             self._db.commit()
             self._load()
             self._writer_queue = Queue(maxsize=512)
@@ -109,7 +118,7 @@ class StrategyLapHistory:
 
     def _load(self) -> None:
         assert self._db is not None
-        row = self._db.execute("SELECT session_id, track, car, baseline_lap, last_cursor, complete, gap_count, blockers FROM session_meta WHERE id=1").fetchone()
+        row = self._db.execute("SELECT session_id, track, car, baseline_lap, last_cursor, complete, gap_count, blockers FROM session_meta_v2 ORDER BY rowid DESC LIMIT 1").fetchone()
         if row is None:
             return
         self._session_id, self._track, self._car, self._baseline_lap, self._last_cursor, was_complete, self._gap_count, blockers = row
@@ -158,7 +167,9 @@ class StrategyLapHistory:
                     break
                 kind = operation[0]
                 if kind == "reset":
-                    self._db.execute("DELETE FROM lap_records")
+                    # Session changes never delete prior sessions. Kept as a
+                    # no-op for compatibility with any queued legacy operation.
+                    pass
                 elif kind == "record":
                     _, session_id, lap_number, payload = operation
                     self._db.execute(
@@ -174,7 +185,7 @@ class StrategyLapHistory:
                 elif kind == "meta":
                     _, values = operation
                     self._db.execute(
-                        "INSERT INTO session_meta(id,session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(1,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET session_id=excluded.session_id,track=excluded.track,car=excluded.car,baseline_lap=excluded.baseline_lap,last_cursor=excluded.last_cursor,complete=excluded.complete,gap_count=excluded.gap_count,blockers=excluded.blockers",
+                        "INSERT INTO session_meta_v2(session_id,track,car,baseline_lap,last_cursor,complete,gap_count,blockers) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET track=excluded.track,car=excluded.car,baseline_lap=excluded.baseline_lap,last_cursor=excluded.last_cursor,complete=excluded.complete,gap_count=excluded.gap_count,blockers=excluded.blockers",
                         values,
                     )
                 self._db.commit()
@@ -211,7 +222,7 @@ class StrategyLapHistory:
         self._persisted_complete = self._complete
         self._recovery_pending = False
         self._blockers = set() if self._complete else {"Application attached after the session had already completed laps; earlier lap history is unavailable."}
-        self._enqueue_persistence(("reset",))
+        # Preserve records and metadata belonging to every prior session.
         self._persist_meta()
 
     def observe_live_cursor(self, session_id: str, completed_laps: int, *, track: str | None = None, car: str | None = None) -> None:
