@@ -49,8 +49,11 @@ def test_single_completed_lap_transition_emits_identified_candidate():
     assert event.payload["lap_number"] == 5
     assert event.payload["lap_time_ms"] == 101234
     assert event.payload["lap_valid"] is True
-    assert event.payload["out_lap"] is None
-    assert event.payload["lap_classification"] == "pending_out_lap_classification"
+    # Every ACC completed-lap counter increment is a timed lap for strategy
+    # history; the live Overview out-lap indicator must not relabel it.
+    assert event.payload["out_lap"] is False
+    assert event.payload["lap_classification"] == "classified"
+    assert event.payload["out_lap_source"] == "ACC_completed_lap_boundary"
 
 
 def test_acc_invalid_lap_is_preserved_as_invalid():
