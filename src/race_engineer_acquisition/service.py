@@ -10,6 +10,7 @@ from typing import Any
 
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
+from .fuel_lap_history import FuelLapHistory
 
 
 class RaceEngineerService:
@@ -21,6 +22,7 @@ class RaceEngineerService:
         self._fuel_lap_events = self._broker.subscribe_events(
             "fuel-engineer-lap-events", capacity=128
         )
+        self._fuel_lap_history = FuelLapHistory()
 
     def start(self) -> None:
         """Start the independent decoded-data distribution worker."""
@@ -37,8 +39,17 @@ class RaceEngineerService:
         return self._fuel_lap_events.read_batch(max_events=max_events)
 
     def reconcile_fuel_lap_progress(self):
-        """Restore the current lap cursor after an event gap; history is not replayed."""
+        """Restore the current lap cursor after a gap; history is not replayed."""
         return self._broker.reconcile_lap_progress()
+
+    def _update_fuel_lap_history(self) -> dict[str, Any]:
+        batch = self.read_fuel_lap_events()
+        self._fuel_lap_history.consume(batch)
+        if batch.gap_detected:
+            self._fuel_lap_history.reconcile_cursor(
+                self.reconcile_fuel_lap_progress()
+            )
+        return self._fuel_lap_history.snapshot()
 
     @staticmethod
     def _fuel_radio_preview(fuel: Any) -> str:
@@ -63,10 +74,11 @@ class RaceEngineerService:
         fuel = build_fuel_engineer_snapshot(telemetry)
         return {
             "fuel_engineer": asdict(fuel),
+            "fuel_lap_history": self._update_fuel_lap_history(),
             "fuel_radio_preview": {
                 "text": self._fuel_radio_preview(fuel),
                 "kind": "observation_only",
                 "speech_enabled": False,
-                "strategy_recommendations_enabled": fuel.strategy_calculations_enabled,
+                "strategy_recommendations_enabled": False,
             },
         }
