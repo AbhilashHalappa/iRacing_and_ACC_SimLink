@@ -75,7 +75,12 @@ def test_session_change_and_counter_reset_reseed_without_event():
     observer = CompletedLapEventObserver()
     observer.observe(_telemetry(laps=8))
     assert observer.observe(_telemetry(laps=0, session_index=2)) == ()
-    assert observer.observe(_telemetry(laps=1, session_index=2)) == ()
+    # The first observation in the new session seeds at zero; the next
+    # increment is a real completed lap and must be emitted.
+    events = observer.observe(_telemetry(laps=1, session_index=2))
+    assert len(events) == 1
+    assert events[0].event_type == "lap.completed"
+    # A decreasing counter within the same session is a reset, not a lap.
     assert observer.observe(_telemetry(laps=0, session_index=2)) == ()
 
 
