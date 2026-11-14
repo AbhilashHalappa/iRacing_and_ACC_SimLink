@@ -19,7 +19,11 @@ from .decoded_events import (
 )
 
 from .engineering_snapshot import RaceEngineerSnapshotAggregator, RaceEngineerTelemetrySnapshot
-from .lap_events import CompletedLapEventObserver
+from .lap_events import (
+    CompletedLapEventObserver,
+    LapProgressReconciliation,
+    reconcile_lap_progress,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +45,17 @@ class LatestSnapshotSubscription:
         self._last_read_revision = 0
         self._coalesced_updates = 0
         self._closed = False
+
+    def reconcile_lap_progress(self) -> LapProgressReconciliation | None:
+        """Resync a consumer's lap cursor from the latest fresh ACC state.
+
+        This does not replay or reconstruct missing historical lap records.
+        A caller must retain that distinction after an event sequence gap.
+        """
+        envelope = self.latest
+        if envelope is None:
+            return None
+        return reconcile_lap_progress(envelope.telemetry)
 
     @property
     def latest(self) -> DecodedSnapshotEnvelope | None:
