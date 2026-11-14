@@ -383,7 +383,7 @@ function TileContent({ id, glow, telemetry, targetPressures, trace, freshness }:
       <strong>{accConnected ? "LAST-KNOWN VALUES · NOT LIVE" : "WAITING FOR ACC TELEMETRY"}</strong><span>{healthLabel}</span>
     </div>}
     <div className="tile-content-values">
-      <TileContentBody key={blocked.length ? "waiting" : "live"} id={id} glow={glow} telemetry={displayTelemetry} targetPressures={targetPressures} trace={accConnected ? trace : []} mapTrack={id === "map" ? telemetry?.vehicle : undefined}/>
+      <TileContentBody key={!accConnected ? "waiting" : blocked.length ? "stale" : "live"} id={id} glow={glow} telemetry={displayTelemetry} targetPressures={targetPressures} trace={accConnected ? trace : []} mapTrack={id === "map" ? telemetry?.vehicle : undefined}/>
     </div>
   </div>;
 }
