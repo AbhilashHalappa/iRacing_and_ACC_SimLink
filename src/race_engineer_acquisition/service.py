@@ -8,6 +8,7 @@ from typing import Any
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
 from .fuel_consumption_strategy import assess_measured_fuel, fuel_consumption_payload
+from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 
 
@@ -116,9 +117,11 @@ class RaceEngineerService:
             current_fuel_fresh=fuel.current_fuel_fresh,
             lap_records=self._lap_history.read_records(),
         )
+        race_progress = assess_race_progress(telemetry)
         return {
             "fuel_engineer": asdict(fuel),
             "fuel_consumption_strategy": fuel_consumption_payload(measured_fuel),
+            "race_progress": race_progress_payload(race_progress),
             "strategy_lap_history": history,
             # Compatibility alias for clients that already read the Fuel slice.
             "fuel_lap_history": history,
