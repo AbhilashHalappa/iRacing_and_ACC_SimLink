@@ -134,7 +134,10 @@ class CompletedLapEventObserver:
                     "validity_source": "ACC_Graphics.is_valid_lap" if validity_known else None,
                     "timing_source": "ACC_Graphics.last_time_ms",
                     "timing_available": bool(lap_time_ms and lap_time_ms > 0),
-                    "out_lap": False,
+                    # The completed-lap counter identifies a lap boundary,
+                    # but this event producer does not yet classify pit-out laps.
+                    "out_lap": None,
+                    "lap_classification": "pending_out_lap_classification",
                     "session_index": session_index,
                     "session_type": session_type,
                 },
