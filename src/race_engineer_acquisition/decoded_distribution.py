@@ -236,7 +236,7 @@ class DecodedTelemetryBroker:
             return self._latest
 
     @property
-    def metrics(self) -> dict[str, int | str | None | bool]:
+    def metrics(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "started": self._started,
