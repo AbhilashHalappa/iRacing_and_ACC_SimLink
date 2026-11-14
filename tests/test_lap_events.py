@@ -22,6 +22,9 @@ def _telemetry(*, laps=0, session_index=1, session=2, status=2, fresh=True,
             data=graphics,
             capture_sequence=sequence,
             capture_timestamp_ns=timestamp,
+            max_age_ns=1_000_000_000,
+            consumer_lifecycle="running",
+            acquisition_lifecycle="running",
         )
     )
 
