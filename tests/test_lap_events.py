@@ -80,3 +80,25 @@ def test_stale_or_non_live_graphics_never_produces_lap_event():
     observer.observe(_telemetry(laps=1))
     assert observer.observe(_telemetry(laps=2, fresh=False)) == ()
     assert observer.observe(_telemetry(laps=2, status=1)) == ()
+
+
+def test_reconciliation_resyncs_latest_cursor_without_claiming_history_replay():
+    from src.race_engineer_acquisition.lap_events import reconcile_lap_progress
+
+    result = reconcile_lap_progress(_telemetry(
+        laps=7, last_time_ms=99876, valid=False, sequence=44, timestamp=9000
+    ))
+    assert result is not None
+    assert result.session_id == "acc-session:1:2"
+    assert result.completed_laps == 7
+    assert result.latest_lap_time_ms == 99876
+    assert result.latest_lap_valid is False
+    assert result.source_capture_sequence == 44
+    assert result.historical_laps_recovered is False
+
+
+def test_reconciliation_refuses_stale_or_non_live_state():
+    from src.race_engineer_acquisition.lap_events import reconcile_lap_progress
+
+    assert reconcile_lap_progress(_telemetry(laps=7, fresh=False)) is None
+    assert reconcile_lap_progress(_telemetry(laps=7, status=1)) is None
