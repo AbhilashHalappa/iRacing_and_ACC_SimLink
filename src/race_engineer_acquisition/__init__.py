@@ -9,6 +9,12 @@ from .health import AcquisitionHealth, AcquisitionHealthSnapshot
 from .fuel_engineer import FuelEngineerSnapshot, build_fuel_engineer_snapshot
 from .fuel_strategy import FuelStrategyAssessment, assess_fuel_strategy
 from .service import RaceEngineerService
+from .lap_events import (
+    CompletedLapEventObserver,
+    LapEventCandidate,
+    LapProgressReconciliation,
+    reconcile_lap_progress,
+)
 from .decoded_events import (
     DecodedDomainEvent,
     EventDeliveryBatch,
@@ -44,6 +50,10 @@ __all__ = [
     "FuelStrategyAssessment",
     "assess_fuel_strategy",
     "RaceEngineerService",
+    "CompletedLapEventObserver",
+    "LapEventCandidate",
+    "LapProgressReconciliation",
+    "reconcile_lap_progress",
     "DecodedDomainEvent",
     "EventDeliveryBatch",
     "DecodedEventSubscription",
