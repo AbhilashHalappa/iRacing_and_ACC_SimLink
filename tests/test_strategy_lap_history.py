@@ -197,12 +197,16 @@ def test_sqlite_keeps_prior_session_records_when_new_session_reuses_acc_labels(t
     sessions = db.execute(
         "SELECT session_id FROM session_meta_v2 ORDER BY session_id"
     ).fetchall()
+    current_session = db.execute(
+        "SELECT session_id FROM session_meta WHERE id=1"
+    ).fetchone()
     records = db.execute(
         "SELECT session_id, lap_number FROM lap_records ORDER BY session_id"
     ).fetchall()
     db.close()
 
     assert sessions == [("acc-run:first:0:0",), ("acc-run:second:0:0",)]
+    assert current_session == ("acc-run:second:0:0",)
     assert records == [
         ("acc-run:first:0:0", 1),
         ("acc-run:second:0:0", 1),
