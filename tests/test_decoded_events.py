@@ -66,7 +66,7 @@ def test_event_payload_is_detached_from_publisher_input():
     publisher = DecodedEventPublisher()
     subscriber = publisher.subscribe("consumer")
     payload = {"nested": {"value": 1}}
-    _publish_event = publisher.publish(
+    publisher.publish(
         "damage.changed",
         session_id="session-1",
         source_stream="physics",
@@ -85,3 +85,16 @@ def test_event_subscription_requires_positive_capacity():
     publisher = DecodedEventPublisher()
     with pytest.raises(ValueError):
         publisher.subscribe("invalid", capacity=0)
+
+
+def test_event_payload_rejects_opaque_mutable_objects():
+    publisher = DecodedEventPublisher()
+    with pytest.raises(TypeError):
+        publisher.publish(
+            "invalid.payload",
+            session_id="session-1",
+            source_stream="graphics",
+            source_capture_sequence=1,
+            source_timestamp_ns=10,
+            payload={"mutable": object()},
+        )
