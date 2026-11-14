@@ -200,7 +200,9 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
             lambda: broker.latest is not None
             and broker.latest.telemetry.graphics.is_fresh
             and broker.latest.telemetry.graphics.data is not None
-            and broker.latest.telemetry.graphics.data.completed_laps == 0
+            and getattr(
+                broker.latest.telemetry.graphics.data, "completed_laps", None
+            ) == 0
         )
         publish_graphics(1, 2, valid=False)
         assert _wait_for(
