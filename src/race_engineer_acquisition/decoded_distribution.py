@@ -10,7 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import Event, Lock, Thread
 import time
-from typing import Any
+from typing import Any, Mapping
+
+from .decoded_events import (
+    DecodedDomainEvent,
+    DecodedEventPublisher,
+    DecodedEventSubscription,
+)
 
 from .engineering_snapshot import RaceEngineerSnapshotAggregator, RaceEngineerTelemetrySnapshot
 
@@ -83,12 +89,13 @@ class DecodedTelemetryBroker:
     coalesces bursts, reads the existing freshness-aware decoded aggregator,
     and replaces each subscriber's latest-value mailbox.
 
-    History-critical domain events are intentionally not represented by this
-    coalescing snapshot channel; they require a separate identified event path.
+    History-critical events use a separate bounded, identified event channel.
+    Snapshot coalescing and event delivery have independent subscriber mailboxes.
     """
 
     def __init__(self, runtime: Any, *, clock_ns=time.perf_counter_ns) -> None:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime, clock_ns=clock_ns)
+        self._events = DecodedEventPublisher(clock_ns=clock_ns)
         self._clock_ns = clock_ns
         self._dirty = Event()
         self._stop = Event()
@@ -128,6 +135,39 @@ class DecodedTelemetryBroker:
             subscription = self._subscribers.pop(name, None)
         if subscription is not None:
             subscription.close()
+
+    def subscribe_events(
+        self, name: str, *, capacity: int = 128
+    ) -> DecodedEventSubscription:
+        """Register an independent bounded mailbox for important domain events."""
+        return self._events.subscribe(name, capacity=capacity)
+
+    def publish_event(
+        self,
+        event_type: str,
+        *,
+        session_id: str | None,
+        source_stream: str,
+        source_capture_sequence: int | None,
+        source_timestamp_ns: int | None,
+        payload: Mapping[str, Any],
+        schema_version: int = 1,
+    ) -> DecodedDomainEvent:
+        """Publish an event already derived from validated decoded state.
+
+        Producers must not call this with raw ACC payloads or unvalidated
+        candidate semantics. Event consumers detect overflow and reconcile
+        against authoritative decoded state/history before acting.
+        """
+        return self._events.publish(
+            event_type,
+            session_id=session_id,
+            source_stream=source_stream,
+            source_capture_sequence=source_capture_sequence,
+            source_timestamp_ns=source_timestamp_ns,
+            payload=payload,
+            schema_version=schema_version,
+        )
 
     def notify_dirty(self) -> None:
         """Constant-time decoder hook; safe to call after releasing decoder lock."""
@@ -207,6 +247,7 @@ class DecodedTelemetryBroker:
                 "wake_count": self._wake_count,
                 "error_count": self._error_count,
                 "last_error": self._last_error,
+                "event_delivery": self._events.metrics,
             }
 
     def close(self, *, timeout: float = 2.0) -> bool:
@@ -222,6 +263,7 @@ class DecodedTelemetryBroker:
                 self._subscribers.clear()
                 for subscriber in subscribers:
                     subscriber.close()
+        self._events.close()
         self._dirty.set()
         if thread is not None:
             thread.join(max(0.0, timeout))
