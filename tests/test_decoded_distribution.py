@@ -165,3 +165,61 @@ def test_broker_exposes_separate_ordered_event_subscription():
     finally:
         assert broker.close()
         assert events.closed
+
+
+def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
+    runtime = _Runtime()
+    broker = DecodedTelemetryBroker(runtime)
+    events = broker.subscribe_events("fuel-lap-events", capacity=8)
+    broker.start()
+    try:
+        def publish_graphics(completed_laps: int, sequence: int, valid: bool = True):
+            now = time.perf_counter_ns()
+            runtime.graphics_consumer._snapshot = SimpleNamespace(
+                lifecycle_state="running",
+                processed_count=sequence,
+                decode_error_count=0,
+                last_capture_sequence=sequence,
+                last_error=None,
+                latest=SimpleNamespace(
+                    packet_id=sequence,
+                    status=2,
+                    completed_laps=completed_laps,
+                    session_index=1,
+                    session=2,
+                    last_time_ms=101234,
+                    last_time_str="1:41.234",
+                    is_valid_lap=valid,
+                ),
+                latest_capture_timestamp_ns=now,
+            )
+            runtime.graphics_consumer._notifier()
+
+        publish_graphics(0, 1)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.capture_sequence == 1
+        )
+        publish_graphics(1, 2, valid=False)
+        assert _wait_for(
+            lambda: events.read_batch().events != ()
+        )
+        # The batch above is consumed by the predicate; publish another
+        # transition to verify the event payload and provenance end-to-end.
+        publish_graphics(2, 3, valid=True)
+        assert _wait_for(
+            lambda: broker.metrics["event_delivery"]["published_count"] >= 2
+        )
+        batch = events.read_batch()
+        assert len(batch.events) == 1
+        event = batch.events[0]
+        assert event.event_type == "lap.completed"
+        assert event.payload["lap_number"] == 2
+        assert event.payload["lap_valid"] is True
+        assert event.source_stream == "graphics"
+        assert event.source_capture_sequence == 3
+        reconciliation = broker.reconcile_lap_progress()
+        assert reconciliation is not None
+        assert reconciliation.completed_laps == 2
+    finally:
+        broker.close()
