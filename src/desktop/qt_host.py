@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import sqlite3
 import time
 
@@ -71,6 +72,7 @@ class ACCDesktopWindow(QMainWindow):
         self._car_model: str | None = None
         self._track: str | None = None
         self._track_configuration: str | None = None
+        self._last_race_progress_log_signature: tuple[object, ...] | None = None
         try:
             self._runtime.supervisor.start()
             self._race_engineer_service.start()
@@ -155,6 +157,29 @@ class ACCDesktopWindow(QMainWindow):
             },
         )
         connected = streams["physics"]["state"] == "fresh"
+        engineer_snapshot = self._race_engineer_service.snapshot(
+            track=self._track, car=self._car_model
+        )
+        race_progress = engineer_snapshot.get("race_progress", {})
+        time_remaining = race_progress.get("session_time_remaining_s")
+        time_bucket = (
+            int(float(time_remaining) // 30)
+            if isinstance(time_remaining, (int, float))
+            else None
+        )
+        log_signature = (
+            race_progress.get("status"),
+            race_progress.get("session_type_code"),
+            race_progress.get("completed_laps"),
+            race_progress.get("lap_limit_candidate"),
+            time_bucket,
+        )
+        if log_signature != self._last_race_progress_log_signature:
+            self._last_race_progress_log_signature = log_signature
+            print(
+                "[Race Progress] " + json.dumps(race_progress, sort_keys=True),
+                flush=True,
+            )
         snapshot = {
             "connected": connected,
             "streams": streams,
@@ -167,7 +192,7 @@ class ACCDesktopWindow(QMainWindow):
                 "track_configuration": self._track_configuration,
             },
             "acquisition": acquisition,
-            **self._race_engineer_service.snapshot(track=self._track, car=self._car_model),
+            **engineer_snapshot,
         }
         self._bridge.publish(snapshot)
         if connected:
