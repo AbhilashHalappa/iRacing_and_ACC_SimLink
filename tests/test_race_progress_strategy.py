@@ -331,3 +331,22 @@ def test_timed_race_timer_expiry_produces_zero_timer_fit_not_a_finish_guarantee(
     assert result.estimated_race_laps_remaining == 0
     assert result.estimated_race_laps_qualified is False
     assert any("finish-line and extra-lap behaviour" in blocker for blocker in result.blockers)
+
+
+
+def test_practice_session_never_publishes_race_finish_distance():
+    result = assess_race_progress(
+        _telemetry(
+            session=0,
+            time_left=295327.0,
+            static_fresh=True,
+            is_timed_race=True,
+        ),
+        lap_records=_lap_records(120000, 118000, 121000, 119000, 122000),
+    )
+
+    assert result.session_type_label == "practice"
+    assert result.session_mode == "unknown"
+    assert result.estimated_race_laps_remaining is None
+    assert result.estimated_race_laps_source is None
+    assert any("session type is not Race" in blocker for blocker in result.blockers)
