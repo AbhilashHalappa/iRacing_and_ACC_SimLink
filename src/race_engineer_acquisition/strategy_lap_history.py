@@ -304,8 +304,13 @@ class StrategyLapHistory:
                     continue
                 if self._session_id != event.session_id:
                     self._reset_session(event.session_id, lap_number - 1, self._track, self._car)
-                if self._records and lap_number <= self._records[-1].lap_number:
-                    self._mark_gap("Completed-lap event order is not strictly increasing.")
+                if self._records and lap_number == self._records[-1].lap_number:
+                    # A repeated delivery of the latest lap is idempotent.
+                    # The event sequence is still consumed, but no duplicate
+                    # record or false history-gap marker is created.
+                    continue
+                if self._records and lap_number < self._records[-1].lap_number:
+                    self._mark_gap("Completed-lap event order moved backwards.")
                     continue
                 if self._records and lap_number > self._records[-1].lap_number + 1:
                     self._mark_gap("Completed-lap records contain a lap-number gap.")
