@@ -12,6 +12,8 @@ def test_compares_acc_fuel_laps_directly_with_estimated_race_laps():
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=2.7,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.status == "estimated_sufficient"
@@ -31,6 +33,8 @@ def test_reports_estimated_shortfall_without_recalculating_acc_fuel_laps():
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=2.8,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.status == "estimated_shortfall"
@@ -47,6 +51,8 @@ def test_does_not_compare_when_either_source_is_unavailable():
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=2.8,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.status == "unavailable"
@@ -65,6 +71,8 @@ def test_keeps_acc_margin_and_adds_separate_three_lap_safety_reserve():
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=2.7,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     # The ACC comparison remains unchanged.
@@ -88,6 +96,8 @@ def test_reports_reserve_shortfall_even_when_acc_margin_is_positive():
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=2.5,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.status == "estimated_sufficient"
@@ -106,6 +116,8 @@ def test_estimates_fuel_to_add_at_next_pit_with_three_lap_reserve():
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=3.01,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.estimated_fuel_to_add_next_pit_l == pytest.approx(44.07)
@@ -121,6 +133,8 @@ def test_next_pit_fuel_add_is_zero_when_current_fuel_covers_target_and_reserve()
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=3.0,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.estimated_fuel_to_add_next_pit_l == 0.0
@@ -135,6 +149,8 @@ def test_next_pit_fuel_add_is_unavailable_without_fresh_fuel_inputs():
         current_fuel_fresh=False,
         acc_fuel_per_lap_l=2.8,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.estimated_fuel_to_add_next_pit_l is None
@@ -157,6 +173,8 @@ def test_invalid_acc_fuel_per_lap_blocks_sufficiency_and_fuel_add_estimates(
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=invalid_fuel_per_lap,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     assert result.status == "unavailable"
@@ -201,6 +219,8 @@ def test_invalid_current_fuel_does_not_produce_fuel_amounts(invalid_value):
         current_fuel_fresh=True,
         acc_fuel_per_lap_l=2.7,
         fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=True,
     )
 
     # The ACC endurance comparison remains available; only calculations that
@@ -210,3 +230,101 @@ def test_invalid_current_fuel_does_not_produce_fuel_amounts(invalid_value):
     assert result.safety_fuel_margin_l is None
     assert result.estimated_fuel_to_add_next_pit_l is None
     assert result.fuel_to_add_estimate_status == "unavailable"
+
+
+
+def test_unknown_or_stale_tank_capacity_suppresses_pit_add_recommendation():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=2.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=14,
+        current_fuel_l=8.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=3.0,
+        fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=100.0,
+        fuel_capacity_fresh=False,
+    )
+
+    assert result.tank_capacity_l is None
+    assert result.tank_capacity_status == "unavailable"
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert result.fuel_to_add_estimate_status == "capacity_unavailable"
+    assert any("capacity is unknown" in item for item in result.tank_capacity_blockers)
+
+
+def test_finish_target_and_reserve_above_tank_capacity_are_reported_impossible():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=2.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=20,
+        current_fuel_l=10.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.5,
+        fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=50.0,
+        fuel_capacity_fresh=True,
+    )
+
+    assert result.safety_target_fuel_l == pytest.approx(57.5)
+    assert result.tank_capacity_status == "target_exceeds_capacity"
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert result.fuel_to_add_estimate_status == "target_exceeds_capacity"
+    assert any("physically impossible" in item for item in result.tank_capacity_blockers)
+
+
+def test_pit_add_respects_available_tank_space_at_projected_pit_arrival():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=2.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=20,
+        current_fuel_l=5.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.0,
+        fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=46.0,
+        fuel_capacity_fresh=True,
+    )
+
+    arrival_fuel = max(0.0, result.current_fuel_l - result.acc_fuel_per_lap_l)
+    available_space = result.tank_capacity_l - arrival_fuel
+    assert result.tank_capacity_status == "within_capacity"
+    assert result.estimated_fuel_to_add_next_pit_l == pytest.approx(41.0)
+    assert result.estimated_fuel_to_add_next_pit_l <= available_space
+
+
+def test_current_fuel_above_validated_capacity_suppresses_pit_add():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=8.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=5,
+        current_fuel_l=51.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.0,
+        fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=50.0,
+        fuel_capacity_fresh=True,
+    )
+
+    assert result.tank_capacity_status == "current_fuel_exceeds_capacity"
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert result.fuel_to_add_estimate_status == "capacity_exceeded"
+
+
+def test_safety_target_equal_to_capacity_is_allowed():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=2.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=17,
+        current_fuel_l=5.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.5,
+        fuel_per_lap_fresh=True,
+        max_fuel_capacity_l=50.0,
+        fuel_capacity_fresh=True,
+    )
+
+    assert result.safety_target_fuel_l == pytest.approx(50.0)
+    assert result.tank_capacity_status == "within_capacity"
+    assert result.fuel_to_add_estimate_status == "estimate_available"
+    assert result.estimated_fuel_to_add_next_pit_l == pytest.approx(45.0)
