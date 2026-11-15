@@ -32,7 +32,7 @@ def test_fresh_live_graphics_exposes_observed_progress_without_guessing_mode():
     assert result.lap_limit_qualified is False
     assert result.laps_remaining is None
     assert result.projected_fuel_required_l is None
-    assert any("session-type enum mapping" in item for item in result.blockers)
+    assert not any("session-type enum mapping" in item for item in result.blockers)
     assert any("number_of_laps" in item for item in result.blockers)
 
 
