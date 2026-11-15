@@ -17,8 +17,8 @@ def test_compares_acc_fuel_laps_directly_with_estimated_race_laps():
     assert result.status == "estimated_sufficient"
     assert result.acc_fuel_laps_remaining == 15.7
     assert result.estimated_race_laps_remaining == 12
-    assert result.fuel_margin_laps == 3.7
-    assert result.estimated_fuel_required_l == 32.4
+    assert result.fuel_margin_laps == pytest.approx(3.7)
+    assert result.estimated_fuel_required_l == pytest.approx(32.4)
     assert result.fuel_margin_l == pytest.approx(10.1)
 
 
