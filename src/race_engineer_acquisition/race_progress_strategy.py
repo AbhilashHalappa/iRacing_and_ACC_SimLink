@@ -15,6 +15,8 @@ from typing import Any
 class RaceProgressAssessment:
     status: str
     session_mode: str
+    session_mode_source: str | None
+    has_extra_lap: bool | None
     session_type_code: int | None
     completed_laps: int | None
     session_time_remaining_s: float | None
@@ -57,6 +59,8 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
         return RaceProgressAssessment(
             status="unavailable",
             session_mode="unknown",
+            session_mode_source=None,
+            has_extra_lap=None,
             session_type_code=None,
             completed_laps=None,
             session_time_remaining_s=None,
@@ -80,13 +84,31 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
     lap_limit = _integer(getattr(graphics, "number_of_laps", None))
     if time_remaining is None:
         blockers.append("ACC session time remaining is unavailable or invalid.")
+    static_view = getattr(telemetry, "static_decoded", None)
+    static_data = (
+        getattr(static_view, "data", None)
+        if static_view is not None and getattr(static_view, "is_fresh", False)
+        else None
+    )
+    timed_flag = getattr(static_data, "is_timed_race", None)
+    has_extra_lap = getattr(static_data, "has_extra_lap", None)
+    if isinstance(timed_flag, bool):
+        session_mode = "timed" if timed_flag else "lap_based"
+        session_mode_source = "ACC_Static.is_timed_race"
+    else:
+        session_mode = "unknown"
+        session_mode_source = None
+        blockers.append("Fresh decoded ACC Static race-mode metadata is unavailable.")
+    if not isinstance(has_extra_lap, bool):
+        has_extra_lap = None
     blockers.append("ACC Graphics session-type enum mapping is not qualified.")
     blockers.append("ACC Graphics number_of_laps has not been live-qualified as a lap limit.")
-    blockers.append("Decoded Static race-mode metadata is not yet connected to Stage 2.")
 
     return RaceProgressAssessment(
         status="observing",
-        session_mode="unknown",
+        session_mode=session_mode,
+        session_mode_source=session_mode_source,
+        has_extra_lap=has_extra_lap,
         session_type_code=session_type,
         completed_laps=completed_laps,
         session_time_remaining_s=time_remaining,
