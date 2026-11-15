@@ -271,3 +271,45 @@ The event preserves ACC's completed-lap time and validity observation, source ca
 After a gap, `DecodedTelemetryBroker.reconcile_lap_progress()` can restore the current session/lap cursor from the latest fresh Graphics state. It does not replay missing lap history; consumers must treat the affected history window as incomplete.
 
 **Fuel integration remains gated:** the Fuel consumer has not yet been connected to this event subscription, and the rolling five-valid-lap average must not be calculated from incomplete history. The producer and reconciliation tests have been added but have not yet been executed locally or validated in a live ACC session. No pit or radio recommendation is enabled.
+
+
+## 16. Current implementation status — 2026-11-15
+
+This section supersedes the earlier pending-status statements in Sections 14 and 15 where they conflict with the current Stage 2 implementation.
+
+### Implemented in the active runtime
+
+- Stage 2 publishes completed-lap events and completion-gap events; strategy history consumes the event stream and stores compact per-lap records.
+- Completed valid timed laps are filtered into the current ACC run's lap history. Out-laps and invalid laps are excluded from the five-lap pace sample.
+- Timed-race remaining laps are estimated from fresh ACC Graphics remaining time and the latest five valid completed lap times. The live 20-minute race test confirmed the displayed format, countdown, average and remaining-lap estimate.
+- ACC fuel-per-lap and ACC fuel-laps-remaining values are consumed directly when fresh. Race Engineer does not derive ACC fuel endurance by dividing current fuel by consumption.
+- The active sufficiency assessment compares ACC fuel laps with estimated remaining race laps and exposes the raw ACC-derived margin in laps and litres.
+- A separate three-lap safety reserve is now applied without changing the raw ACC margin:
+  - reserve fuel = 3 × fresh ACC fuel per lap;
+  - safety-adjusted margin in laps = ACC fuel laps remaining − estimated race laps remaining − 3;
+  - safety-adjusted target fuel = estimated fuel to finish + reserve fuel;
+  - safety-adjusted fuel margin = current fuel − safety-adjusted target fuel.
+- The Race Engineer page displays both the raw ACC margin and the safety-adjusted margin/target. If fuel-per-lap or current fuel is not fresh, the corresponding litre calculation remains unavailable.
+- Current-stint ACC Fuel Used and a separate in-memory cumulative observed fuel-used counter are exposed. The cumulative value starts when Race Engineer observes the session; it is not a guaranteed full-session total if the app connects late, and it resets when the application process restarts.
+- Fuel calculations remain read-only. No ACC controls, MFD values or vehicle settings are written.
+
+### Still pending
+
+- Validate cumulative Fuel Used across multiple real pit/refuelling cycles and clarify its behaviour on driver swaps; the current accumulator is in-memory and connection-scoped.
+- Validate the three-lap reserve against more live race scenarios and multiple cars.
+- Consumption-history cross-check against ACC fuel-per-lap, including changing pace/weather and pit transitions.
+- Fuel-saving feasibility and achievable per-lap saving targets.
+- Pit-arrival fuel projection, pit timing, litres-to-add recommendation and recommendation lifecycle.
+- Verified tank-capacity enforcement, MFD increment, mandatory-stop rules, pit windows and pit-lane loss.
+- Actionable radio/TTS events, communication-mode routing and duplicate suppression.
+- Lap-based race finish estimation and timed-race finish-line/extra-lap confirmation across supported session types.
+- Automated tests, frontend build and Windows live-ACC validation must be run on the user's working copy before treating this increment as validated.
+
+### Interpretation of the two margins
+
+Do not replace the ACC margin with the reserve-adjusted margin. They answer different questions:
+
+- **ACC fuel margin** answers whether ACC's estimated fuel endurance covers the estimated race distance.
+- **Safety-adjusted margin** answers whether that same estimate also retains the approved three-lap reserve.
+
+A positive ACC margin can therefore coexist with a negative safety-adjusted margin. This is intentional and must be shown clearly rather than hiding the raw ACC comparison.
