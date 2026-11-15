@@ -166,10 +166,19 @@ class ACCDesktopWindow(QMainWindow):
             if isinstance(raw_session_time, (int, float))
             else None
         )
+        fuel_strategy = engineer_snapshot.get("fuel_sufficiency_strategy", {})
+        fuel_laps = fuel_strategy.get("acc_fuel_laps_remaining")
+        fuel_margin = fuel_strategy.get("fuel_margin_laps")
         log_signature = (
             race_progress.get("status"),
             race_progress.get("session_type_code"),
             race_progress.get("completed_laps"),
+            race_progress.get("average_lap_time_ms"),
+            race_progress.get("lap_time_sample_count"),
+            race_progress.get("laps_remaining"),
+            fuel_strategy.get("status"),
+            round(fuel_laps, 1) if isinstance(fuel_laps, (int, float)) else None,
+            round(fuel_margin, 1) if isinstance(fuel_margin, (int, float)) else None,
             race_progress.get("chequered_flag_candidate"),
             raw_graphics_status,
             raw_lap_limit,
@@ -179,6 +188,7 @@ class ACCDesktopWindow(QMainWindow):
             self._last_race_progress_log_signature = log_signature
             diagnostic = {
                 **race_progress,
+                "fuel_sufficiency_strategy": fuel_strategy,
                 "raw_graphics_status": raw_graphics_status,
                 "raw_session_time_left": raw_session_time,
                 "raw_number_of_laps": raw_lap_limit,
