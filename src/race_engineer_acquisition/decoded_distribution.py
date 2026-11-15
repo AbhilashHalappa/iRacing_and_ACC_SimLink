@@ -302,7 +302,11 @@ class DecodedTelemetryBroker:
                 "gap_behind_ms": getattr(graphics_data, "gap_behind_ms", None),
                 "penalty_time_s": getattr(graphics_data, "penalty_time_s", None),
                 "mandatory_pit_done": getattr(graphics_data, "mandatory_pit_done", None),
+                "missing_mandatory_pits": getattr(graphics_data, "missing_mandatory_pits", None),
+                "driver_stint_total_ms": getattr(graphics_data, "driver_stint_total_ms", None),
                 "driver_stint_left_ms": getattr(graphics_data, "driver_stint_left_ms", None),
+                "is_in_pit": getattr(graphics_data, "is_in_pit", None),
+                "is_in_pit_lane": getattr(graphics_data, "is_in_pit_lane", None),
                 "rain_intensity": getattr(graphics_data, "rain_intensity", None),
                 "track_grip_status": getattr(graphics_data, "track_grip_status", None),
             }
