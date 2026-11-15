@@ -34,6 +34,10 @@ class RaceEngineerService:
         self._last_assessment_event_id: str | None = None
         self._last_assessment_lap_number: int | None = None
         self._processed_assessment_event_ids: set[str] = set()
+        self._assessment_session_id: str | None = None
+        self._last_broker_revision = 0
+        self._track: str | None = None
+        self._car: str | None = None
 
     def start(self) -> None:
         self._broker.start()
@@ -166,7 +170,7 @@ class RaceEngineerService:
                 self._last_assessment_lap_number = lap_number
 
     def _run_background_assessments(self) -> None:
-        """Assess once at startup, then once for each unique completed-lap event."""
+        """Assess at startup/session changes and once per unique completed-lap event."""
         empty_batch = type("EmptyBatch", (), {"events": (), "gap_detected": False})()
         seeded = False
         while not self._assessment_stop.is_set():
@@ -176,24 +180,41 @@ class RaceEngineerService:
                 self._assessment_stop.wait(0.05)
                 continue
             telemetry = envelope.telemetry
-            if not seeded:
+            session_id = self._broker.strategy_session_id
+            session_changed = not seeded or session_id != self._assessment_session_id
+            if session_changed:
+                # Reconcile persisted history against the first fresh cursor
+                # for each run. Never attach the previous run's laps.
                 self._update_lap_history(
-                    telemetry, track=None, car=None, batch=empty_batch
+                    telemetry, track=self._track, car=self._car, batch=empty_batch
                 )
                 self._store_background_assessment(telemetry)
+                self._assessment_session_id = session_id
                 seeded = True
+            elif batch.events or batch.gap_detected:
+                self._update_lap_history(
+                    telemetry, track=self._track, car=self._car, batch=batch
+                )
+            elif envelope.revision != self._last_broker_revision:
+                # Keep the lap cursor reconciled even when a completion event
+                # was lost; history marks the gap rather than fabricating laps.
+                self._update_lap_history(
+                    telemetry, track=self._track, car=self._car, batch=empty_batch
+                )
+            self._last_broker_revision = envelope.revision
+
             if not batch.events and not batch.gap_detected:
                 self._assessment_stop.wait(0.05)
                 continue
-            self._update_lap_history(telemetry, track=None, car=None, batch=batch)
             if batch.gap_detected:
                 continue
+
             for event in batch.events:
                 if event.event_type != "lap.completed":
                     continue
                 if event.event_id in self._processed_assessment_event_ids:
                     continue
-                if not event.session_id or event.session_id != self._broker.strategy_session_id:
+                if not event.session_id or event.session_id != session_id:
                     continue
                 lap_number = event.payload.get("lap_number")
                 if isinstance(lap_number, bool) or not isinstance(lap_number, int) or lap_number < 1:
@@ -201,6 +222,7 @@ class RaceEngineerService:
                 self._processed_assessment_event_ids.add(event.event_id)
                 if len(self._processed_assessment_event_ids) > 512:
                     self._processed_assessment_event_ids = {event.event_id}
+
                 # The broker emits the lap event immediately before publishing
                 # the matching snapshot. Wait briefly for that boundary view.
                 deadline = time.monotonic() + 0.5
@@ -209,13 +231,22 @@ class RaceEngineerService:
                     latest = self._broker.latest
                     graphics_view = latest.telemetry.graphics if latest is not None else None
                     capture_ns = graphics_view.capture_timestamp_ns if graphics_view is not None else None
-                    if event.source_timestamp_ns is None or capture_ns is None or capture_ns >= event.source_timestamp_ns:
-                        assessment_telemetry = latest.telemetry if latest is not None else telemetry
+                    if event.source_timestamp_ns is None:
+                        assessment_telemetry = latest.telemetry if latest is not None else None
+                        break
+                    if capture_ns is not None and capture_ns >= event.source_timestamp_ns:
+                        assessment_telemetry = latest.telemetry
                         break
                     if time.monotonic() >= deadline:
                         break
                     self._assessment_stop.wait(0.01)
                 if assessment_telemetry is not None and not self._assessment_stop.is_set():
+                    # Reconcile the cursor against the boundary snapshot after
+                    # consuming the event, then publish exactly one assessment.
+                    self._update_lap_history(
+                        assessment_telemetry, track=self._track, car=self._car,
+                        batch=empty_batch,
+                    )
                     self._store_background_assessment(
                         assessment_telemetry, event_id=event.event_id,
                         lap_number=lap_number,
@@ -228,6 +259,10 @@ class RaceEngineerService:
         if envelope is None:
             raise RuntimeError("decoded telemetry broker has not published its initial snapshot")
         telemetry = envelope.telemetry
+        if track is not None:
+            self._track = track
+        if car is not None:
+            self._car = car
         fuel = build_fuel_engineer_snapshot(telemetry)
         session_fuel_used_l = self._session_fuel_used.observe(
             session_id=self._broker.strategy_session_id,
