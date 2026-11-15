@@ -16,6 +16,12 @@ class FuelSufficiencyAssessment:
     acc_fuel_per_lap_l: float | None
     estimated_fuel_required_l: float | None
     fuel_margin_l: float | None
+    safety_reserve_laps: int
+    safety_reserve_fuel_l: float | None
+    safety_margin_laps: float | None
+    safety_target_fuel_l: float | None
+    safety_fuel_margin_l: float | None
+    safety_status: str
     blockers: tuple[str, ...]
 
 
@@ -35,6 +41,7 @@ def assess_fuel_sufficiency(
     current_fuel_fresh: bool,
     acc_fuel_per_lap_l: Any,
     fuel_per_lap_fresh: bool,
+    safety_reserve_laps: int = 3,
 ) -> FuelSufficiencyAssessment:
     """Compare ACC's own fuel-laps value; never recalculate fuel endurance."""
     fuel_laps = _finite_nonnegative(acc_fuel_laps_remaining) if fuel_laps_fresh else None
@@ -47,6 +54,13 @@ def assess_fuel_sufficiency(
     fuel = _finite_nonnegative(current_fuel_l) if current_fuel_fresh else None
     per_lap = _finite_nonnegative(acc_fuel_per_lap_l) if fuel_per_lap_fresh else None
     blockers: list[str] = []
+    reserve_laps = (
+        safety_reserve_laps
+        if isinstance(safety_reserve_laps, int)
+        and not isinstance(safety_reserve_laps, bool)
+        and safety_reserve_laps >= 0
+        else 3
+    )
     if fuel_laps is None:
         blockers.append("Fresh ACC fuel-laps-remaining value is unavailable.")
     if race_laps is None:
@@ -54,14 +68,32 @@ def assess_fuel_sufficiency(
     if blockers:
         return FuelSufficiencyAssessment(
             "unavailable", fuel_laps, race_laps, None, fuel, per_lap,
-            None, None, tuple(blockers),
+            None, None, reserve_laps, None, None, None, None,
+            "unavailable", tuple(blockers),
         )
     margin_laps = fuel_laps - race_laps
     required_l = per_lap * race_laps if per_lap is not None else None
     margin_l = fuel - required_l if fuel is not None and required_l is not None else None
+    reserve_l = per_lap * reserve_laps if per_lap is not None else None
+    safety_margin_laps = margin_laps - reserve_laps
+    safety_target_l = (
+        required_l + reserve_l
+        if required_l is not None and reserve_l is not None else None
+    )
+    safety_margin_l = (
+        fuel - safety_target_l
+        if fuel is not None and safety_target_l is not None else None
+    )
+    safety_status = (
+        "unavailable" if safety_margin_laps is None
+        else "reserve_shortfall" if safety_margin_laps < 0
+        else "reserve_satisfied"
+    )
     return FuelSufficiencyAssessment(
         "estimated_shortfall" if margin_laps < 0 else "estimated_sufficient",
-        fuel_laps, race_laps, margin_laps, fuel, per_lap, required_l, margin_l, (),
+        fuel_laps, race_laps, margin_laps, fuel, per_lap, required_l, margin_l,
+        reserve_laps, reserve_l, safety_margin_laps, safety_target_l,
+        safety_margin_l, safety_status, (),
     )
 
 
