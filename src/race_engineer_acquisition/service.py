@@ -112,7 +112,14 @@ class RaceEngineerService:
         telemetry = envelope.telemetry
         fuel = build_fuel_engineer_snapshot(telemetry)
         history = self._update_lap_history(telemetry, track=track, car=car)
-        lap_records = self._lap_history.read_records()
+        all_lap_records = self._lap_history.read_records()
+        current_session_id = self._broker.strategy_session_id
+        # Timed-race pace must never borrow valid laps from a previous ACC
+        # session, even when track and car are unchanged.
+        lap_records = tuple(
+            record for record in all_lap_records
+            if current_session_id is not None and record.session_id == current_session_id
+        )
         race_progress = assess_race_progress(
             telemetry,
             lap_records=lap_records,
