@@ -113,3 +113,64 @@ def test_only_live_observed_session_codes_are_labelled():
     assert race.session_type_label == "race"
     assert unknown.session_type_label is None
     assert any("not yet qualified" in item for item in unknown.blockers)
+
+
+
+def _lap_records(*lap_times, invalid_indices=()):
+    return [
+        SimpleNamespace(
+            lap_valid=(index not in invalid_indices),
+            out_lap=False,
+            classification="classified",
+            lap_time_ms=lap_time,
+        )
+        for index, lap_time in enumerate(lap_times)
+    ]
+
+
+def test_timed_race_estimates_laps_from_average_of_latest_five_valid_laps():
+    records = _lap_records(120000, 118000, 121000, 119000, 122000)
+    result = assess_race_progress(
+        _telemetry(time_left=295327.0, static_fresh=True, is_timed_race=True),
+        lap_records=records,
+    )
+
+    assert result.lap_time_sample_count == 5
+    assert result.average_lap_time_ms == 120000.0
+    assert result.laps_remaining == 2
+
+
+def test_timed_race_requires_five_valid_classified_non_out_laps():
+    records = _lap_records(120000, 118000, 121000, 119000)
+    result = assess_race_progress(
+        _telemetry(time_left=600000.0, static_fresh=True, is_timed_race=True),
+        lap_records=records,
+    )
+
+    assert result.lap_time_sample_count == 4
+    assert result.average_lap_time_ms is None
+    assert result.laps_remaining is None
+    assert any("needs five valid completed lap times" in item for item in result.blockers)
+
+
+def test_timed_race_lap_average_excludes_invalid_laps():
+    records = _lap_records(120000, 90000, 121000, 119000, 122000, invalid_indices=(1,))
+    result = assess_race_progress(
+        _telemetry(time_left=295327.0, static_fresh=True, is_timed_race=True),
+        lap_records=records,
+    )
+
+    assert result.lap_time_sample_count == 5
+    assert result.average_lap_time_ms == 120500.0
+    assert result.laps_remaining == 2
+
+
+def test_lap_based_session_does_not_use_timed_lap_estimate():
+    records = _lap_records(120000, 118000, 121000, 119000, 122000)
+    result = assess_race_progress(
+        _telemetry(time_left=600000.0, static_fresh=True, is_timed_race=False),
+        lap_records=records,
+    )
+
+    assert result.average_lap_time_ms == 120000.0
+    assert result.laps_remaining is None
