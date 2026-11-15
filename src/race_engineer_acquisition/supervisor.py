@@ -308,8 +308,8 @@ def create_acc_acquisition_runtime(
 
     Shared-memory handles are opened lazily by each worker. The returned
     buffers are separate SPSC queues. A dedicated Physics decoder consumer is
-    attached downstream. Graphics has an independent decoder consumer; Static
-    remains an independently acquired raw stream.
+    attached downstream. Graphics and Static each have independent decoder
+    consumers downstream of their unchanged acquisition rings.
     """
     if min(physics_poll_hz, graphics_poll_hz, static_refresh_seconds) <= 0:
         raise ValueError("poll rates and Static refresh interval must be positive")
