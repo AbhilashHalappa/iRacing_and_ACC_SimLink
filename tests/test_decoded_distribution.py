@@ -65,6 +65,7 @@ class _Runtime:
     def __init__(self) -> None:
         self.physics_consumer = _Consumer("physics")
         self.graphics_consumer = _Consumer("graphics")
+        self.static_consumer = _Consumer("static")
         self.acquirers = {
             "physics": SimpleNamespace(health=_HealthOwner()),
             "graphics": SimpleNamespace(health=_HealthOwner()),
