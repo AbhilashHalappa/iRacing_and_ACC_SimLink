@@ -7,7 +7,6 @@ from typing import Any
 
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
-from .fuel_consumption_strategy import assess_measured_fuel, fuel_consumption_payload
 from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency_payload
 from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
@@ -114,11 +113,6 @@ class RaceEngineerService:
         fuel = build_fuel_engineer_snapshot(telemetry)
         history = self._update_lap_history(telemetry, track=track, car=car)
         lap_records = self._lap_history.read_records()
-        measured_fuel = assess_measured_fuel(
-            fuel.current_fuel_l,
-            current_fuel_fresh=fuel.current_fuel_fresh,
-            lap_records=lap_records,
-        )
         race_progress = assess_race_progress(
             telemetry,
             lap_records=lap_records,
@@ -134,7 +128,6 @@ class RaceEngineerService:
         )
         return {
             "fuel_engineer": asdict(fuel),
-            "fuel_consumption_strategy": fuel_consumption_payload(measured_fuel),
             "race_progress": race_progress_payload(race_progress),
             "fuel_sufficiency_strategy": fuel_sufficiency_payload(fuel_sufficiency),
             "static_metadata": {
