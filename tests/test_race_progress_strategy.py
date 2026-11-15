@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from src.race_engineer_acquisition.race_progress_strategy import assess_race_progress
 
 
-def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500.0, lap_limit=0):
+def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500.0, lap_limit=0, static_fresh=False, is_timed_race=None, has_extra_lap=None):
     graphics = SimpleNamespace(
         status=status,
         session=session,
@@ -11,8 +11,10 @@ def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500
         session_time_left_ms=time_left,
         number_of_laps=lap_limit,
     )
+    static_data = SimpleNamespace(is_timed_race=is_timed_race, has_extra_lap=has_extra_lap)
     return SimpleNamespace(
-        graphics=SimpleNamespace(data=graphics, is_fresh=fresh)
+        graphics=SimpleNamespace(data=graphics, is_fresh=fresh),
+        static_decoded=SimpleNamespace(data=static_data, is_fresh=static_fresh),
     )
 
 
@@ -63,3 +65,26 @@ def test_stale_or_non_live_graphics_fails_closed():
         assert result.completed_laps is None
         assert result.session_time_remaining_s is None
         assert result.projected_fuel_required_l is None
+
+
+def test_fresh_static_metadata_classifies_timed_race_without_guessing_lap_limit():
+    result = assess_race_progress(_telemetry(static_fresh=True, is_timed_race=True, has_extra_lap=True))
+    assert result.session_mode == "timed"
+    assert result.session_mode_source == "ACC_Static.is_timed_race"
+    assert result.has_extra_lap is True
+    assert result.lap_limit_qualified is False
+    assert result.laps_remaining is None
+
+
+def test_fresh_static_metadata_classifies_lap_based_race():
+    result = assess_race_progress(_telemetry(static_fresh=True, is_timed_race=False, has_extra_lap=False))
+    assert result.session_mode == "lap_based"
+    assert result.has_extra_lap is False
+
+
+def test_stale_static_metadata_does_not_classify_race_mode():
+    result = assess_race_progress(_telemetry(static_fresh=False, is_timed_race=True, has_extra_lap=True))
+    assert result.session_mode == "unknown"
+    assert result.session_mode_source is None
+    assert result.has_extra_lap is None
+    assert any("Static race-mode metadata is unavailable" in item for item in result.blockers)
