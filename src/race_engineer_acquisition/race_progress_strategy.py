@@ -73,7 +73,7 @@ def assess_race_progress(
     Graphics.session_time_left_ms is converted to seconds. Session codes 0
     (Practice) and 2 (Race) are mapped from live observations; distance
     estimates are produced only for Race. Static metadata classifies timed vs
-    lap-based mode. For timed races, the estimate is floor(remaining seconds /
+    lap-based mode. For timed races, the conservative fuel-planning estimate is ceil(remaining seconds /
     average of the latest five valid timed laps). Lap-based arithmetic is
     enabled only when the caller explicitly confirms the lap-limit field has
     been live-qualified. Finish-line/chequered semantics remain unqualified.
@@ -212,16 +212,16 @@ def assess_race_progress(
                 f"currently have {len(lap_times)}."
             )
         elif time_remaining is not None:
-            # Preserve the established estimate: number of average laps that
-            # fit into the remaining timer. This is an estimate, not a
-            # finish-distance guarantee until ACC's final-crossing behaviour
-            # is validated with live sessions.
-            laps_remaining = math.floor(
+            # Round up for conservative fuel planning: any fractional
+            # average lap is budgeted as a whole lap. This is not a guaranteed
+            # ACC finish-distance calculation until final-crossing behaviour
+            # is validated in live sessions.
+            laps_remaining = math.ceil(
                 (time_remaining * 1000.0) / average_lap_time_ms
             )
             laps_remaining_source = (
-                "ACC_Graphics.session_time_left_ms / "
-                "mean_of_latest_five_valid_completed_laps"
+                "ceil(ACC_Graphics.session_time_left_ms / "
+                "mean_of_latest_five_valid_completed_laps)"
             )
             blockers.append(
                 "Timed-race finish-line and extra-lap behaviour is not yet live-qualified; "
