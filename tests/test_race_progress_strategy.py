@@ -78,10 +78,22 @@ def test_fresh_static_metadata_classifies_timed_race_without_guessing_lap_limit(
     assert result.laps_remaining is None
 
 
-def test_fresh_static_metadata_classifies_lap_based_race():
-    result = assess_race_progress(_telemetry(static_fresh=True, is_timed_race=False, has_extra_lap=False))
+def test_fresh_static_metadata_classifies_lap_based_race_without_live_countdown():
+    result = assess_race_progress(_telemetry(time_left=-1.0, lap_limit=30, static_fresh=True, is_timed_race=False, has_extra_lap=False))
     assert result.session_mode == "lap_based"
+    assert result.session_mode_source == "ACC_Static.is_timed_race"
     assert result.has_extra_lap is False
+
+
+def test_live_race_countdown_and_zero_lap_limit_override_conflicting_static_false():
+    result = assess_race_progress(
+        _telemetry(time_left=1941577.0, lap_limit=0, static_fresh=True, is_timed_race=False),
+        lap_records=_lap_records(117900, 117800, 118000, 117700, 118100),
+    )
+    assert result.session_mode == "timed"
+    assert result.session_mode_source == "ACC_Graphics.race_countdown_without_lap_limit"
+    assert result.laps_remaining == 16
+    assert any("conflicts with the live Race countdown" in item for item in result.blockers)
 
 
 def test_stale_static_metadata_does_not_classify_race_mode():
@@ -168,7 +180,7 @@ def test_timed_race_lap_average_excludes_invalid_laps():
 def test_lap_based_session_does_not_use_timed_lap_estimate():
     records = _lap_records(120000, 118000, 121000, 119000, 122000)
     result = assess_race_progress(
-        _telemetry(time_left=600000.0, static_fresh=True, is_timed_race=False),
+        _telemetry(time_left=-1.0, lap_limit=30, static_fresh=True, is_timed_race=False),
         lap_records=records,
     )
 
