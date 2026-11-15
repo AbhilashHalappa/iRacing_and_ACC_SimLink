@@ -60,6 +60,11 @@ class EngineeringSnapshotTests(unittest.TestCase):
                     graphics_state, graphics_data, graphics_timestamp, 22
                 )
             ),
+            static_consumer=SimpleNamespace(
+                snapshot=FakeConsumerSnapshot(
+                    acquisition_state, FakeDecoded(303, 3.0), static_timestamp, 33
+                )
+            ),
             acquirers={
                 "physics": SimpleNamespace(
                     health=SimpleNamespace(
@@ -153,7 +158,7 @@ class EngineeringSnapshotTests(unittest.TestCase):
         self.assertFalse(result.physics.is_fresh)
         self.assertEqual(result.physics.sample_age_ns, -1)
 
-    def test_static_is_health_only_not_decoded_vehicle_data(self):
+    def test_static_health_and_decoded_metadata_are_both_exposed(self):
         runtime = self.make_runtime(static_timestamp=19_500)
         result = RaceEngineerSnapshotAggregator(
             runtime,
@@ -163,6 +168,8 @@ class EngineeringSnapshotTests(unittest.TestCase):
         self.assertTrue(result.static.is_read_fresh)
         self.assertFalse(hasattr(result.static, "data"))
         self.assertFalse(hasattr(result.static, "packet_id"))
+        self.assertTrue(result.static_decoded.is_fresh)
+        self.assertEqual(result.static_decoded.packet_id, 303)
 
     def test_invalid_freshness_limit_is_rejected(self):
         with self.assertRaises(ValueError):
