@@ -565,7 +565,8 @@ function App() {
         <div className="overview-heading"><div><div className="eyebrow">READ-ONLY ACC ENGINEERING</div><h2>Fuel Engineer</h2><p>Live fuel observations from ACC Physics and Graphics. All values are advisory; the driver remains in control.</p></div><div className="connection-chip"><span className={telemetry?.fuel_engineer?.current_fuel_fresh?"connected":""}/>{telemetry?.fuel_engineer?.current_fuel_fresh?"FUEL DATA LIVE":"FUEL DATA WAITING"}</div></div>
         <div className="dashboard-grid race-engineer-grid">
           <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon"><Flag/></span><h3>Race Progress</h3></div><span className="pending-label">{raceModeLabel.toUpperCase()}</span></div><div className="tile-body"><div className="balanced-grid">
-            <div className="balanced-field"><span>SESSION TYPE</span><b>{raceModeLabel === "Timed Race" ? raceModeLabel : sessionTypeLabel}</b></div>
+            <div className="balanced-field"><span>SESSION TYPE</span><b>{sessionTypeLabel}</b></div>
+            <div className="balanced-field"><span>RACE FORMAT</span><b>{raceModeLabel === "Timed Race" ? "TIME-BASED RACE" : raceModeLabel === "Lap-based" ? "LAP-BASED RACE" : "UNKNOWN"}</b></div>
             <div className="balanced-field"><span>RACE TIME REMAINING</span><b>{remainingTimeLabel}</b></div>
             <div className="balanced-field"><span>AVERAGE LAP · LAST 5 VALID</span><b>{averageLapLabel}</b></div>
             <div className="balanced-field"><span>VALID LAP SAMPLES</span><b>{display(raceProgress.lap_time_sample_count,0," / 5")}</b></div>
