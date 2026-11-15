@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 import unittest
 
-from race_engineer_acquisition.engineering_snapshot import (
+from src.race_engineer_acquisition.engineering_snapshot import (
     RaceEngineerSnapshotAggregator,
 )
 
