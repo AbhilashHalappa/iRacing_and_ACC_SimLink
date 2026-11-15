@@ -161,7 +161,7 @@ class ACCDesktopWindow(QMainWindow):
             track=self._track, car=self._car_model
         )
         race_progress = engineer_snapshot.get("race_progress", {})
-        raw_graphics = graphics_consumer.snapshot.latest
+        raw_graphics = graphics_consumer.latest
         raw_session_time = (
             raw_graphics.session_time_left_s if raw_graphics is not None else None
         )
