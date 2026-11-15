@@ -26,14 +26,17 @@ class FuelEngineerTests(unittest.TestCase):
         self.assertEqual(result.current_fuel_l, 42.5)
         self.assertTrue(result.current_fuel_fresh)
 
-    def test_graphics_candidates_do_not_enable_strategy_by_default(self):
+    def test_acc_fuel_per_lap_and_remaining_laps_are_exposed_directly(self):
         result = build_fuel_engineer_snapshot(telemetry())
+        self.assertEqual(result.acc_fuel_per_lap_l, 2.7)
+        self.assertEqual(result.acc_fuel_laps_remaining, 15.7)
+        self.assertTrue(result.fuel_laps_fresh)
         self.assertEqual(result.fuel_per_lap_candidate_l, 2.7)
         self.assertEqual(result.estimated_laps_candidate, 15.7)
         self.assertEqual(result.mfd_fuel_to_add_l, 20.0)
         self.assertEqual(result.fuel_used_l, 8.4)
-        self.assertFalse(result.strategy_calculations_enabled)
-        self.assertEqual(result.blockers, ("A safety-fuel reserve has not been configured.",))
+        self.assertTrue(result.strategy_calculations_enabled)
+        self.assertEqual(result.blockers, ())
 
     def test_strategy_requires_both_validations_and_reserve(self):
         result = build_fuel_engineer_snapshot(
@@ -52,6 +55,7 @@ class FuelEngineerTests(unittest.TestCase):
         self.assertIsNone(result.current_fuel_l)
         self.assertIsNone(result.fuel_per_lap_candidate_l)
         self.assertIsNone(result.estimated_laps_candidate)
+        self.assertFalse(result.fuel_laps_fresh)
         self.assertFalse(result.strategy_calculations_enabled)
 
     def test_invalid_or_negative_values_fail_closed(self):
