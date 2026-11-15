@@ -1,7 +1,8 @@
 """Conservative race-progress observations from fresh decoded ACC streams.
 
-Race mode comes from fresh Static metadata. Graphics session codes, lap limits,
-and the chequered flag remain unqualified observations until live-validated.
+Race mode comes from fresh Static metadata. Graphics codes 0 (Practice) and
+2 (Race) are mapped from live observations; other codes, lap limits, and the
+chequered flag remain unqualified.
 """
 from __future__ import annotations
 
@@ -45,12 +46,11 @@ def _finite_nonnegative(value: Any) -> float | None:
 def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
     """Expose fresh LIVE progress fields without guessing session semantics.
 
-    Graphics.session_time_left_ms is validated from live ACC observations and
-    converted to seconds for the public race-progress payload. Graphics session codes 0 (Practice) and 2 (Race) are mapped from the
-    user's live ACC observations; all other codes remain unknown. Graphics.number_of_laps is exposed
-    only as an unqualified candidate because the current live audit has not
-    validated it against a known lap-limited session. Static.is_timed_race classifies mode only when Static metadata is fresh. The
-    Graphics global_chequered value is exposed as an unqualified candidate.
+    Graphics.session_time_left_ms is converted to seconds for the public payload.
+    Session codes 0 (Practice) and 2 (Race) are mapped from live observations;
+    other codes remain unknown. Graphics.number_of_laps remains an unqualified
+    candidate. Static.is_timed_race classifies mode only when Static metadata is
+    fresh. Graphics.global_chequered remains an unqualified candidate.
     """
     view = getattr(telemetry, "graphics", None)
     graphics = getattr(view, "data", None) if view is not None else None
