@@ -170,6 +170,7 @@ class ACCDesktopWindow(QMainWindow):
             race_progress.get("status"),
             race_progress.get("session_type_code"),
             race_progress.get("completed_laps"),
+            race_progress.get("chequered_flag_candidate"),
             raw_graphics_status,
             raw_lap_limit,
             time_bucket,
