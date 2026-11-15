@@ -291,6 +291,7 @@ class ACCAcquisitionRuntime:
     acquirers: dict[str, object]
     physics_consumer: object
     graphics_consumer: object
+    static_consumer: object
 
 
 def create_acc_acquisition_runtime(
@@ -319,6 +320,7 @@ def create_acc_acquisition_runtime(
     from .ring_buffer import AcquisitionRingBuffer
     from .physics_consumer import PhysicsDecodeConsumer
     from .graphics_consumer import GraphicsDecodeConsumer
+    from .static_consumer import StaticDecodeConsumer
     from .static import StaticAcquirer, WindowsACCStaticSource
     from .timing_windows import WindowsTimerResolution
 
@@ -338,8 +340,10 @@ def create_acc_acquisition_runtime(
     }
     physics_consumer = PhysicsDecodeConsumer(buffers["physics"])
     graphics_consumer = GraphicsDecodeConsumer(buffers["graphics"])
+    static_consumer = StaticDecodeConsumer(buffers["static"])
     physics_producer_done = Event()
     graphics_producer_done = Event()
+    static_producer_done = Event()
 
     def reconnecting_worker(stop_event: Event, run_once, close_source) -> None:
         # ACC may not be running when the dashboard starts. Retry after
@@ -382,6 +386,18 @@ def create_acc_acquisition_runtime(
             # Keep the full-page recorder-independent ring drain orderly.
             graphics_producer_done.set()
 
+    def run_static(stop_event: Event) -> None:
+        try:
+            reconnecting_worker(
+                stop_event,
+                lambda stop: acquirers["static"].run(
+                    stop, refresh_interval_ns=max(1, round(static_refresh_seconds * 1_000_000_000))
+                ),
+                static_source.close,
+            )
+        finally:
+            static_producer_done.set()
+
     streams = (
         AcquisitionStream(
             "physics",
@@ -397,13 +413,7 @@ def create_acc_acquisition_runtime(
         ),
         AcquisitionStream(
             "static",
-            lambda stop: reconnecting_worker(
-                stop,
-                lambda event: acquirers["static"].run(
-                    event, refresh_interval_ns=max(1, round(static_refresh_seconds * 1_000_000_000))
-                ),
-                static_source.close,
-            ),
+            run_static,
             static_source.close,
             acquirers["static"].health,
         ),
@@ -417,9 +427,14 @@ def create_acc_acquisition_runtime(
             lambda stop: graphics_consumer.run(stop, graphics_producer_done),
             lambda: None,
         ),
+        AcquisitionStream(
+            "static-decode",
+            lambda stop: static_consumer.run(stop, static_producer_done),
+            lambda: None,
+        ),
     )
     return ACCAcquisitionRuntime(
         AcquisitionSupervisor(
             streams, timer_resolution=WindowsTimerResolution(timer_resolution_ms)
-        ), buffers, acquirers, physics_consumer, graphics_consumer
+        ), buffers, acquirers, physics_consumer, graphics_consumer, static_consumer
     )
