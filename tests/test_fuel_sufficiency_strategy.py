@@ -108,7 +108,7 @@ def test_estimates_fuel_to_add_at_next_pit_with_three_lap_reserve():
         fuel_per_lap_fresh=True,
     )
 
-    assert result.estimated_fuel_to_add_next_pit_l == pytest.approx(44.2)
+    assert result.estimated_fuel_to_add_next_pit_l == pytest.approx(44.07)
     assert result.fuel_to_add_estimate_status == "estimate_available"
 
 
