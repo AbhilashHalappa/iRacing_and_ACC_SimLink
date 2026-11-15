@@ -34,7 +34,7 @@ class DecodedStatic:
     aid_tire_rate: float
     aid_mechanical_damage: float
     aid_stability: float
-    auto_clutch: bool
+    auto_clutch: bool | int
     auto_blip: bool
     track_configuration: str
     ers_max_j: float
@@ -68,9 +68,13 @@ def _f32(page: bytes, offset: int) -> float:
     return struct.unpack_from("<f", page, offset)[0]
 
 
-def _boolean(page: bytes, offset: int, name: str) -> bool:
+def _boolean(
+    page: bytes, offset: int, name: str, *, preserve_unknown: bool = False
+) -> bool | int:
     value = _i32(page, offset)
     if value not in (0, 1):
+        if preserve_unknown:
+            return value
         raise ValueError(f"Unsupported {name} value in Static page: {value}")
     return bool(value)
 
@@ -100,7 +104,7 @@ def decode_static_candidate_b(page: bytes) -> DecodedStatic:
         aid_tire_rate=_f32(page, 472),
         aid_mechanical_damage=_f32(page, 476),
         aid_stability=_f32(page, 484),
-        auto_clutch=_boolean(page, 488, "AidAutoClutch"),
+        auto_clutch=_boolean(page, 488, "AidAutoClutch", preserve_unknown=True),
         auto_blip=_boolean(page, 492, "AidAutoBlip"),
         track_configuration=_read_string(page, 524, 33),
         ers_max_j=_f32(page, 592),
