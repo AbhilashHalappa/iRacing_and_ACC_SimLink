@@ -12,7 +12,7 @@ def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500
         number_of_laps=lap_limit,
         global_chequered=chequered,
     )
-    static_data = SimpleNamespace(is_timed_race=is_timed_race, has_extra_lap=has_extra_lap)
+    static_data = SimpleNamespace(is_timed_race=is_timed_race, has_extra_lap=has_extra_lap, track="silverstone", car_model="gt3")
     return SimpleNamespace(
         graphics=SimpleNamespace(data=graphics, is_fresh=fresh),
         static_decoded=SimpleNamespace(data=static_data, is_fresh=static_fresh),
@@ -174,3 +174,16 @@ def test_lap_based_session_does_not_use_timed_lap_estimate():
 
     assert result.average_lap_time_ms == 120000.0
     assert result.laps_remaining is None
+
+
+
+def test_zero_filled_static_metadata_does_not_classify_session_as_lap_based():
+    telemetry = _telemetry(static_fresh=True, is_timed_race=False, has_extra_lap=False)
+    telemetry.static_decoded.data.track = ""
+    telemetry.static_decoded.data.car_model = ""
+
+    result = assess_race_progress(telemetry)
+
+    assert result.session_mode == "unknown"
+    assert result.has_extra_lap is None
+    assert any("Static race-mode metadata is unavailable" in item for item in result.blockers)
