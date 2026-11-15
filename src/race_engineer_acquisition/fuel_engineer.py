@@ -96,3 +96,42 @@ def build_fuel_engineer_snapshot(
         strategy_calculations_enabled=ready,
         blockers=tuple(blockers),
     )
+
+
+
+class SessionFuelUsedAccumulator:
+    """Accumulate ACC's stint fuel-used counter across in-session resets.
+
+    The total starts at the first fresh observation seen by this process. It
+    therefore represents the full session only when Race Engineer was already
+    observing from the session start.
+    """
+
+    def __init__(self) -> None:
+        self._session_id: str | None = None
+        self._last_acc_used_fuel_l: float | None = None
+        self._total_l: float | None = None
+
+    def observe(
+        self, *, session_id: str | None, acc_used_fuel_l: float | None
+    ) -> float | None:
+        value = _nonnegative_finite(acc_used_fuel_l)
+        if session_id is None or value is None:
+            return self._total_l if session_id == self._session_id else None
+
+        if session_id != self._session_id or self._total_l is None:
+            self._session_id = session_id
+            self._last_acc_used_fuel_l = value
+            self._total_l = value
+            return self._total_l
+
+        previous = self._last_acc_used_fuel_l
+        if previous is not None:
+            if value >= previous:
+                self._total_l += value - previous
+            else:
+                # ACC's current-stint counter reset (for example, after a pit
+                # stop/refuel). Add the new stint's counter to the prior total.
+                self._total_l += value
+        self._last_acc_used_fuel_l = value
+        return self._total_l
