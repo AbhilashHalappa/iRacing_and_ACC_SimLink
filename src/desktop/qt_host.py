@@ -163,7 +163,7 @@ class ACCDesktopWindow(QMainWindow):
         race_progress = engineer_snapshot.get("race_progress", {})
         raw_graphics = graphics_consumer.latest
         raw_session_time = (
-            raw_graphics.session_time_left_s if raw_graphics is not None else None
+            raw_graphics.session_time_left_ms if raw_graphics is not None else None
         )
         raw_lap_limit = (
             raw_graphics.number_of_laps if raw_graphics is not None else None
