@@ -13,7 +13,6 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
-from ..race_engineer_acquisition.static_decoder import decode_static_candidate_b
 from ..race_engineer_acquisition.service import RaceEngineerService
 from .stream_health import build_stream_freshness
 
@@ -113,25 +112,7 @@ class ACCDesktopWindow(QMainWindow):
         self._publish_timer.start()
         self.statusBar().showMessage("ACC Shared Memory · waiting for telemetry")
 
-    def _refresh_static_identity(self) -> None:
-        # Static is acquired independently at low frequency. Drain its SPSC
-        # queue here, downstream of acquisition, and retain the latest valid ID.
-        static_ring = self._runtime.buffers["static"]
-        while True:
-            sample = static_ring.try_get()
-            if sample is None:
-                break
-            try:
-                decoded = decode_static_candidate_b(sample.payload)
-                self._car_model = decoded.car_model
-                self._track = decoded.track
-                self._track_configuration = decoded.track_configuration
-            except ValueError:
-                # Keep the last known-good identity if a page is malformed.
-                continue
-
     def _publish_snapshot(self) -> None:
-        self._refresh_static_identity()
         consumer = self._runtime.physics_consumer.snapshot
         graphics_consumer = self._runtime.graphics_consumer.snapshot
         physics = consumer.to_payload()
@@ -161,6 +142,14 @@ class ACCDesktopWindow(QMainWindow):
         engineer_snapshot = self._race_engineer_service.snapshot(
             track=self._track, car=self._car_model
         )
+        static_metadata = engineer_snapshot.get("static_metadata", {})
+        static_data = static_metadata.get("data") or {}
+        if static_metadata.get("status") == "fresh":
+            self._car_model = static_data.get("car_model") or self._car_model
+            self._track = static_data.get("track") or self._track
+            self._track_configuration = (
+                static_data.get("track_configuration") or self._track_configuration
+            )
         race_progress = engineer_snapshot.get("race_progress", {})
         raw_graphics = graphics_consumer.latest
         raw_session_time = (
@@ -197,8 +186,6 @@ class ACCDesktopWindow(QMainWindow):
                 "[Race Progress] " + json.dumps(diagnostic, sort_keys=True),
                 flush=True,
             )
-        static_metadata = engineer_snapshot.get("static_metadata", {})
-        static_data = static_metadata.get("data") or {}
         static_signature = (
             static_metadata.get("status"),
             static_metadata.get("capture_sequence"),
