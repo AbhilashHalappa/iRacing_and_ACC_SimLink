@@ -118,9 +118,6 @@ def assess_race_progress(
         else None
     )
     lap_limit = _integer(getattr(graphics, "number_of_laps", None))
-    if time_remaining is None:
-        blockers.append("ACC session time remaining is unavailable or invalid.")
-
     static_view = getattr(telemetry, "static_decoded", None)
     static_data = (
         getattr(static_view, "data", None)
@@ -185,6 +182,9 @@ def assess_race_progress(
         blockers.append("Fresh decoded ACC Static race-mode metadata is unavailable.")
     if not isinstance(has_extra_lap, bool):
         has_extra_lap = None
+
+    if time_remaining is None and session_mode != "lap_based":
+        blockers.append("ACC session time remaining is unavailable or invalid.")
 
     session_type_label = {0: "practice", 2: "race"}.get(session_type)
     if session_type_label is None:
