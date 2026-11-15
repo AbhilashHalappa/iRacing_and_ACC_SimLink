@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import math
 import unittest
 
-from race_engineer_acquisition.fuel_engineer import build_fuel_engineer_snapshot
+from src.race_engineer_acquisition.fuel_engineer import build_fuel_engineer_snapshot
 
 
 def telemetry(*, physics_fresh=True, graphics_fresh=True, fuel=42.5, per_lap=2.7, laps=15.7, mfd=20.0, used=8.4):
