@@ -2,7 +2,7 @@
 
 Timed-race lap estimates use ACC's remaining session time and the average of
 the latest five valid, classified, non-out completed laps from this session.
-Unqualified ACC lap-limit and chequered-flag fields remain observational only.
+Lap-based arithmetic is gated on explicit qualification of the ACC lap-limit field. Finish-line and chequered-flag behaviour remains observational until validated in live sessions.
 """
 from __future__ import annotations
 
@@ -71,10 +71,12 @@ def assess_race_progress(
     """Expose progress and estimate timed-race laps from five valid lap times.
 
     Graphics.session_time_left_ms is converted to seconds. Session codes 0
-    (Practice) and 2 (Race) are mapped from live observations. Static metadata
-    classifies timed vs lap-based mode. For timed races, the estimate is floor
-    (remaining seconds / average of the latest five valid timed laps). The
-    lap-limit and chequered-flag candidates remain unqualified.
+    (Practice) and 2 (Race) are mapped from live observations; distance
+    estimates are produced only for Race. Static metadata classifies timed vs
+    lap-based mode. For timed races, the estimate is floor(remaining seconds /
+    average of the latest five valid timed laps). Lap-based arithmetic is
+    enabled only when the caller explicitly confirms the lap-limit field has
+    been live-qualified. Finish-line/chequered semantics remain unqualified.
     """
     view = getattr(telemetry, "graphics", None)
     graphics = getattr(view, "data", None) if view is not None else None
@@ -145,7 +147,13 @@ def assess_race_progress(
     chequered_candidate = getattr(graphics, "global_chequered", None)
     if not isinstance(chequered_candidate, bool):
         chequered_candidate = None
-    if timed_flag is True:
+    if session_type != 2:
+        session_mode = "unknown"
+        session_mode_source = None
+        blockers.append(
+            "Race-distance estimation is unavailable because ACC session type is not Race."
+        )
+    elif timed_flag is True:
         session_mode = "timed"
         session_mode_source = "ACC_Static.is_timed_race"
     elif (
