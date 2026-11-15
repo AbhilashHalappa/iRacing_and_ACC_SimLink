@@ -142,7 +142,8 @@ def assess_race_progress(
         session_mode = "timed"
         session_mode_source = "ACC_Static.is_timed_race"
     elif (
-        session_type == 2
+        static_identity_ready
+        and session_type == 2
         and time_remaining is not None
         and time_remaining > 0.0
         and lap_limit in (None, 0)
