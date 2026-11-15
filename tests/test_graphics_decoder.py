@@ -106,6 +106,7 @@ def test_decoder_reads_priority_and_session_fields_at_candidate_offsets():
     assert decoded.last_time_str == "01:25.000"
     assert decoded.best_time_str == "01:24.000"
     assert decoded.completed_laps == 4
+    assert decoded.session_time_left_ms == pytest.approx(1200.0)
     assert decoded.position == 2
     assert decoded.is_in_pit_lane is True
     assert decoded.tyre_compound == "dry_compound"
