@@ -14,6 +14,35 @@ from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 
 
+def _is_next_assessable_lap_event(
+    event: Any,
+    *,
+    session_id: str | None,
+    last_session_id: str | None,
+    last_lap_number: int | None,
+) -> bool:
+    """Accept one classified, non-out completed lap in the active session."""
+    if getattr(event, "event_type", None) != "lap.completed":
+        return False
+    if not session_id or getattr(event, "session_id", None) != session_id:
+        return False
+    payload = getattr(event, "payload", {})
+    if not isinstance(payload, dict) and not hasattr(payload, "get"):
+        return False
+    lap_number = payload.get("lap_number")
+    if isinstance(lap_number, bool) or not isinstance(lap_number, int) or lap_number < 1:
+        return False
+    if not isinstance(payload.get("lap_valid"), bool):
+        return False
+    if payload.get("out_lap") is not False:
+        return False
+    if last_session_id == session_id and last_lap_number is not None:
+        # A repeated lap number is a duplicate; a jump means an event was
+        # skipped. Neither is allowed to advance strategy assessment state.
+        return lap_number == last_lap_number + 1
+    return True
+
+
 class RaceEngineerService:
     """Expose fresh live state and shared compact lap history to consumers."""
 
@@ -33,6 +62,7 @@ class RaceEngineerService:
         self._assessment_count = 0
         self._last_assessment_event_id: str | None = None
         self._last_assessment_lap_number: int | None = None
+        self._last_assessment_session_id: str | None = None
         self._processed_assessment_event_ids: set[str] = set()
         self._assessment_session_id: str | None = None
         self._last_broker_revision = 0
@@ -168,6 +198,7 @@ class RaceEngineerService:
                 self._assessment_count += 1
                 self._last_assessment_event_id = event_id
                 self._last_assessment_lap_number = lap_number
+                self._last_assessment_session_id = self._broker.strategy_session_id
 
     def _run_background_assessments(self) -> None:
         """Assess at startup/session changes and once per unique completed-lap event."""
@@ -214,15 +245,16 @@ class RaceEngineerService:
                 continue
 
             for event in batch.events:
-                if event.event_type != "lap.completed":
-                    continue
                 if event.event_id in self._processed_assessment_event_ids:
                     continue
-                if not event.session_id or event.session_id != session_id:
+                if not _is_next_assessable_lap_event(
+                    event,
+                    session_id=session_id,
+                    last_session_id=self._last_assessment_session_id,
+                    last_lap_number=self._last_assessment_lap_number,
+                ):
                     continue
-                lap_number = event.payload.get("lap_number")
-                if isinstance(lap_number, bool) or not isinstance(lap_number, int) or lap_number < 1:
-                    continue
+                lap_number = event.payload["lap_number"]
                 self._processed_assessment_event_ids.add(event.event_id)
                 if len(self._processed_assessment_event_ids) > 512:
                     self._processed_assessment_event_ids = {event.event_id}
