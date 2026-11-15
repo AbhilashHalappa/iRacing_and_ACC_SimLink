@@ -63,6 +63,8 @@ class RaceEngineerService:
         self._last_assessment_event_id: str | None = None
         self._last_assessment_lap_number: int | None = None
         self._last_assessment_session_id: str | None = None
+        self._last_seen_lap_session_id: str | None = None
+        self._last_seen_lap_number: int | None = None
         self._processed_assessment_event_ids: set[str] = set()
         self._assessment_session_id: str | None = None
         self._last_broker_revision = 0
@@ -221,6 +223,8 @@ class RaceEngineerService:
                 )
                 self._store_background_assessment(telemetry)
                 self._assessment_session_id = session_id
+                self._last_seen_lap_session_id = session_id
+                self._last_seen_lap_number = None
                 seeded = True
                 if batch.events or batch.gap_detected:
                     self._update_lap_history(
@@ -247,14 +251,38 @@ class RaceEngineerService:
             for event in batch.events:
                 if event.event_id in self._processed_assessment_event_ids:
                     continue
+                if event.event_type == "lap.completion_gap":
+                    gap_cursor = event.payload.get("current_completed_laps")
+                    if isinstance(gap_cursor, int) and not isinstance(gap_cursor, bool):
+                        self._last_seen_lap_session_id = event.session_id
+                        self._last_seen_lap_number = gap_cursor
+                    continue
+                if event.event_type != "lap.completed":
+                    continue
+                if not event.session_id or event.session_id != session_id:
+                    continue
+                lap_number = event.payload.get("lap_number")
+                if isinstance(lap_number, bool) or not isinstance(lap_number, int) or lap_number < 1:
+                    continue
                 if not _is_next_assessable_lap_event(
                     event,
                     session_id=session_id,
-                    last_session_id=self._last_assessment_session_id,
-                    last_lap_number=self._last_assessment_lap_number,
+                    last_session_id=self._last_seen_lap_session_id,
+                    last_lap_number=self._last_seen_lap_number,
                 ):
+                    # Advance the observation cursor for a new but unclassified,
+                    # invalidly classified, or out-lap boundary so it cannot
+                    # make the following legitimate lap look like a skipped lap.
+                    if (
+                        self._last_seen_lap_session_id != session_id
+                        or self._last_seen_lap_number is None
+                        or lap_number > self._last_seen_lap_number
+                    ):
+                        self._last_seen_lap_session_id = session_id
+                        self._last_seen_lap_number = lap_number
                     continue
-                lap_number = event.payload["lap_number"]
+                self._last_seen_lap_session_id = session_id
+                self._last_seen_lap_number = lap_number
                 self._processed_assessment_event_ids.add(event.event_id)
                 if len(self._processed_assessment_event_ids) > 512:
                     self._processed_assessment_event_ids = {event.event_id}
