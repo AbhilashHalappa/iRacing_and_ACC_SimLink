@@ -201,6 +201,19 @@ class RaceEngineerService:
                 self._last_assessment_event_id = event_id
                 self._last_assessment_lap_number = lap_number
                 self._last_assessment_session_id = self._broker.strategy_session_id
+                assessment_count = self._assessment_count
+                assessment_session_id = self._last_assessment_session_id
+
+        # Diagnostic only: emitted once after each completed-lap assessment,
+        # never for the startup/session seed or ordinary UI snapshot updates.
+        if event_id is not None:
+            print(
+                "[Fuel Assessment] "
+                f"trigger=completed_lap session={assessment_session_id} "
+                f"lap={lap_number} assessment_count={assessment_count} "
+                f"event_id={event_id}",
+                flush=True,
+            )
 
     def _run_background_assessments(self) -> None:
         """Assess at startup/session changes and once per unique completed-lap event."""
