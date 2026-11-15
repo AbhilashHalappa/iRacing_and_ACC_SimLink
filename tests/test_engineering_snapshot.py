@@ -169,7 +169,7 @@ class EngineeringSnapshotTests(unittest.TestCase):
         self.assertFalse(hasattr(result.static, "data"))
         self.assertFalse(hasattr(result.static, "packet_id"))
         self.assertTrue(result.static_decoded.is_fresh)
-        self.assertEqual(result.static_decoded.packet_id, 303)
+        self.assertEqual(result.static_decoded.capture_sequence, 33)
 
     def test_invalid_freshness_limit_is_rejected(self):
         with self.assertRaises(ValueError):
