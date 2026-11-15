@@ -122,6 +122,17 @@ class RaceEngineerService:
             "fuel_engineer": asdict(fuel),
             "fuel_consumption_strategy": fuel_consumption_payload(measured_fuel),
             "race_progress": race_progress_payload(race_progress),
+            "static_metadata": {
+                "status": "fresh" if telemetry.static_decoded.is_fresh else "unavailable",
+                "capture_sequence": telemetry.static_decoded.capture_sequence,
+                "capture_timestamp_ns": telemetry.static_decoded.capture_timestamp_ns,
+                "last_error": telemetry.static_decoded.last_error,
+                "data": (
+                    asdict(telemetry.static_decoded.data)
+                    if telemetry.static_decoded.is_fresh and telemetry.static_decoded.data is not None
+                    else None
+                ),
+            },
             "strategy_lap_history": history,
             # Compatibility alias for clients that already read the Fuel slice.
             "fuel_lap_history": history,
