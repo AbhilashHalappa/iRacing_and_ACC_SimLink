@@ -3,12 +3,12 @@ from types import SimpleNamespace
 from src.race_engineer_acquisition.race_progress_strategy import assess_race_progress
 
 
-def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612.5, lap_limit=0):
+def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500.0, lap_limit=0):
     graphics = SimpleNamespace(
         status=status,
         session=session,
         completed_laps=completed,
-        session_time_left_s=time_left,
+        session_time_left_ms=time_left,
         number_of_laps=lap_limit,
     )
     return SimpleNamespace(
@@ -30,6 +30,12 @@ def test_fresh_live_graphics_exposes_observed_progress_without_guessing_mode():
     assert result.projected_fuel_required_l is None
     assert any("session-type enum mapping" in item for item in result.blockers)
     assert any("number_of_laps" in item for item in result.blockers)
+
+
+def test_acc_millisecond_timer_is_converted_to_seconds():
+    result = assess_race_progress(_telemetry(time_left=295327.0))
+
+    assert result.session_time_remaining_s == 295.327
 
 
 def test_lap_limit_is_exposed_only_as_unqualified_candidate():
