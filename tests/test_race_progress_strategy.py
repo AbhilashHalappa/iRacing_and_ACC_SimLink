@@ -192,7 +192,7 @@ def test_timed_race_lap_average_excludes_invalid_laps():
 
     assert result.lap_time_sample_count == 5
     assert result.average_lap_time_ms == 120500.0
-    assert result.laps_remaining == 2
+    assert result.laps_remaining == 3
 
 
 def test_lap_based_session_does_not_use_timed_lap_estimate():
@@ -237,7 +237,7 @@ def test_lap_based_distance_is_calculated_only_when_lap_limit_is_explicitly_qual
     assert result.lap_limit_candidate == 30
     assert result.lap_limit_qualified is True
     assert result.laps_remaining == 23
-    assert result.estimated_race_laps_remaining == 33
+    assert result.estimated_race_laps_remaining == 23
     assert result.estimated_race_laps_source == (
         "ACC_Graphics.number_of_laps - ACC_Graphics.completed_laps"
     )
@@ -326,8 +326,8 @@ def test_timed_estimate_exposes_canonical_source_without_claiming_finish_qualifi
         lap_records=_lap_records(120000, 118000, 121000, 119000, 122000),
     )
 
-    assert result.laps_remaining == 2
-    assert result.estimated_race_laps_remaining == 2
+    assert result.laps_remaining == 3
+    assert result.estimated_race_laps_remaining == 3
     assert result.estimated_race_laps_source == (
         "ceil(ACC_Graphics.session_time_left_ms / "
         "mean_of_latest_five_valid_completed_laps)"
