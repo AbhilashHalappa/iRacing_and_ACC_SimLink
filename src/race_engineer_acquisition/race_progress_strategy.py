@@ -28,6 +28,9 @@ class RaceProgressAssessment:
     lap_limit_candidate: int | None
     lap_limit_qualified: bool
     laps_remaining: int | None
+    estimated_race_laps_remaining: int | None
+    estimated_race_laps_source: str | None
+    estimated_race_laps_qualified: bool
     projected_fuel_required_l: float | None
     blockers: tuple[str, ...]
 
@@ -63,6 +66,7 @@ def assess_race_progress(
     telemetry: Any,
     *,
     lap_records: Iterable[Any] = (),
+    lap_limit_qualified: bool = False,
 ) -> RaceProgressAssessment:
     """Expose progress and estimate timed-race laps from five valid lap times.
 
@@ -94,6 +98,9 @@ def assess_race_progress(
             lap_limit_candidate=None,
             lap_limit_qualified=False,
             laps_remaining=None,
+            estimated_race_laps_remaining=None,
+            estimated_race_laps_source=None,
+            estimated_race_laps_qualified=False,
             projected_fuel_required_l=None,
             blockers=("Fresh LIVE ACC Graphics data is unavailable.",),
         )
@@ -182,6 +189,13 @@ def assess_race_progress(
         else None
     )
     laps_remaining = None
+    laps_remaining_source = None
+    laps_remaining_qualified = False
+    qualified_lap_limit = (
+        lap_limit_qualified
+        and lap_limit is not None
+        and lap_limit > 0
+    )
     if session_mode == "timed":
         if average_lap_time_ms is None:
             blockers.append(
@@ -189,13 +203,45 @@ def assess_race_progress(
                 f"currently have {len(lap_times)}."
             )
         elif time_remaining is not None:
+            # Preserve the established estimate: number of average laps that
+            # fit into the remaining timer. This is an estimate, not a
+            # finish-distance guarantee until ACC's final-crossing behaviour
+            # is validated with live sessions.
             laps_remaining = math.floor(
                 (time_remaining * 1000.0) / average_lap_time_ms
             )
+            laps_remaining_source = (
+                "ACC_Graphics.session_time_left_ms / "
+                "mean_of_latest_five_valid_completed_laps"
+            )
+            blockers.append(
+                "Timed-race finish-line and extra-lap behaviour is not yet live-qualified; "
+                "the lap count is an estimate, not a guaranteed finish distance."
+            )
     elif session_mode == "lap_based":
-        blockers.append("Remaining laps are not estimated for lap-based sessions from the timer.")
+        if not qualified_lap_limit:
+            blockers.append(
+                "Lap-based remaining distance is unavailable until ACC Graphics "
+                "number_of_laps is live-qualified (issue #22)."
+            )
+        elif completed_laps is None:
+            blockers.append(
+                "Lap-based remaining distance requires a valid completed-lap count."
+            )
+        elif completed_laps > lap_limit:
+            blockers.append(
+                "ACC completed-lap count exceeds the qualified race lap limit; "
+                "remaining distance is contradictory."
+            )
+        else:
+            laps_remaining = lap_limit - completed_laps
+            laps_remaining_source = (
+                "ACC_Graphics.number_of_laps - ACC_Graphics.completed_laps"
+            )
+            laps_remaining_qualified = True
 
-    blockers.append("ACC Graphics number_of_laps has not been live-qualified as a lap limit.")
+    if session_mode != "lap_based" or not qualified_lap_limit:
+        blockers.append("ACC Graphics number_of_laps has not been live-qualified as a lap limit.")
     blockers.append("ACC Graphics global_chequered has not been live-qualified against a chequered finish.")
 
     return RaceProgressAssessment(
@@ -212,8 +258,11 @@ def assess_race_progress(
         average_lap_time_ms=average_lap_time_ms,
         lap_time_sample_count=len(lap_times),
         lap_limit_candidate=lap_limit if lap_limit and lap_limit > 0 else None,
-        lap_limit_qualified=False,
+        lap_limit_qualified=qualified_lap_limit,
         laps_remaining=laps_remaining,
+        estimated_race_laps_remaining=laps_remaining,
+        estimated_race_laps_source=laps_remaining_source,
+        estimated_race_laps_qualified=laps_remaining_qualified,
         projected_fuel_required_l=None,
         blockers=tuple(blockers),
     )
