@@ -161,23 +161,39 @@ class ACCDesktopWindow(QMainWindow):
             track=self._track, car=self._car_model
         )
         race_progress = engineer_snapshot.get("race_progress", {})
-        time_remaining = race_progress.get("session_time_remaining_s")
+        raw_graphics = graphics_consumer.snapshot.latest
+        raw_session_time = (
+            raw_graphics.session_time_left_s if raw_graphics is not None else None
+        )
+        raw_lap_limit = (
+            raw_graphics.number_of_laps if raw_graphics is not None else None
+        )
+        raw_graphics_status = (
+            raw_graphics.status if raw_graphics is not None else None
+        )
         time_bucket = (
-            int(float(time_remaining) // 30)
-            if isinstance(time_remaining, (int, float))
+            int(float(raw_session_time) // 30)
+            if isinstance(raw_session_time, (int, float))
             else None
         )
         log_signature = (
             race_progress.get("status"),
             race_progress.get("session_type_code"),
             race_progress.get("completed_laps"),
-            race_progress.get("lap_limit_candidate"),
+            raw_graphics_status,
+            raw_lap_limit,
             time_bucket,
         )
         if log_signature != self._last_race_progress_log_signature:
             self._last_race_progress_log_signature = log_signature
+            diagnostic = {
+                **race_progress,
+                "raw_graphics_status": raw_graphics_status,
+                "raw_session_time_left": raw_session_time,
+                "raw_number_of_laps": raw_lap_limit,
+            }
             print(
-                "[Race Progress] " + json.dumps(race_progress, sort_keys=True),
+                "[Race Progress] " + json.dumps(diagnostic, sort_keys=True),
                 flush=True,
             )
         snapshot = {
