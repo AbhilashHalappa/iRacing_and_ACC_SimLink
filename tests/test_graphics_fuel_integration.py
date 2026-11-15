@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 import struct
+
+import pytest
 from types import SimpleNamespace
 
 from src.race_engineer_acquisition.fuel_engineer import build_fuel_engineer_snapshot
@@ -80,8 +82,8 @@ def test_acc_graphics_fuel_fields_reach_race_engineer_without_recalculation():
     )
     result = _fuel_snapshot(decoded, current_fuel=11.8)
 
-    assert result.acc_fuel_per_lap_l == 2.72
-    assert result.acc_fuel_laps_remaining == 4.3
+    assert result.acc_fuel_per_lap_l == pytest.approx(2.72)
+    assert result.acc_fuel_laps_remaining == pytest.approx(4.3)
     assert result.current_fuel_l == 11.8
     assert result.fuel_per_lap_fresh is True
     assert result.fuel_laps_fresh is True
@@ -109,9 +111,9 @@ def test_graphics_fuel_values_update_after_refuelling_without_physics_fallback()
     )
     after_result = _fuel_snapshot(after, current_fuel=57.8)
 
-    assert before_result.acc_fuel_laps_remaining == 4.3
-    assert after_result.acc_fuel_laps_remaining == 21.2
-    assert after_result.acc_fuel_per_lap_l == 2.72
+    assert before_result.acc_fuel_laps_remaining == pytest.approx(4.3)
+    assert after_result.acc_fuel_laps_remaining == pytest.approx(21.2)
+    assert after_result.acc_fuel_per_lap_l == pytest.approx(2.72)
     assert before_result.current_fuel_l == 11.8
     assert after_result.current_fuel_l == 57.8
 
