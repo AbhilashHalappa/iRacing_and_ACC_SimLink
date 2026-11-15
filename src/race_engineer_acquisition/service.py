@@ -125,6 +125,7 @@ class RaceEngineerService:
         self._last_broker_revision = 0
         self._track: str | None = None
         self._car: str | None = None
+        self._last_race_rules_diagnostic: tuple[Any, ...] | None = None
 
     def start(self) -> None:
         self._broker.start()
@@ -412,6 +413,28 @@ class RaceEngineerService:
         race_progress_payload_value, fuel_sufficiency_payload_value = (
             self._calculate_fuel_assessment(telemetry)
         )
+        race_rules_observation = _race_rules_observation(telemetry)
+        if race_rules_observation["status"] == "fresh":
+            diagnostic = (
+                race_rules_observation["mandatory_pit_done_candidate"],
+                race_rules_observation["missing_mandatory_pits_candidate"],
+                race_rules_observation["driver_stint_total_ms_candidate"],
+                race_rules_observation["driver_stint_left_ms_candidate"],
+                race_rules_observation["is_in_pit_candidate"],
+                race_rules_observation["is_in_pit_lane_candidate"],
+            )
+            if diagnostic != self._last_race_rules_diagnostic:
+                self._last_race_rules_diagnostic = diagnostic
+                print(
+                    "[Race Rules Candidate] "
+                    f"mandatory_pit_done={diagnostic[0]} "
+                    f"missing_mandatory_pits={diagnostic[1]} "
+                    f"driver_stint_total_ms={diagnostic[2]} "
+                    f"driver_stint_left_ms={diagnostic[3]} "
+                    f"is_in_pit={diagnostic[4]} "
+                    f"is_in_pit_lane={diagnostic[5]}",
+                    flush=True,
+                )
         with self._assessment_lock:
             assessment_meta = {
                 "trigger": "completed_lap",
@@ -426,7 +449,7 @@ class RaceEngineerService:
             "fuel_engineer": fuel_payload,
             "race_progress": race_progress_payload_value,
             "fuel_sufficiency_strategy": fuel_sufficiency_payload_value,
-            "race_rules_observation": _race_rules_observation(telemetry),
+            "race_rules_observation": race_rules_observation,
             "background_assessment": assessment_meta,
             "static_metadata": {
                 "status": "fresh" if telemetry.static_decoded.is_fresh else "unavailable",
