@@ -128,6 +128,11 @@ class RaceEngineerService:
         race_progress = assess_race_progress(
             telemetry,
             lap_records=lap_records,
+            # Prior ACC live validation confirmed number_of_laps is the
+            # configured/session lap limit; completed_laps is the separate
+            # live progress counter. The assessor still requires fresh LIVE
+            # Graphics and a confirmed lap-based session before using it.
+            lap_limit_qualified=True,
         )
         fuel_sufficiency = assess_fuel_sufficiency(
             acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
