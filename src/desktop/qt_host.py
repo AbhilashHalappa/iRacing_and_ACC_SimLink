@@ -73,6 +73,7 @@ class ACCDesktopWindow(QMainWindow):
         self._track: str | None = None
         self._track_configuration: str | None = None
         self._last_race_progress_log_signature: tuple[object, ...] | None = None
+        self._last_static_metadata_log_signature: tuple[object, ...] | None = None
         try:
             self._runtime.supervisor.start()
             self._race_engineer_service.start()
@@ -194,6 +195,24 @@ class ACCDesktopWindow(QMainWindow):
             }
             print(
                 "[Race Progress] " + json.dumps(diagnostic, sort_keys=True),
+                flush=True,
+            )
+        static_metadata = engineer_snapshot.get("static_metadata", {})
+        static_data = static_metadata.get("data") or {}
+        static_signature = (
+            static_metadata.get("status"),
+            static_metadata.get("capture_sequence"),
+            static_data.get("track"),
+            static_data.get("car_model"),
+            static_data.get("track_configuration"),
+            static_data.get("is_timed_race"),
+            static_data.get("has_extra_lap"),
+            static_metadata.get("last_error"),
+        )
+        if static_signature != self._last_static_metadata_log_signature:
+            self._last_static_metadata_log_signature = static_signature
+            print(
+                "[Static Metadata] " + json.dumps(static_metadata, sort_keys=True),
                 flush=True,
             )
         snapshot = {
