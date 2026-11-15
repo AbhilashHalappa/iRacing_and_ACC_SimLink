@@ -192,7 +192,8 @@ def assess_race_progress(
     laps_remaining_source = None
     laps_remaining_qualified = False
     qualified_lap_limit = (
-        lap_limit_qualified
+        session_mode == "lap_based"
+        and lap_limit_qualified
         and lap_limit is not None
         and lap_limit > 0
     )
