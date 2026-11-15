@@ -574,3 +574,32 @@ button { cursor: pointer; }
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* Race Engineer fuel status: high-contrast positive/negative margin cues. */
+.race-engineer-grid .fuel-status-field {
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.race-engineer-grid .fuel-status-field.fuel-positive {
+  --fuel-status-glow: #25c878;
+  border-color: color-mix(in srgb, var(--fuel-status-glow) 82%, var(--outline));
+  background: color-mix(in srgb, var(--fuel-status-glow) 9%, var(--surface-high));
+  box-shadow: 0 0 13px color-mix(in srgb, var(--fuel-status-glow) 38%, transparent);
+}
+.race-engineer-grid .fuel-status-field.fuel-positive b { color: #35d889; }
+.race-engineer-grid .fuel-status-field.fuel-negative {
+  --fuel-status-glow: #ed4545;
+  border-color: color-mix(in srgb, var(--fuel-status-glow) 82%, var(--outline));
+  background: color-mix(in srgb, var(--fuel-status-glow) 10%, var(--surface-high));
+  box-shadow: 0 0 13px color-mix(in srgb, var(--fuel-status-glow) 42%, transparent);
+}
+.race-engineer-grid .fuel-status-field.fuel-negative b { color: #ff6868; }
+.race-engineer-grid .fuel-status-field.fuel-neutral { border-color: var(--outline); box-shadow: none; }
+.race-engineer-grid .fuel-pit-add-field {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--outline));
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-high));
+}
+.race-engineer-grid .fuel-pit-add-field b { color: var(--on-surface); font-size: 22px; }
+@media (prefers-reduced-motion: reduce) {
+  .race-engineer-grid .fuel-status-field { transition: none; }
+}
