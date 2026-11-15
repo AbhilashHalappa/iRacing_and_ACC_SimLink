@@ -7,7 +7,7 @@ freshness describes the latest successful mapping read, not decoded metadata.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import time
 from typing import Any
 
@@ -135,6 +135,15 @@ class RaceEngineerSnapshotAggregator:
             "static", static_consumer, static_health, now_ns,
             self._static_read_max_age_ns,
         )
+        # Static emits a new decoded snapshot only when the raw page changes.
+        # Its metadata remains fresh while the mapping itself is being read
+        # successfully, even when the page contents are unchanged for minutes.
+        if (
+            static.is_read_fresh
+            and static_consumer.lifecycle_state == "running"
+            and static_consumer.latest is not None
+        ):
+            static_decoded = replace(static_decoded, is_fresh=True)
         return RaceEngineerTelemetrySnapshot(
             captured_at_ns=now_ns,
             physics=physics,
