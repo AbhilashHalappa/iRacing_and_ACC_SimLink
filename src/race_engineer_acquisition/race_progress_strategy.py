@@ -19,6 +19,7 @@ class RaceProgressAssessment:
     chequered_flag_candidate: bool | None
     chequered_flag_qualified: bool
     session_type_code: int | None
+    session_type_label: str | None
     completed_laps: int | None
     session_time_remaining_s: float | None
     lap_limit_candidate: int | None
@@ -45,8 +46,8 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
     """Expose fresh LIVE progress fields without guessing session semantics.
 
     Graphics.session_time_left_ms is validated from live ACC observations and
-    converted to seconds for the public race-progress payload. The numeric
-    session enum is retained but not mapped. Graphics.number_of_laps is exposed
+    converted to seconds for the public race-progress payload. Graphics session codes 0 (Practice) and 2 (Race) are mapped from the
+    user's live ACC observations; all other codes remain unknown. Graphics.number_of_laps is exposed
     only as an unqualified candidate because the current live audit has not
     validated it against a known lap-limited session. Static.is_timed_race classifies mode only when Static metadata is fresh. The
     Graphics global_chequered value is exposed as an unqualified candidate.
@@ -65,6 +66,7 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
             chequered_flag_candidate=None,
             chequered_flag_qualified=False,
             session_type_code=None,
+            session_type_label=None,
             completed_laps=None,
             session_time_remaining_s=None,
             lap_limit_candidate=None,
@@ -107,7 +109,9 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
         blockers.append("Fresh decoded ACC Static race-mode metadata is unavailable.")
     if not isinstance(has_extra_lap, bool):
         has_extra_lap = None
-    blockers.append("ACC Graphics session-type enum mapping is not qualified.")
+    session_type_label = {0: "practice", 2: "race"}.get(session_type)
+    if session_type_label is None:
+        blockers.append("ACC Graphics session-type code is not yet qualified for this value.")
     blockers.append("ACC Graphics number_of_laps has not been live-qualified as a lap limit.")
     blockers.append("ACC Graphics global_chequered has not been live-qualified against a chequered finish.")
 
@@ -119,6 +123,7 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
         chequered_flag_candidate=chequered_candidate,
         chequered_flag_qualified=False,
         session_type_code=session_type,
+        session_type_label=session_type_label,
         completed_laps=completed_laps,
         session_time_remaining_s=time_remaining,
         lap_limit_candidate=lap_limit if lap_limit and lap_limit > 0 else None,
