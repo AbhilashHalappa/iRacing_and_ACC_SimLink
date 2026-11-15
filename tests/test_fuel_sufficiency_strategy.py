@@ -1,3 +1,5 @@
+import pytest
+
 from src.race_engineer_acquisition.fuel_sufficiency_strategy import assess_fuel_sufficiency
 
 
@@ -17,7 +19,7 @@ def test_compares_acc_fuel_laps_directly_with_estimated_race_laps():
     assert result.estimated_race_laps_remaining == 12
     assert result.fuel_margin_laps == 3.7
     assert result.estimated_fuel_required_l == 32.4
-    assert result.fuel_margin_l == 10.1
+    assert result.fuel_margin_l == pytest.approx(10.1)
 
 
 def test_reports_estimated_shortfall_without_recalculating_acc_fuel_laps():
