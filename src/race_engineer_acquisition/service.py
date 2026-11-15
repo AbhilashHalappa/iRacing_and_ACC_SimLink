@@ -177,6 +177,16 @@ class RaceEngineerService:
         race_progress = assess_race_progress(
             telemetry, lap_records=lap_records, lap_limit_qualified=True,
         )
+        static_view = telemetry.static_decoded
+        static_data = (
+            static_view.data
+            if static_view.is_fresh and static_view.data is not None
+            else None
+        )
+        max_fuel_capacity_l = (
+            getattr(static_data, "max_fuel", None)
+            if static_data is not None else None
+        )
         fuel_sufficiency = assess_fuel_sufficiency(
             acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
             fuel_laps_fresh=fuel.fuel_laps_fresh,
@@ -185,6 +195,8 @@ class RaceEngineerService:
             current_fuel_fresh=fuel.current_fuel_fresh,
             acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
             fuel_per_lap_fresh=fuel.fuel_per_lap_fresh,
+            max_fuel_capacity_l=max_fuel_capacity_l,
+            fuel_capacity_fresh=static_data is not None,
         )
         return race_progress_payload(race_progress), fuel_sufficiency_payload(fuel_sufficiency)
 
