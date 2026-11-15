@@ -139,3 +139,74 @@ def test_next_pit_fuel_add_is_unavailable_without_fresh_fuel_inputs():
 
     assert result.estimated_fuel_to_add_next_pit_l is None
     assert result.fuel_to_add_estimate_status == "unavailable"
+
+
+
+@pytest.mark.parametrize(
+    "invalid_fuel_per_lap",
+    [0.0, -1.0, float("nan"), float("inf"), float("-inf"), True, None],
+)
+def test_invalid_acc_fuel_per_lap_blocks_sufficiency_and_fuel_add_estimates(
+    invalid_fuel_per_lap,
+):
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=20.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=10,
+        current_fuel_l=50.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=invalid_fuel_per_lap,
+        fuel_per_lap_fresh=True,
+    )
+
+    assert result.status == "unavailable"
+    assert result.acc_fuel_laps_remaining == 20.0
+    assert result.fuel_margin_laps is None
+    assert result.acc_fuel_per_lap_l is None
+    assert result.estimated_fuel_required_l is None
+    assert result.safety_reserve_fuel_l is None
+    assert result.safety_target_fuel_l is None
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert result.fuel_to_add_estimate_status == "unavailable"
+    assert any("fuel-per-lap" in blocker for blocker in result.blockers)
+
+
+def test_unfresh_acc_fuel_per_lap_blocks_sufficiency_calculation():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=20.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=10,
+        current_fuel_l=50.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.7,
+        fuel_per_lap_fresh=False,
+    )
+
+    assert result.status == "unavailable"
+    assert result.estimated_fuel_required_l is None
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert any("fuel-per-lap" in blocker for blocker in result.blockers)
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [-1.0, float("nan"), float("inf"), float("-inf"), True],
+)
+def test_invalid_current_fuel_does_not_produce_fuel_amounts(invalid_value):
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=15.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=10,
+        current_fuel_l=invalid_value,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.7,
+        fuel_per_lap_fresh=True,
+    )
+
+    # The ACC endurance comparison remains available; only calculations that
+    # require the invalid current-fuel reading are suppressed.
+    assert result.status == "estimated_sufficient"
+    assert result.fuel_margin_l is None
+    assert result.safety_fuel_margin_l is None
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert result.fuel_to_add_estimate_status == "unavailable"
