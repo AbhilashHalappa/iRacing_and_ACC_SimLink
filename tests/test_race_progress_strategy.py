@@ -25,6 +25,7 @@ def test_fresh_live_graphics_exposes_observed_progress_without_guessing_mode():
     assert result.status == "observing"
     assert result.session_mode == "unknown"
     assert result.session_type_code == 2
+    assert result.session_type_label == "race"
     assert result.completed_laps == 4
     assert result.session_time_remaining_s == 612.5
     assert result.lap_limit_candidate is None
@@ -102,3 +103,13 @@ def test_stale_graphics_does_not_expose_chequered_flag_candidate():
     result = assess_race_progress(_telemetry(fresh=False, chequered=True))
     assert result.chequered_flag_candidate is None
     assert result.chequered_flag_qualified is False
+
+
+def test_only_live_observed_session_codes_are_labelled():
+    practice = assess_race_progress(_telemetry(session=0))
+    race = assess_race_progress(_telemetry(session=2))
+    unknown = assess_race_progress(_telemetry(session=1))
+    assert practice.session_type_label == "practice"
+    assert race.session_type_label == "race"
+    assert unknown.session_type_label is None
+    assert any("not yet qualified" in item for item in unknown.blockers)
