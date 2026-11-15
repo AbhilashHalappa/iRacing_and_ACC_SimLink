@@ -1,9 +1,10 @@
 """Freshness-aware read-only aggregation for Race Engineer telemetry.
 
-This module reads the existing decoded Physics/Graphics consumer snapshots and
-acquisition health. It does not read shared memory, drain acquisition queues,
-or mutate acquisition/recording state. Static remains raw-only: its health
-freshness describes the latest successful mapping read, not decoded metadata.
+This module reads existing decoded Physics, Graphics and Static consumer
+snapshots plus acquisition health. It does not read shared memory, drain
+acquisition queues, or mutate acquisition/recording state. Static metadata
+freshness follows successful mapping reads because unchanged pages are not
+re-emitted by the Static acquirer.
 """
 from __future__ import annotations
 
@@ -142,6 +143,7 @@ class RaceEngineerSnapshotAggregator:
             static.is_read_fresh
             and static_consumer.lifecycle_state == "running"
             and static_consumer.latest is not None
+            and static_consumer.last_error is None
         ):
             static_decoded = replace(static_decoded, is_fresh=True)
         return RaceEngineerTelemetrySnapshot(
