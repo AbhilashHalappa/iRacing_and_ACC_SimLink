@@ -118,8 +118,23 @@ def assess_race_progress(
         if static_view is not None and getattr(static_view, "is_fresh", False)
         else None
     )
-    timed_flag = getattr(static_data, "is_timed_race", None)
-    has_extra_lap = getattr(static_data, "has_extra_lap", None)
+    static_identity_ready = bool(
+        static_data is not None
+        and isinstance(getattr(static_data, "track", None), str)
+        and getattr(static_data, "track", "").strip()
+        and isinstance(getattr(static_data, "car_model", None), str)
+        and getattr(static_data, "car_model", "").strip()
+    )
+    # A newly opened mapping can initially contain a zero-filled page. Do not
+    # interpret its default false race-mode flag as a lap-based session.
+    timed_flag = (
+        getattr(static_data, "is_timed_race", None)
+        if static_identity_ready else None
+    )
+    has_extra_lap = (
+        getattr(static_data, "has_extra_lap", None)
+        if static_identity_ready else None
+    )
     chequered_candidate = getattr(graphics, "global_chequered", None)
     if not isinstance(chequered_candidate, bool):
         chequered_candidate = None
