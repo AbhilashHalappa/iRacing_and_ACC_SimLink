@@ -8,6 +8,7 @@ from typing import Any
 from .decoded_distribution import DecodedTelemetryBroker
 from .fuel_engineer import build_fuel_engineer_snapshot
 from .fuel_consumption_strategy import assess_measured_fuel, fuel_consumption_payload
+from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency_payload
 from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 
@@ -93,10 +94,10 @@ class RaceEngineerService:
         if not fuel.current_fuel_fresh:
             return "Fuel telemetry unavailable or stale. No fuel recommendation."
         parts = [f"{fuel.current_fuel_l:.1f} litres remaining"]
-        if fuel.fuel_per_lap_fresh and fuel.fuel_per_lap_candidate_l is not None:
-            parts.append(f"{fuel.fuel_per_lap_candidate_l:.2f} litres per lap")
-        if fuel.estimated_laps_fresh and fuel.estimated_laps_candidate is not None:
-            parts.append(f"{fuel.estimated_laps_candidate:.1f} laps estimated")
+        if fuel.fuel_per_lap_fresh and fuel.acc_fuel_per_lap_l is not None:
+            parts.append(f"{fuel.acc_fuel_per_lap_l:.2f} litres per lap")
+        if fuel.fuel_laps_fresh and fuel.acc_fuel_laps_remaining is not None:
+            parts.append(f"{fuel.acc_fuel_laps_remaining:.1f} fuel laps remaining according to ACC")
         if fuel.fuel_used_l is not None:
             parts.append(f"{fuel.fuel_used_l:.1f} litres used")
         if fuel.mfd_fuel_to_add_l is not None:
@@ -122,10 +123,20 @@ class RaceEngineerService:
             telemetry,
             lap_records=lap_records,
         )
+        fuel_sufficiency = assess_fuel_sufficiency(
+            acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
+            fuel_laps_fresh=fuel.fuel_laps_fresh,
+            estimated_race_laps_remaining=race_progress.laps_remaining,
+            current_fuel_l=fuel.current_fuel_l,
+            current_fuel_fresh=fuel.current_fuel_fresh,
+            acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
+            fuel_per_lap_fresh=fuel.fuel_per_lap_fresh,
+        )
         return {
             "fuel_engineer": asdict(fuel),
             "fuel_consumption_strategy": fuel_consumption_payload(measured_fuel),
             "race_progress": race_progress_payload(race_progress),
+            "fuel_sufficiency_strategy": fuel_sufficiency_payload(fuel_sufficiency),
             "static_metadata": {
                 "status": "fresh" if telemetry.static_decoded.is_fresh else "unavailable",
                 "capture_sequence": telemetry.static_decoded.capture_sequence,
