@@ -1,8 +1,7 @@
-"""Conservative race-progress observations from fresh decoded ACC Graphics.
+"""Conservative race-progress observations from fresh decoded ACC streams.
 
-The current Stage 2 aggregate exposes Graphics but not decoded Static metadata.
-Consequently this module reports validated observations only: it does not map
-ACC session enum values, infer timed-vs-lap race mode, or estimate finish fuel.
+Race mode comes from fresh Static metadata. Graphics session codes, lap limits,
+and the chequered flag remain unqualified observations until live-validated.
 """
 from __future__ import annotations
 
@@ -17,6 +16,8 @@ class RaceProgressAssessment:
     session_mode: str
     session_mode_source: str | None
     has_extra_lap: bool | None
+    chequered_flag_candidate: bool | None
+    chequered_flag_qualified: bool
     session_type_code: int | None
     completed_laps: int | None
     session_time_remaining_s: float | None
@@ -47,8 +48,8 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
     converted to seconds for the public race-progress payload. The numeric
     session enum is retained but not mapped. Graphics.number_of_laps is exposed
     only as an unqualified candidate because the current live audit has not
-    validated it against a known lap-limited session. Static.is_timed_race is
-    not consumed here because Static is not part of the decoded Stage 2 view.
+    validated it against a known lap-limited session. Static.is_timed_race classifies mode only when Static metadata is fresh. The
+    Graphics global_chequered value is exposed as an unqualified candidate.
     """
     view = getattr(telemetry, "graphics", None)
     graphics = getattr(view, "data", None) if view is not None else None
@@ -61,6 +62,8 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
             session_mode="unknown",
             session_mode_source=None,
             has_extra_lap=None,
+            chequered_flag_candidate=None,
+            chequered_flag_qualified=False,
             session_type_code=None,
             completed_laps=None,
             session_time_remaining_s=None,
@@ -92,6 +95,9 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
     )
     timed_flag = getattr(static_data, "is_timed_race", None)
     has_extra_lap = getattr(static_data, "has_extra_lap", None)
+    chequered_candidate = getattr(graphics, "global_chequered", None)
+    if not isinstance(chequered_candidate, bool):
+        chequered_candidate = None
     if isinstance(timed_flag, bool):
         session_mode = "timed" if timed_flag else "lap_based"
         session_mode_source = "ACC_Static.is_timed_race"
@@ -103,12 +109,15 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
         has_extra_lap = None
     blockers.append("ACC Graphics session-type enum mapping is not qualified.")
     blockers.append("ACC Graphics number_of_laps has not been live-qualified as a lap limit.")
+    blockers.append("ACC Graphics global_chequered has not been live-qualified against a chequered finish.")
 
     return RaceProgressAssessment(
         status="observing",
         session_mode=session_mode,
         session_mode_source=session_mode_source,
         has_extra_lap=has_extra_lap,
+        chequered_flag_candidate=chequered_candidate,
+        chequered_flag_qualified=False,
         session_type_code=session_type,
         completed_laps=completed_laps,
         session_time_remaining_s=time_remaining,
