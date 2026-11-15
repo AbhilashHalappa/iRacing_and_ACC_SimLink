@@ -172,7 +172,7 @@ class ACCDesktopWindow(QMainWindow):
             raw_graphics.status if raw_graphics is not None else None
         )
         time_bucket = (
-            int(float(raw_session_time) // 30)
+            int(float(raw_session_time) // 30000)
             if isinstance(raw_session_time, (int, float))
             else None
         )
