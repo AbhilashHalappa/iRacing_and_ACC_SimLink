@@ -41,7 +41,8 @@ def _finite_nonnegative(value: Any) -> float | None:
 def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
     """Expose fresh LIVE progress fields without guessing session semantics.
 
-    Graphics.session_time_left_s is surfaced as an observation. The numeric
+    Graphics.session_time_left_ms is validated from live ACC observations and
+    converted to seconds for the public race-progress payload. The numeric
     session enum is retained but not mapped. Graphics.number_of_laps is exposed
     only as an unqualified candidate because the current live audit has not
     validated it against a known lap-limited session. Static.is_timed_race is
