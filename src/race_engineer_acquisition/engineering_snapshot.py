@@ -56,6 +56,7 @@ class RaceEngineerTelemetrySnapshot:
     physics: TelemetryStreamView
     graphics: TelemetryStreamView
     static: RawStreamHealthView
+    static_decoded: TelemetryStreamView
 
     @property
     def live_vehicle_data_fresh(self) -> bool:
@@ -105,6 +106,7 @@ class RaceEngineerSnapshotAggregator:
         physics_health = self._runtime.acquirers["physics"].health.snapshot
         graphics_health = self._runtime.acquirers["graphics"].health.snapshot
         static_health = self._runtime.acquirers["static"].health.snapshot
+        static_consumer = self._runtime.static_consumer.snapshot
 
         physics = self._decoded_view(
             "physics", physics_consumer, physics_health, now_ns,
@@ -129,11 +131,16 @@ class RaceEngineerSnapshotAggregator:
                 and 0 <= static_age <= self._static_read_max_age_ns
             ),
         )
+        static_decoded = self._decoded_view(
+            "static", static_consumer, static_health, now_ns,
+            self._static_read_max_age_ns,
+        )
         return RaceEngineerTelemetrySnapshot(
             captured_at_ns=now_ns,
             physics=physics,
             graphics=graphics,
             static=static,
+            static_decoded=static_decoded,
         )
 
     @classmethod
