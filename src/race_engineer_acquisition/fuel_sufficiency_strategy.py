@@ -34,6 +34,12 @@ def _finite_nonnegative(value: Any) -> float | None:
     return result if math.isfinite(result) and result >= 0.0 else None
 
 
+def _finite_positive(value: Any) -> float | None:
+    """Fuel consumption must be finite and strictly greater than zero."""
+    result = _finite_nonnegative(value)
+    return result if result is not None and result > 0.0 else None
+
+
 def assess_fuel_sufficiency(
     *,
     acc_fuel_laps_remaining: Any,
@@ -54,7 +60,7 @@ def assess_fuel_sufficiency(
         and estimated_race_laps_remaining >= 0 else None
     )
     fuel = _finite_nonnegative(current_fuel_l) if current_fuel_fresh else None
-    per_lap = _finite_nonnegative(acc_fuel_per_lap_l) if fuel_per_lap_fresh else None
+    per_lap = _finite_positive(acc_fuel_per_lap_l) if fuel_per_lap_fresh else None
     blockers: list[str] = []
     reserve_laps = (
         safety_reserve_laps
@@ -67,6 +73,10 @@ def assess_fuel_sufficiency(
         blockers.append("Fresh ACC fuel-laps-remaining value is unavailable.")
     if race_laps is None:
         blockers.append("Estimated remaining race laps are unavailable.")
+    if per_lap is None:
+        blockers.append(
+            "Fresh ACC fuel-per-lap data must be finite and greater than zero."
+        )
     required_l = per_lap * race_laps if per_lap is not None and race_laps is not None else None
     reserve_l = per_lap * reserve_laps if per_lap is not None else None
     safety_target_l = (
