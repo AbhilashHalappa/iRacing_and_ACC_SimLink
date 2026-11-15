@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from threading import Event, Lock, Thread
+import time
 from pathlib import Path
 from typing import Any
 
@@ -23,16 +25,37 @@ class RaceEngineerService:
         )
         self._lap_history = StrategyLapHistory(history_path)
         self._session_fuel_used = SessionFuelUsedAccumulator()
+        self._assessment_stop = Event()
+        self._assessment_thread: Thread | None = None
+        self._assessment_lock = Lock()
+        self._latest_race_progress: dict[str, Any] | None = None
+        self._latest_fuel_sufficiency: dict[str, Any] | None = None
+        self._assessment_count = 0
+        self._last_assessment_event_id: str | None = None
+        self._last_assessment_lap_number: int | None = None
+        self._processed_assessment_event_ids: set[str] = set()
 
     def start(self) -> None:
         self._broker.start()
+        if self._assessment_thread is None or not self._assessment_thread.is_alive():
+            self._assessment_stop.clear()
+            self._assessment_thread = Thread(
+                target=self._run_background_assessments,
+                name="ACC-Fuel-Strategy-Assessment",
+                daemon=True,
+            )
+            self._assessment_thread.start()
 
     def close(self) -> bool:
+        self._assessment_stop.set()
+        worker = self._assessment_thread
+        if worker is not None:
+            worker.join(timeout=2.0)
         self._live_subscription.close()
         self._lap_events.close()
         stopped = self._broker.close()
         self._lap_history.close()
-        return stopped
+        return stopped and (worker is None or not worker.is_alive())
 
     def read_strategy_laps(
         self, *, limit: int | None = None
@@ -45,7 +68,8 @@ class RaceEngineerService:
         return self._broker.out_lap_status
 
     def _update_lap_history(
-        self, telemetry: Any, *, track: str | None, car: str | None
+        self, telemetry: Any, *, track: str | None, car: str | None,
+        batch: Any | None = None,
     ) -> dict[str, Any]:
         graphics_view = telemetry.graphics
         graphics = graphics_view.data if graphics_view.is_fresh else None
@@ -70,7 +94,8 @@ class RaceEngineerService:
                 session_id, cursor, track=track, car=car
             )
 
-        batch = self._lap_events.read_batch()
+        if batch is None:
+            batch = self._lap_events.read_batch()
         self._lap_history.consume(batch, telemetry)
         event_timestamps = [
             event.source_timestamp_ns for event in batch.events
@@ -104,6 +129,98 @@ class RaceEngineerService:
             parts.append(f"MFD fuel-to-add {fuel.mfd_fuel_to_add_l:.1f} litres")
         return "Fuel status: " + "; ".join(parts) + "."
 
+
+    def _calculate_fuel_assessment(self, telemetry: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Calculate one immutable strategy result from the supplied decoded snapshot."""
+        fuel = build_fuel_engineer_snapshot(telemetry)
+        current_session_id = self._broker.strategy_session_id
+        lap_records = tuple(
+            record for record in self._lap_history.read_records()
+            if current_session_id is not None and record.session_id == current_session_id
+        )
+        race_progress = assess_race_progress(
+            telemetry, lap_records=lap_records, lap_limit_qualified=True,
+        )
+        fuel_sufficiency = assess_fuel_sufficiency(
+            acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
+            fuel_laps_fresh=fuel.fuel_laps_fresh,
+            estimated_race_laps_remaining=race_progress.estimated_race_laps_remaining,
+            current_fuel_l=fuel.current_fuel_l,
+            current_fuel_fresh=fuel.current_fuel_fresh,
+            acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
+            fuel_per_lap_fresh=fuel.fuel_per_lap_fresh,
+        )
+        return race_progress_payload(race_progress), fuel_sufficiency_payload(fuel_sufficiency)
+
+    def _store_background_assessment(
+        self, telemetry: Any, *, event_id: str | None = None,
+        lap_number: int | None = None,
+    ) -> None:
+        race_progress, fuel_sufficiency = self._calculate_fuel_assessment(telemetry)
+        with self._assessment_lock:
+            self._latest_race_progress = race_progress
+            self._latest_fuel_sufficiency = fuel_sufficiency
+            if event_id is not None:
+                self._assessment_count += 1
+                self._last_assessment_event_id = event_id
+                self._last_assessment_lap_number = lap_number
+
+    def _run_background_assessments(self) -> None:
+        """Assess once at startup, then once for each unique completed-lap event."""
+        empty_batch = type("EmptyBatch", (), {"events": (), "gap_detected": False})()
+        seeded = False
+        while not self._assessment_stop.is_set():
+            batch = self._lap_events.read_batch(max_events=1)
+            envelope = self._broker.latest
+            if envelope is None:
+                self._assessment_stop.wait(0.05)
+                continue
+            telemetry = envelope.telemetry
+            if not seeded:
+                self._update_lap_history(
+                    telemetry, track=None, car=None, batch=empty_batch
+                )
+                self._store_background_assessment(telemetry)
+                seeded = True
+            if not batch.events and not batch.gap_detected:
+                self._assessment_stop.wait(0.05)
+                continue
+            self._update_lap_history(telemetry, track=None, car=None, batch=batch)
+            if batch.gap_detected:
+                continue
+            for event in batch.events:
+                if event.event_type != "lap.completed":
+                    continue
+                if event.event_id in self._processed_assessment_event_ids:
+                    continue
+                if not event.session_id or event.session_id != self._broker.strategy_session_id:
+                    continue
+                lap_number = event.payload.get("lap_number")
+                if isinstance(lap_number, bool) or not isinstance(lap_number, int) or lap_number < 1:
+                    continue
+                self._processed_assessment_event_ids.add(event.event_id)
+                if len(self._processed_assessment_event_ids) > 512:
+                    self._processed_assessment_event_ids = {event.event_id}
+                # The broker emits the lap event immediately before publishing
+                # the matching snapshot. Wait briefly for that boundary view.
+                deadline = time.monotonic() + 0.5
+                assessment_telemetry = None
+                while not self._assessment_stop.is_set():
+                    latest = self._broker.latest
+                    graphics_view = latest.telemetry.graphics if latest is not None else None
+                    capture_ns = graphics_view.capture_timestamp_ns if graphics_view is not None else None
+                    if event.source_timestamp_ns is None or capture_ns is None or capture_ns >= event.source_timestamp_ns:
+                        assessment_telemetry = latest.telemetry if latest is not None else telemetry
+                        break
+                    if time.monotonic() >= deadline:
+                        break
+                    self._assessment_stop.wait(0.01)
+                if assessment_telemetry is not None and not self._assessment_stop.is_set():
+                    self._store_background_assessment(
+                        assessment_telemetry, event_id=event.event_id,
+                        lap_number=lap_number,
+                    )
+
     def snapshot(
         self, *, track: str | None = None, car: str | None = None
     ) -> dict[str, Any]:
@@ -116,40 +233,28 @@ class RaceEngineerService:
             session_id=self._broker.strategy_session_id,
             acc_used_fuel_l=fuel.fuel_used_l,
         )
-        history = self._update_lap_history(telemetry, track=track, car=car)
-        all_lap_records = self._lap_history.read_records()
-        current_session_id = self._broker.strategy_session_id
-        # Timed-race pace must never borrow valid laps from a previous ACC
-        # session, even when track and car are unchanged.
-        lap_records = tuple(
-            record for record in all_lap_records
-            if current_session_id is not None and record.session_id == current_session_id
-        )
-        race_progress = assess_race_progress(
-            telemetry,
-            lap_records=lap_records,
-            # Prior ACC live validation confirmed number_of_laps is the
-            # configured/session lap limit; completed_laps is the separate
-            # live progress counter. The assessor still requires fresh LIVE
-            # Graphics and a confirmed lap-based session before using it.
-            lap_limit_qualified=True,
-        )
-        fuel_sufficiency = assess_fuel_sufficiency(
-            acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
-            fuel_laps_fresh=fuel.fuel_laps_fresh,
-            estimated_race_laps_remaining=race_progress.estimated_race_laps_remaining,
-            current_fuel_l=fuel.current_fuel_l,
-            current_fuel_fresh=fuel.current_fuel_fresh,
-            acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
-            fuel_per_lap_fresh=fuel.fuel_per_lap_fresh,
-        )
+        history = self._lap_history.snapshot()
+        # Fuel observations remain live on every UI snapshot. The race/fuel
+        # sufficiency assessment is refreshed by the completed-lap worker.
+        with self._assessment_lock:
+            race_progress_payload_value = self._latest_race_progress
+            fuel_sufficiency_payload_value = self._latest_fuel_sufficiency
+            assessment_meta = {
+                "trigger": "completed_lap",
+                "assessment_count": self._assessment_count,
+                "last_event_id": self._last_assessment_event_id,
+                "last_lap_number": self._last_assessment_lap_number,
+            }
+        if race_progress_payload_value is None or fuel_sufficiency_payload_value is None:
+            race_progress_payload_value, fuel_sufficiency_payload_value = self._calculate_fuel_assessment(telemetry)
         fuel_payload = asdict(fuel)
         fuel_payload["session_fuel_used_l"] = session_fuel_used_l
         fuel_payload["session_fuel_used_scope"] = "since_race_engineer_connected"
         return {
             "fuel_engineer": fuel_payload,
-            "race_progress": race_progress_payload(race_progress),
-            "fuel_sufficiency_strategy": fuel_sufficiency_payload(fuel_sufficiency),
+            "race_progress": race_progress_payload_value,
+            "fuel_sufficiency_strategy": fuel_sufficiency_payload_value,
+            "background_assessment": assessment_meta,
             "static_metadata": {
                 "status": "fresh" if telemetry.static_decoded.is_fresh else "unavailable",
                 "capture_sequence": telemetry.static_decoded.capture_sequence,
