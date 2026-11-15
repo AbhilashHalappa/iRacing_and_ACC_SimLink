@@ -213,3 +213,17 @@ The Race Engineer service now owns a lightweight background worker downstream of
 The worker uses a short bounded polling interval to drain the existing event mailbox because the current event subscription API has no blocking wait primitive. It does not poll ACC or decoder state itself; all inputs come from the Stage 2 broker.
 
 Automated coverage added for the sequential assessment gate and duplicate lap-history idempotency. Live ACC validation is still required for timing, reconnect and session-transition behaviour.
+
+
+## Issue #29 implementation — ACC tank-capacity-aware fuel targets
+
+The Stage 2 fuel sufficiency calculation now receives `ACC Static.max_fuel` only when the decoded Static page is fresh and contains data. The field represents the car's maximum fuel capacity in litres. Capacity is validated as a finite positive number; no default tank size is assumed.
+
+- The payload exposes `tank_capacity_l`, `tank_capacity_status`, and `tank_capacity_blockers`.
+- A missing, stale, non-finite, zero or negative capacity is reported as unknown. The normal ACC endurance comparison remains available, but a pit-add recommendation is withheld.
+- The safety-adjusted finish target is checked against the tank capacity. If it exceeds capacity, the strategy reports `target_exceeds_capacity`, explains that the target is physically impossible, and suppresses the pit-add recommendation rather than clamping it.
+- A current-fuel reading above the validated capacity is also treated as inconsistent and suppresses the recommendation.
+- For a feasible target, the pit-add amount is calculated against the projected fuel at pit arrival (current fuel less one lap of consumption) and bounded by the available tank space at that level.
+- The same canonical calculation is used by live UI snapshots and completed-lap background assessments. No Stage 1, Overview, radio or TTS changes were made.
+
+Automated coverage includes fresh/stale/missing Static metadata extraction, unknown capacity, target above capacity, current fuel above capacity, exact-capacity boundary and pit-add space limits. The implementation still requires the user's local focused test run and a live ACC check across a car change and a refuelling stop before Issue #29 can be closed. The current pit-add estimate retains its documented end-of-current-lap assumption; it is not a pit-window or mandatory-stop strategy.
