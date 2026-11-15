@@ -132,7 +132,7 @@ class RaceEngineerService:
         fuel_sufficiency = assess_fuel_sufficiency(
             acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
             fuel_laps_fresh=fuel.fuel_laps_fresh,
-            estimated_race_laps_remaining=race_progress.laps_remaining,
+            estimated_race_laps_remaining=race_progress.estimated_race_laps_remaining,
             current_fuel_l=fuel.current_fuel_l,
             current_fuel_fresh=fuel.current_fuel_fresh,
             acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
