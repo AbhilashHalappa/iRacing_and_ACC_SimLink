@@ -138,8 +138,30 @@ def assess_race_progress(
     chequered_candidate = getattr(graphics, "global_chequered", None)
     if not isinstance(chequered_candidate, bool):
         chequered_candidate = None
-    if isinstance(timed_flag, bool):
-        session_mode = "timed" if timed_flag else "lap_based"
+    if timed_flag is True:
+        session_mode = "timed"
+        session_mode_source = "ACC_Static.is_timed_race"
+    elif (
+        session_type == 2
+        and time_remaining is not None
+        and time_remaining > 0.0
+        and lap_limit in (None, 0)
+    ):
+        # In the user's live ACC race, Static.is_timed_race was false even
+        # though Graphics reported a running countdown and no lap limit.
+        # Prefer the live race-session evidence over the contradictory Static
+        # boolean. Keep the conflict visible for continued qualification.
+        session_mode = "timed"
+        session_mode_source = "ACC_Graphics.race_countdown_without_lap_limit"
+        if timed_flag is False:
+            blockers.append(
+                "ACC Static is_timed_race=false conflicts with the live Race countdown and zero lap limit; using Graphics evidence."
+            )
+    elif timed_flag is False and session_type == 2 and time_remaining is None:
+        session_mode = "lap_based"
+        session_mode_source = "ACC_Static.is_timed_race"
+    elif isinstance(timed_flag, bool):
+        session_mode = "lap_based" if timed_flag is False else "timed"
         session_mode_source = "ACC_Static.is_timed_race"
     else:
         session_mode = "unknown"
