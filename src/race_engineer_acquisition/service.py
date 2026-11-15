@@ -191,6 +191,10 @@ class RaceEngineerService:
                 self._store_background_assessment(telemetry)
                 self._assessment_session_id = session_id
                 seeded = True
+                if batch.events or batch.gap_detected:
+                    self._update_lap_history(
+                        telemetry, track=self._track, car=self._car, batch=batch
+                    )
             elif batch.events or batch.gap_detected:
                 self._update_lap_history(
                     telemetry, track=self._track, car=self._car, batch=batch
