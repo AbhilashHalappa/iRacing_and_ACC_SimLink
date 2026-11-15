@@ -1,9 +1,9 @@
 # ACC Race Engineer — Fuel Strategy
 
 **Repository:** AbhilashHalappa/Race-Engineer-ACC-New  
-**Target branch:** feature/race-engineer-page  
-**Status:** Approved requirements; initial feasibility engine implemented; runtime integration and live-race validation pending  
-**Last updated:** 2026-11-13
+**Target branch:** feature/stage2-decoded-fanout  
+**Status:** Stage 2 live fuel sufficiency integrated; three-lap safety reserve displayed; pit/refuelling recommendations pending  
+**Last updated:** 2026-11-15
 
 ## 1. Purpose
 
