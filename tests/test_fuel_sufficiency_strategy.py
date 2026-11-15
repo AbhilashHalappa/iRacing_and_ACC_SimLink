@@ -53,3 +53,45 @@ def test_does_not_compare_when_either_source_is_unavailable():
     assert result.acc_fuel_laps_remaining is None
     assert result.fuel_margin_laps is None
     assert any("ACC fuel-laps-remaining" in item for item in result.blockers)
+
+
+
+def test_keeps_acc_margin_and_adds_separate_three_lap_safety_reserve():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=15.7,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=12,
+        current_fuel_l=42.5,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.7,
+        fuel_per_lap_fresh=True,
+    )
+
+    # The ACC comparison remains unchanged.
+    assert result.fuel_margin_laps == pytest.approx(3.7)
+    assert result.fuel_margin_l == pytest.approx(10.1)
+    # The strategy margin separately subtracts the approved three-lap reserve.
+    assert result.safety_reserve_laps == 3
+    assert result.safety_reserve_fuel_l == pytest.approx(8.1)
+    assert result.safety_margin_laps == pytest.approx(0.7)
+    assert result.safety_target_fuel_l == pytest.approx(40.5)
+    assert result.safety_fuel_margin_l == pytest.approx(2.0)
+    assert result.safety_status == "reserve_satisfied"
+
+
+def test_reports_reserve_shortfall_even_when_acc_margin_is_positive():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=14.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=12,
+        current_fuel_l=35.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=2.5,
+        fuel_per_lap_fresh=True,
+    )
+
+    assert result.status == "estimated_sufficient"
+    assert result.fuel_margin_laps == pytest.approx(2.0)
+    assert result.safety_margin_laps == pytest.approx(-1.0)
+    assert result.safety_fuel_margin_l == pytest.approx(-2.5)
+    assert result.safety_status == "reserve_shortfall"
