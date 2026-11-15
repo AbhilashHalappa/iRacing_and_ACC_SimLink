@@ -25,6 +25,50 @@ def _fresh_acc_max_fuel_capacity_l(telemetry: Any) -> tuple[Any, bool]:
     return getattr(static_data, "max_fuel", None), True
 
 
+def _race_rules_observation(telemetry: Any) -> dict[str, Any]:
+    """Expose decoded Graphics race-rule candidates without assigning unvalidated semantics."""
+    graphics_view = getattr(telemetry, "graphics", None)
+    if graphics_view is None or not getattr(graphics_view, "is_fresh", False):
+        return {
+            "status": "unavailable",
+            "capture_sequence": None,
+            "capture_timestamp_ns": None,
+            "semantics": "unqualified_candidates",
+            "mandatory_pit_done_candidate": None,
+            "missing_mandatory_pits_candidate": None,
+            "driver_stint_total_ms_candidate": None,
+            "driver_stint_left_ms_candidate": None,
+            "is_in_pit_candidate": None,
+            "is_in_pit_lane_candidate": None,
+        }
+    graphics = getattr(graphics_view, "data", None)
+    if graphics is None:
+        return {
+            "status": "unavailable",
+            "capture_sequence": getattr(graphics_view, "capture_sequence", None),
+            "capture_timestamp_ns": getattr(graphics_view, "capture_timestamp_ns", None),
+            "semantics": "unqualified_candidates",
+            "mandatory_pit_done_candidate": None,
+            "missing_mandatory_pits_candidate": None,
+            "driver_stint_total_ms_candidate": None,
+            "driver_stint_left_ms_candidate": None,
+            "is_in_pit_candidate": None,
+            "is_in_pit_lane_candidate": None,
+        }
+    return {
+        "status": "fresh",
+        "capture_sequence": getattr(graphics_view, "capture_sequence", None),
+        "capture_timestamp_ns": getattr(graphics_view, "capture_timestamp_ns", None),
+        "semantics": "unqualified_candidates",
+        "mandatory_pit_done_candidate": getattr(graphics, "mandatory_pit_done", None),
+        "missing_mandatory_pits_candidate": getattr(graphics, "missing_mandatory_pits", None),
+        "driver_stint_total_ms_candidate": getattr(graphics, "driver_stint_total_ms", None),
+        "driver_stint_left_ms_candidate": getattr(graphics, "driver_stint_left_ms", None),
+        "is_in_pit_candidate": getattr(graphics, "is_in_pit", None),
+        "is_in_pit_lane_candidate": getattr(graphics, "is_in_pit_lane", None),
+    }
+
+
 def _is_next_assessable_lap_event(
     event: Any,
     *,
@@ -382,6 +426,7 @@ class RaceEngineerService:
             "fuel_engineer": fuel_payload,
             "race_progress": race_progress_payload_value,
             "fuel_sufficiency_strategy": fuel_sufficiency_payload_value,
+            "race_rules_observation": _race_rules_observation(telemetry),
             "background_assessment": assessment_meta,
             "static_metadata": {
                 "status": "fresh" if telemetry.static_decoded.is_fresh else "unavailable",
