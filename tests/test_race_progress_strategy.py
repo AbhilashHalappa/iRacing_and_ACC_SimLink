@@ -154,7 +154,7 @@ def test_timed_race_requires_five_valid_classified_non_out_laps():
 
 
 def test_timed_race_lap_average_excludes_invalid_laps():
-    records = _lap_records(120000, 90000, 121000, 119000, 122000, invalid_indices=(1,))
+    records = _lap_records(120000, 90000, 121000, 119000, 122000, 120500, invalid_indices=(1,))
     result = assess_race_progress(
         _telemetry(time_left=295327.0, static_fresh=True, is_timed_race=True),
         lap_records=records,
