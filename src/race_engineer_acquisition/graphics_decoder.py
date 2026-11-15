@@ -37,7 +37,7 @@ class DecodedGraphics:
     current_time_ms: int
     last_time_ms: int
     best_time_ms: int
-    session_time_left_s: float | None
+    session_time_left_ms: float | None
     distance_traveled_m: float | None
     is_in_pit: bool
     sector: int
@@ -168,7 +168,7 @@ def decode_graphics(payload: bytes | bytearray | memoryview) -> DecodedGraphics:
         current_time_ms=_i32(view, 0x08C),
         last_time_ms=_i32(view, 0x090),
         best_time_ms=_i32(view, 0x094),
-        session_time_left_s=_finite_float(view, 0x098),
+        session_time_left_ms=_finite_float(view, 0x098),
         distance_traveled_m=_finite_float(view, 0x09C),
         is_in_pit=_bool(view, 0x0A0),
         sector=_i32(view, 0x0A4),
