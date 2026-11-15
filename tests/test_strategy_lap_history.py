@@ -298,3 +298,16 @@ def test_restart_does_not_attach_previous_run_history_to_reused_acc_labels(tmp_p
     ).fetchall()
     db.close()
     assert old_laps == [(1,)]
+
+def test_duplicate_latest_lap_event_is_idempotent_and_does_not_mark_history_gap():
+    history = StrategyLapHistory()
+    history.observe_live_cursor("s1", 0)
+    history.consume(_batch(_event(1, 1)), _telemetry())
+    history.consume(_batch(_event(2, 1)), _telemetry())
+
+    result = history.snapshot()
+    assert result["observed_lap_count"] == 1
+    assert result["event_gap_count"] == 0
+    assert result["history_complete"] is True
+    history.close()
+
