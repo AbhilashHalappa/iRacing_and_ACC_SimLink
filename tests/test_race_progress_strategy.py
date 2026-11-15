@@ -350,3 +350,21 @@ def test_practice_session_never_publishes_race_finish_distance():
     assert result.estimated_race_laps_remaining is None
     assert result.estimated_race_laps_source is None
     assert any("session type is not Race" in blocker for blocker in result.blockers)
+
+
+
+def test_lap_based_race_uses_positive_lap_limit_even_when_graphics_timer_is_present():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=600000.0,
+            completed=12,
+            lap_limit=30,
+            static_fresh=True,
+            is_timed_race=False,
+        ),
+        lap_limit_qualified=True,
+    )
+
+    assert result.session_mode == "lap_based"
+    assert result.estimated_race_laps_remaining == 18
+    assert result.estimated_race_laps_qualified is True
