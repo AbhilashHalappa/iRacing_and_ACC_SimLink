@@ -131,6 +131,7 @@ class DecodedTelemetryBroker:
         # work. It only signals this broker-owned worker.
         runtime.physics_consumer.set_update_notifier(self.notify_dirty)
         runtime.graphics_consumer.set_update_notifier(self.notify_dirty)
+        runtime.static_consumer.set_update_notifier(self.notify_dirty)
 
     def subscribe(self, name: str) -> LatestSnapshotSubscription:
         if not name or not name.strip():
