@@ -1,9 +1,4 @@
-"""Read-only ACC fuel observations for the Race Engineer.
-
-This first slice exposes current fuel in litres and keeps Graphics fuel
-strategy candidates explicitly untrusted until they are correlated with ACC.
-It performs no finish-fuel, shortfall, saving, or pit-refuelling calculation.
-"""
+"""Freshness-aware direct ACC fuel observations for the Race Engineer."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,19 +8,27 @@ from typing import Any
 
 @dataclass(frozen=True, slots=True)
 class FuelEngineerSnapshot:
-    """Fuel observations with source freshness and validation state."""
+    """ACC fuel values, exposed only while their source stream is fresh."""
 
     current_fuel_l: float | None
     current_fuel_fresh: bool
-    fuel_per_lap_candidate_l: float | None
+    acc_fuel_per_lap_l: float | None
     fuel_per_lap_fresh: bool
-    estimated_laps_candidate: float | None
-    estimated_laps_fresh: bool
+    acc_fuel_laps_remaining: float | None
+    fuel_laps_fresh: bool
     mfd_fuel_to_add_l: float | None
     fuel_used_l: float | None
     graphics_fresh: bool
     strategy_calculations_enabled: bool
     blockers: tuple[str, ...]
+
+    @property
+    def fuel_per_lap_candidate_l(self) -> float | None:
+        return self.acc_fuel_per_lap_l
+
+    @property
+    def estimated_laps_candidate(self) -> float | None:
+        return self.acc_fuel_laps_remaining
 
 
 def _nonnegative_finite(value: Any) -> float | None:
@@ -42,66 +45,54 @@ def build_fuel_engineer_snapshot(
     estimated_laps_validated: bool = True,
     safety_reserve_l: float | None = None,
 ) -> FuelEngineerSnapshot:
-    """Build a conservative fuel view from the existing aggregate snapshot.
+    """Read ACC fuel and endurance fields directly; no local fuel-lap estimate.
 
-    Physics and Graphics are independent streams. Each value is exposed only
-    when its own stream is fresh. The Physics decoder legacy field name
-    fuel_kg is deliberately interpreted as litres based on the user direct
-    in-game confirmation; the numeric value is not converted.
-
-    Strategy calculations remain disabled unless both Graphics semantics are
-    confirmed against ACC by the user and a non-negative safety reserve is supplied.
+    safety_reserve_l is retained for call compatibility only. ACC's own
+    endurance estimate does not require a locally configured reserve.
     """
+    del safety_reserve_l
     physics = telemetry.physics
     graphics = telemetry.graphics
     physics_data = physics.data if physics.is_fresh else None
     graphics_data = graphics.data if graphics.is_fresh else None
 
-    # The legacy decoder member name is misleading: ACC fuel was directly
-    # checked by the user and confirmed to be litres.
     current_fuel = (
         _nonnegative_finite(getattr(physics_data, "fuel_kg", None))
         if physics_data is not None else None
     )
     per_lap = (
         _nonnegative_finite(getattr(graphics_data, "fuel_per_lap_l", None))
-        if graphics_data is not None else None
+        if graphics_data is not None and fuel_per_lap_validated else None
     )
     estimated_laps = (
         _nonnegative_finite(getattr(graphics_data, "fuel_estimated_laps", None))
-        if graphics_data is not None else None
+        if graphics_data is not None and estimated_laps_validated else None
     )
     mfd_to_add = (
         _nonnegative_finite(getattr(graphics_data, "mfd_fuel_to_add", None))
         if graphics_data is not None else None
     )
-
     fuel_used = (
         _nonnegative_finite(getattr(graphics_data, "used_fuel_l", None))
         if graphics_data is not None else None
     )
-    reserve = _nonnegative_finite(safety_reserve_l)
+
     blockers: list[str] = []
     if current_fuel is None:
         blockers.append("Current fuel is unavailable, invalid, or stale.")
-    if not fuel_per_lap_validated or per_lap is None:
-        blockers.append("Fuel-per-lap data has not been validated against ACC.")
-    if not estimated_laps_validated or estimated_laps is None:
-        blockers.append("Estimated-laps data has not been validated against ACC.")
-    if reserve is None:
-        blockers.append("A safety-fuel reserve has not been configured.")
-
-    calculations_enabled = not blockers
+    if estimated_laps is None:
+        blockers.append("ACC fuel-laps-remaining data is unavailable, invalid, or stale.")
+    ready = not blockers
     return FuelEngineerSnapshot(
         current_fuel_l=current_fuel,
         current_fuel_fresh=current_fuel is not None,
-        fuel_per_lap_candidate_l=per_lap,
+        acc_fuel_per_lap_l=per_lap,
         fuel_per_lap_fresh=per_lap is not None,
-        estimated_laps_candidate=estimated_laps,
-        estimated_laps_fresh=estimated_laps is not None,
+        acc_fuel_laps_remaining=estimated_laps,
+        fuel_laps_fresh=estimated_laps is not None,
         mfd_fuel_to_add_l=mfd_to_add,
         fuel_used_l=fuel_used,
         graphics_fresh=graphics.is_fresh,
-        strategy_calculations_enabled=calculations_enabled,
+        strategy_calculations_enabled=ready,
         blockers=tuple(blockers),
     )
