@@ -177,3 +177,21 @@ This section records a deeper source-level pass over the live service, fuel modu
 ### Scope limitation
 
 This is a source-level audit of the fuel-related modules and their direct service/UI/decoder dependencies, not a claim that every repository file or every historical product requirement has been exhaustively reviewed. Any requirement not traceable to a written specification or inspected implementation is intentionally not labelled complete.
+
+
+
+## Issue #27 implementation update (2026-11-15)
+
+The Stage 2 race-progress consumer now publishes one canonical distance estimate:
+- `estimated_race_laps_remaining`
+- `estimated_race_laps_source`
+- `estimated_race_laps_qualified`
+- Existing `laps_remaining` remains as a compatibility alias.
+
+Timed races retain the existing calculation: floor(remaining ACC session timer / mean of the latest five valid, classified, non-out completed laps). The source is explicit and the estimate is marked unqualified for guaranteed finish distance until ACC timer-expiry, final-crossing and extra-lap behaviour is validated in live sessions. `has_extra_lap` remains observational; no unverified +1 lap is added.
+
+Lap-based arithmetic is implemented behind an explicit `lap_limit_qualified=True` gate: qualified ACC lap limit minus valid completed-lap count. It returns zero at the lap limit and fails closed if the completed count is missing or exceeds the limit. The live service does not enable this gate yet because issue #22 has not completed its ACC field qualification. Until then, lap-based remaining distance remains unavailable rather than using the unqualified Graphics candidate.
+
+The live service now passes the canonical estimate to Fuel Sufficiency. Existing `laps_remaining` remains in the Race Progress payload for compatibility. Stage 1 and Overview are unchanged.
+
+Automated tests added for qualified lap-based arithmetic, unqualified/missing/contradictory values, timed estimate source/qualification, and timer expiry. Live ACC finish-rule validation and issue #22 qualification remain outstanding; this issue is not release-complete.
