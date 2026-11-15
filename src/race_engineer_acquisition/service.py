@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .decoded_distribution import DecodedTelemetryBroker
-from .fuel_engineer import build_fuel_engineer_snapshot
+from .fuel_engineer import SessionFuelUsedAccumulator, build_fuel_engineer_snapshot
 from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency_payload
 from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
@@ -22,6 +22,7 @@ class RaceEngineerService:
             "strategy-lap-history-events", capacity=256
         )
         self._lap_history = StrategyLapHistory(history_path)
+        self._session_fuel_used = SessionFuelUsedAccumulator()
 
     def start(self) -> None:
         self._broker.start()
@@ -98,7 +99,7 @@ class RaceEngineerService:
         if fuel.fuel_laps_fresh and fuel.acc_fuel_laps_remaining is not None:
             parts.append(f"{fuel.acc_fuel_laps_remaining:.1f} fuel laps remaining according to ACC")
         if fuel.fuel_used_l is not None:
-            parts.append(f"{fuel.fuel_used_l:.1f} litres used")
+            parts.append(f"{fuel.fuel_used_l:.1f} litres used in the current ACC stint")
         if fuel.mfd_fuel_to_add_l is not None:
             parts.append(f"MFD fuel-to-add {fuel.mfd_fuel_to_add_l:.1f} litres")
         return "Fuel status: " + "; ".join(parts) + "."
@@ -111,6 +112,10 @@ class RaceEngineerService:
             raise RuntimeError("decoded telemetry broker has not published its initial snapshot")
         telemetry = envelope.telemetry
         fuel = build_fuel_engineer_snapshot(telemetry)
+        session_fuel_used_l = self._session_fuel_used.observe(
+            session_id=self._broker.strategy_session_id,
+            acc_used_fuel_l=fuel.fuel_used_l,
+        )
         history = self._update_lap_history(telemetry, track=track, car=car)
         all_lap_records = self._lap_history.read_records()
         current_session_id = self._broker.strategy_session_id
@@ -133,8 +138,11 @@ class RaceEngineerService:
             acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
             fuel_per_lap_fresh=fuel.fuel_per_lap_fresh,
         )
+        fuel_payload = asdict(fuel)
+        fuel_payload["session_fuel_used_l"] = session_fuel_used_l
+        fuel_payload["session_fuel_used_scope"] = "since_race_engineer_connected"
         return {
-            "fuel_engineer": asdict(fuel),
+            "fuel_engineer": fuel_payload,
             "race_progress": race_progress_payload(race_progress),
             "fuel_sufficiency_strategy": fuel_sufficiency_payload(fuel_sufficiency),
             "static_metadata": {
