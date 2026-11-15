@@ -69,8 +69,13 @@ def assess_race_progress(telemetry: Any) -> RaceProgressAssessment:
 
     session_type = _integer(getattr(graphics, "session", None))
     completed_laps = _integer(getattr(graphics, "completed_laps", None))
-    time_remaining = _finite_nonnegative(
-        getattr(graphics, "session_time_left_s", None)
+    raw_time_remaining_ms = _finite_nonnegative(
+        getattr(graphics, "session_time_left_ms", None)
+    )
+    time_remaining = (
+        raw_time_remaining_ms / 1000.0
+        if raw_time_remaining_ms is not None
+        else None
     )
     lap_limit = _integer(getattr(graphics, "number_of_laps", None))
     if time_remaining is None:
