@@ -112,12 +112,16 @@ class RaceEngineerService:
         telemetry = envelope.telemetry
         fuel = build_fuel_engineer_snapshot(telemetry)
         history = self._update_lap_history(telemetry, track=track, car=car)
+        lap_records = self._lap_history.read_records()
         measured_fuel = assess_measured_fuel(
             fuel.current_fuel_l,
             current_fuel_fresh=fuel.current_fuel_fresh,
-            lap_records=self._lap_history.read_records(),
+            lap_records=lap_records,
         )
-        race_progress = assess_race_progress(telemetry)
+        race_progress = assess_race_progress(
+            telemetry,
+            lap_records=lap_records,
+        )
         return {
             "fuel_engineer": asdict(fuel),
             "fuel_consumption_strategy": fuel_consumption_payload(measured_fuel),
