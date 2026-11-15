@@ -135,3 +135,45 @@ The user supplied two chronological readings from the same race (Screenshot 2 fi
 - Second, after refuelling: 57.8 L current fuel; 2.72 L/lap; 21.2 ACC fuel laps; 15 estimated race laps; 40.8 L estimated finish fuel; 0.0 L estimated next-pit addition; 0.0 L ACC current-stint fuel used; 35.6 L cumulative since connection; 0.0 L ACC MFD fuel-to-add.
 
 This validates the observed refuel transition and the separation between ACC's stint counter, Race Engineer's in-memory cumulative counter, and ACC's MFD amount. It does not validate pit-window timing, tank capacity, mandatory stops or radio behaviour.
+
+
+## Second-pass source verification (2026-11-15)
+
+This section records a deeper source-level pass over the live service, fuel modules, Graphics/Physics decoders, race-progress logic, and focused fuel tests. It supersedes any broad interpretation above where it adds precision.
+
+### Confirmed details and corrections
+
+- **The live path is exactly identifiable:** `RaceEngineerService.snapshot()` calls `build_fuel_engineer_snapshot()`, then `assess_race_progress()`, then `assess_fuel_sufficiency()`. It does not call `assess_fuel_strategy()` or `assess_measured_fuel()`. The Race Engineer UI reads the `fuel_sufficiency_strategy` payload.
+- **A second fuel strategy module already exists, but is deliberately conservative and currently disconnected.** `fuel_strategy.py` requires an explicitly validated actual-finish lap count and positive fuel/lap, and deliberately returns no pit recommendation. It cannot currently be dropped into the live service: it asks the fuel snapshot for `estimated_laps_fresh`, while the integrated snapshot exposes `fuel_laps_fresh`. This is an integration/API mismatch, not proof that its calculation is production-ready.
+- **A measured-consumption estimator also already exists with focused tests.** `fuel_consumption_strategy.py` estimates consumption from consecutive classified valid timed-lap fuel-boundary records, rejects lap gaps/refuel increases, and requires at least two intervals by default. It is not called by the live service and its estimate is not shown in the UI. It should be a cross-check, not a silent replacement for ACC's direct fuel/lap field, consistent with the user's chosen source-of-truth rule.
+- **The radio preview is definitively observation-only.** The service builds a static text summary; payload flags are `speech_enabled=false` and `strategy_recommendations_enabled=false`. There is no TTS dispatch, threshold trigger, cooldown, duplicate suppression or state-transition policy in this fuel service.
+- **Tank capacity is available in decoded Static metadata as `max_fuel`.** The live fuel assessment does not receive Static metadata, so no capacity check is currently performed.
+- **Pit/mandatory fields are present in the Graphics candidate decoder:** `is_in_pit`, `is_in_pit_lane`, `mandatory_pit_done`, `missing_mandatory_pits`, `driver_stint_left_ms`, `driver_stint_total_ms`, and MFD fuel-to-add. Their presence in a candidate decoder does not qualify their semantics or establish a working pit strategy. They are not consumed by the current fuel service.
+- **The fuel-used accumulator handles duplicate samples naturally** (zero delta), but every downward movement is treated as a stint reset and the new value is added. There is no threshold or monotonic packet/capture guard inside the accumulator. Existing tests cover a normal increase, one reset, new session ID and missing observations; they do not cover out-of-order samples, small regressions, duplicate packet delivery, or restart persistence.
+- **Zero fuel/lap is a real validation gap in the integrated path.** Both `fuel_engineer.py` and `fuel_sufficiency_strategy.py` accept finite non-negative fuel/lap. The separate disconnected `fuel_strategy.py` correctly requires fuel/lap > 0, but that guard does not protect the live UI calculation.
+- **The live timed-race estimate is floor(timer / mean of five latest valid laps).** It is not yet qualified against the actual ACC finish-line rule, the static `has_extra_lap` value, or observed chequered transitions. The implementation deliberately leaves Graphics `number_of_laps` and `global_chequered` unqualified and does not calculate lap-based remaining distance.
+- **Current-fuel field naming needs a careful ABI check, not an assumption.** The Physics decoder reads the float at byte offset 12 into a property named `fuel_kg`, while the UI treats it as litres and the user's ACC readings look plausible. This audit has not independently established a kg-to-litre conversion or a mismatch. Do not add a conversion. The proper pending task is to verify the field's documented ACC unit and rename the decoded property if the value is indeed litres.
+
+### Exact focused-test coverage found
+
+- `tests/test_race_engineer_fuel.py`: direct field extraction, stale streams, invalid/negative values, accumulator normal increase/reset/new session/missing observation. No zero fuel/lap assertion, duplicate/out-of-order samples, or persistence test.
+- `tests/test_fuel_sufficiency_strategy.py`: direct ACC fuel-lap comparison, unavailable source, three-lap reserve, reserve shortfall and basic next-pit addition. No zero fuel/lap, tank capacity, mandatory pit, pit arrival, race-finish edge cases or recommendation/radio lifecycle tests.
+- `tests/test_fuel_consumption_strategy.py`: measured consumption, invalid/out laps, classification, lap gaps, refuelling increase, stale current fuel and configuration validation. These tests validate the standalone estimator only; they do not prove integration into the live service.
+- No `tests/test_fuel_strategy.py` exists at the inspected path, despite the module being exported from the package.
+
+### Revised pending-work list (verified)
+
+1. Fix the live-path positive fuel/lap validation and strengthen plausible-range/freshness checks.
+2. Qualify timed-race finish-lap semantics and implement a separate validated lap-based finish-distance provider; keep unknown cases unavailable.
+3. Add tank-capacity constraints using fresh Static `max_fuel`.
+4. Qualify pit entry/lane/mandatory-stop field semantics from ACC live captures before implementing pit window, pit-now, mandatory stop and refuel-completion logic.
+5. Model fuel required to reach pit entry and distinguish it from fuel required to finish; label the current pit-add figure as a simplified end-of-current-lap estimate until then.
+6. Define one canonical strategy API. Either integrate the conservative `fuel_strategy.py` after resolving the `estimated_laps_fresh`/ `fuel_laps_fresh` mismatch and validated finish-distance contract, or remove it. Do not maintain parallel competing calculations.
+7. Integrate measured fuel consumption as a displayed/diagnostic cross-check only, with explicit disagreement handling against ACC fuel/lap.
+8. Implement radio policy and TTS only after calculation confidence, trigger thresholds, cooldown, repeat suppression, mute and recovery transitions are specified.
+9. Expand accumulator tests and decide whether cumulative fuel should persist across app restarts; current UI scope text is correct for its process-local implementation.
+10. Add service-level integration tests proving the actual `RaceEngineerService.snapshot()` output and UI payload are wired to the intended calculation path.
+
+### Scope limitation
+
+This is a source-level audit of the fuel-related modules and their direct service/UI/decoder dependencies, not a claim that every repository file or every historical product requirement has been exhaustively reviewed. Any requirement not traceable to a written specification or inspected implementation is intentionally not labelled complete.
