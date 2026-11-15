@@ -3,13 +3,14 @@ from types import SimpleNamespace
 from src.race_engineer_acquisition.race_progress_strategy import assess_race_progress
 
 
-def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500.0, lap_limit=0, static_fresh=False, is_timed_race=None, has_extra_lap=None):
+def _telemetry(*, fresh=True, status=2, session=2, completed=4, time_left=612500.0, lap_limit=0, static_fresh=False, is_timed_race=None, has_extra_lap=None, chequered=False):
     graphics = SimpleNamespace(
         status=status,
         session=session,
         completed_laps=completed,
         session_time_left_ms=time_left,
         number_of_laps=lap_limit,
+        global_chequered=chequered,
     )
     static_data = SimpleNamespace(is_timed_race=is_timed_race, has_extra_lap=has_extra_lap)
     return SimpleNamespace(
@@ -88,3 +89,16 @@ def test_stale_static_metadata_does_not_classify_race_mode():
     assert result.session_mode_source is None
     assert result.has_extra_lap is None
     assert any("Static race-mode metadata is unavailable" in item for item in result.blockers)
+
+
+def test_chequered_flag_is_exposed_only_as_unqualified_candidate():
+    result = assess_race_progress(_telemetry(chequered=True))
+    assert result.chequered_flag_candidate is True
+    assert result.chequered_flag_qualified is False
+    assert any("global_chequered" in item for item in result.blockers)
+
+
+def test_stale_graphics_does_not_expose_chequered_flag_candidate():
+    result = assess_race_progress(_telemetry(fresh=False, chequered=True))
+    assert result.chequered_flag_candidate is None
+    assert result.chequered_flag_qualified is False
