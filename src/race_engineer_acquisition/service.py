@@ -333,19 +333,19 @@ class RaceEngineerService:
             acc_used_fuel_l=fuel.fuel_used_l,
         )
         history = self._lap_history.snapshot()
-        # Fuel observations remain live on every UI snapshot. The race/fuel
-        # sufficiency assessment is refreshed by the completed-lap worker.
+        # Keep every UI calculation live on every decoded snapshot. The
+        # completed-lap worker is an independent cadence for background
+        # strategy/radio consumers and must never gate or cache UI values.
+        race_progress_payload_value, fuel_sufficiency_payload_value = (
+            self._calculate_fuel_assessment(telemetry)
+        )
         with self._assessment_lock:
-            race_progress_payload_value = self._latest_race_progress
-            fuel_sufficiency_payload_value = self._latest_fuel_sufficiency
             assessment_meta = {
                 "trigger": "completed_lap",
                 "assessment_count": self._assessment_count,
                 "last_event_id": self._last_assessment_event_id,
                 "last_lap_number": self._last_assessment_lap_number,
             }
-        if race_progress_payload_value is None or fuel_sufficiency_payload_value is None:
-            race_progress_payload_value, fuel_sufficiency_payload_value = self._calculate_fuel_assessment(telemetry)
         fuel_payload = asdict(fuel)
         fuel_payload["session_fuel_used_l"] = session_fuel_used_l
         fuel_payload["session_fuel_used_scope"] = "since_race_engineer_connected"
