@@ -22,6 +22,8 @@ class FuelSufficiencyAssessment:
     safety_target_fuel_l: float | None
     safety_fuel_margin_l: float | None
     safety_status: str
+    estimated_fuel_to_add_next_pit_l: float | None
+    fuel_to_add_estimate_status: str
     blockers: tuple[str, ...]
 
 
@@ -65,21 +67,31 @@ def assess_fuel_sufficiency(
         blockers.append("Fresh ACC fuel-laps-remaining value is unavailable.")
     if race_laps is None:
         blockers.append("Estimated remaining race laps are unavailable.")
-    if blockers:
-        return FuelSufficiencyAssessment(
-            "unavailable", fuel_laps, race_laps, None, fuel, per_lap,
-            None, None, reserve_laps, None, None, None, None,
-            "unavailable", tuple(blockers),
-        )
-    margin_laps = fuel_laps - race_laps
-    required_l = per_lap * race_laps if per_lap is not None else None
-    margin_l = fuel - required_l if fuel is not None and required_l is not None else None
+    required_l = per_lap * race_laps if per_lap is not None and race_laps is not None else None
     reserve_l = per_lap * reserve_laps if per_lap is not None else None
-    safety_margin_laps = margin_laps - reserve_laps
     safety_target_l = (
         required_l + reserve_l
         if required_l is not None and reserve_l is not None else None
     )
+    # Estimate the amount to enter in the MFD at the next stop. This assumes
+    # the car pits at the end of the current lap: projected fuel at pit arrival
+    # and remaining race fuel both decrease by one lap, so the net addition is
+    # the safety-adjusted target minus current fuel. Do not publish a number
+    # unless all inputs needed for that estimate are fresh and available.
+    fuel_to_add_l = (
+        max(0.0, safety_target_l - fuel)
+        if fuel is not None and safety_target_l is not None else None
+    )
+    fuel_to_add_status = "estimate_available" if fuel_to_add_l is not None else "unavailable"
+    if blockers:
+        return FuelSufficiencyAssessment(
+            "unavailable", fuel_laps, race_laps, None, fuel, per_lap,
+            required_l, None, reserve_laps, reserve_l, None, safety_target_l,
+            None, "unavailable", fuel_to_add_l, fuel_to_add_status, tuple(blockers),
+        )
+    margin_laps = fuel_laps - race_laps
+    margin_l = fuel - required_l if fuel is not None and required_l is not None else None
+    safety_margin_laps = margin_laps - reserve_laps
     safety_margin_l = (
         fuel - safety_target_l
         if fuel is not None and safety_target_l is not None else None
@@ -93,7 +105,7 @@ def assess_fuel_sufficiency(
         "estimated_shortfall" if margin_laps < 0 else "estimated_sufficient",
         fuel_laps, race_laps, margin_laps, fuel, per_lap, required_l, margin_l,
         reserve_laps, reserve_l, safety_margin_laps, safety_target_l,
-        safety_margin_l, safety_status, (),
+        safety_margin_l, safety_status, fuel_to_add_l, fuel_to_add_status, (),
     )
 
 
