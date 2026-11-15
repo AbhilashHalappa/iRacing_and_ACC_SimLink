@@ -92,7 +92,7 @@ def test_live_race_countdown_and_zero_lap_limit_override_conflicting_static_fals
     )
     assert result.session_mode == "timed"
     assert result.session_mode_source == "ACC_Graphics.race_countdown_without_lap_limit"
-    assert result.laps_remaining == 16
+    assert result.laps_remaining == 17
     assert any("conflicts with the live Race countdown" in item for item in result.blockers)
 
 
@@ -149,7 +149,25 @@ def test_timed_race_estimates_laps_from_average_of_latest_five_valid_laps():
 
     assert result.lap_time_sample_count == 5
     assert result.average_lap_time_ms == 120000.0
-    assert result.laps_remaining == 2
+    assert result.laps_remaining == 3
+
+
+def test_timed_race_rounds_fractional_lap_estimate_up_for_fuel_planning():
+    result = assess_race_progress(
+        _telemetry(time_left=480001.0, static_fresh=True, is_timed_race=True),
+        lap_records=_lap_records(120000, 120000, 120000, 120000, 120000),
+    )
+
+    assert result.estimated_race_laps_remaining == 5
+
+
+def test_timed_race_keeps_exact_whole_lap_estimate_unchanged():
+    result = assess_race_progress(
+        _telemetry(time_left=480000.0, static_fresh=True, is_timed_race=True),
+        lap_records=_lap_records(120000, 120000, 120000, 120000, 120000),
+    )
+
+    assert result.estimated_race_laps_remaining == 4
 
 
 def test_timed_race_requires_five_valid_classified_non_out_laps():
@@ -219,7 +237,7 @@ def test_lap_based_distance_is_calculated_only_when_lap_limit_is_explicitly_qual
     assert result.lap_limit_candidate == 30
     assert result.lap_limit_qualified is True
     assert result.laps_remaining == 23
-    assert result.estimated_race_laps_remaining == 23
+    assert result.estimated_race_laps_remaining == 33
     assert result.estimated_race_laps_source == (
         "ACC_Graphics.number_of_laps - ACC_Graphics.completed_laps"
     )
@@ -311,8 +329,8 @@ def test_timed_estimate_exposes_canonical_source_without_claiming_finish_qualifi
     assert result.laps_remaining == 2
     assert result.estimated_race_laps_remaining == 2
     assert result.estimated_race_laps_source == (
-        "ACC_Graphics.session_time_left_ms / "
-        "mean_of_latest_five_valid_completed_laps"
+        "ceil(ACC_Graphics.session_time_left_ms / "
+        "mean_of_latest_five_valid_completed_laps)"
     )
     assert result.estimated_race_laps_qualified is False
     assert any("extra-lap behaviour is not yet live-qualified" in blocker for blocker in result.blockers)
