@@ -224,6 +224,7 @@ def test_lap_based_distance_is_calculated_only_when_lap_limit_is_explicitly_qual
         "ACC_Graphics.number_of_laps - ACC_Graphics.completed_laps"
     )
     assert result.estimated_race_laps_qualified is True
+    assert not any("session time remaining is unavailable" in blocker for blocker in result.blockers)
 
 
 def test_lap_based_distance_remains_unavailable_until_issue_22_qualifies_lap_limit():
