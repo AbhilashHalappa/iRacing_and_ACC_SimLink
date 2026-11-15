@@ -95,3 +95,47 @@ def test_reports_reserve_shortfall_even_when_acc_margin_is_positive():
     assert result.safety_margin_laps == pytest.approx(-1.0)
     assert result.safety_fuel_margin_l == pytest.approx(-2.5)
     assert result.safety_status == "reserve_shortfall"
+
+
+def test_estimates_fuel_to_add_at_next_pit_with_three_lap_reserve():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=2.3,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=14,
+        current_fuel_l=7.1,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=3.01,
+        fuel_per_lap_fresh=True,
+    )
+
+    assert result.estimated_fuel_to_add_next_pit_l == pytest.approx(44.2)
+    assert result.fuel_to_add_estimate_status == "estimate_available"
+
+
+def test_next_pit_fuel_add_is_zero_when_current_fuel_covers_target_and_reserve():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=20.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=10,
+        current_fuel_l=40.0,
+        current_fuel_fresh=True,
+        acc_fuel_per_lap_l=3.0,
+        fuel_per_lap_fresh=True,
+    )
+
+    assert result.estimated_fuel_to_add_next_pit_l == 0.0
+
+
+def test_next_pit_fuel_add_is_unavailable_without_fresh_fuel_inputs():
+    result = assess_fuel_sufficiency(
+        acc_fuel_laps_remaining=8.0,
+        fuel_laps_fresh=True,
+        estimated_race_laps_remaining=10,
+        current_fuel_l=25.0,
+        current_fuel_fresh=False,
+        acc_fuel_per_lap_l=2.8,
+        fuel_per_lap_fresh=True,
+    )
+
+    assert result.estimated_fuel_to_add_next_pit_l is None
+    assert result.fuel_to_add_estimate_status == "unavailable"
