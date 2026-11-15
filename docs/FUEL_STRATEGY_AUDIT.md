@@ -58,7 +58,7 @@ It is not yet a complete race fuel strategy. There is no qualified pit-window de
 
 15. **Legacy strategy modules are not integrated.** `fuel_strategy.py` and `fuel_consumption_strategy.py` are exported from the package but are not called by `RaceEngineerService.snapshot()`. The former also expects an `estimated_laps_fresh` property that is not present on the current `FuelEngineerSnapshot`. Decide whether to retire these modules or deliberately integrate one strategy path; avoid two competing fuel calculations.
 16. **Measured consumption strategy is not wired.** `fuel_consumption_strategy.py` can derive lap-to-lap consumption from compact lap records, but the service currently uses ACC's direct fuel/lap value only. The measured estimate should be retained as an independent cross-check/trend, not silently substituted for ACC's direct value.
-17. **No explicit per-lap strategy event/update contract.** The Qt host polls the service snapshot at 50 ms and therefore recalculates frequently, but there is no explicit “new completed lap” assessment event or persisted recommendation state. Radio triggers must be event/state-transition based, not spoken on every UI poll.
+17. **Per-lap strategy assessment is now event-driven (Issue #28 implementation).** A service-owned background worker consumes the existing bounded Stage 2 lap-event subscription, updates compact lap history, and refreshes the cached fuel-sufficiency assessment once per unique sequential classified non-out completed lap. Startup/session changes seed an initial assessment. UI snapshots continue exposing live ACC fuel observations; they do not drive the background assessment cadence. Radio remains disabled and is not triggered by this worker.
 18. **Test coverage is narrow.** Existing tests cover basic ACC field extraction, basic accumulator increases/resets, the three-lap reserve, one pit-add example, and timed-race average calculation. Missing cases are listed below.
 19. **Decoder ABI confidence is documented as candidate, not official Kunos certification.** Graphics and Static decoder headers explicitly describe candidate layouts. User live tests validate selected values, but every strategy-driving field must be qualified against actual ACC observations and not assumed correct solely because a candidate offset decodes.
 
@@ -195,3 +195,21 @@ Lap-based arithmetic is implemented behind an explicit `lap_limit_qualified=True
 The live service now passes the canonical estimate to Fuel Sufficiency. Existing `laps_remaining` remains in the Race Progress payload for compatibility. Stage 1 and Overview are unchanged.
 
 Automated tests added for qualified lap-based arithmetic, unqualified/missing/contradictory values, timed estimate source/qualification, and timer expiry. Live ACC finish-rule validation and issue #22 qualification remain outstanding; this issue is not release-complete.
+
+
+## Issue #28 implementation — completed-lap background assessment
+
+The Race Engineer service now owns a lightweight background worker downstream of the existing Stage 2 broker.
+
+- The worker consumes the existing `lap.completed` / `lap.completion_gap` event stream; it does not add an acquisition reader, recorder, raw-data consumer or high-resolution strategy history.
+- It seeds an initial assessment at startup and when the run-scoped session identity changes.
+- A new assessment is published for each unique, sequential, classified, non-out completed lap. Invalid-but-classified laps still cause a boundary assessment, but remain excluded from the five-valid-lap pace average by the existing lap selector.
+- Duplicate latest-lap history deliveries are idempotent. Out-of-order, skipped, gap, pending-classification and out-lap events do not advance the assessment cursor.
+- A lap event is reconciled with the matching/latest decoded boundary snapshot before the assessment is stored. If the matching fresh boundary snapshot does not arrive within the bounded wait, that event is not used for an assessment.
+- A bounded recent event-ID set prevents duplicate assessment dispatch. Assessment count and last event/lap are exposed as diagnostic metadata in the service payload.
+- Live ACC fuel observations remain refreshed by normal service snapshots. The background race/fuel sufficiency result is cached and refreshed on the lap/session cadence.
+- All calculations remain silent. No TTS, radio policy, recommendation dispatch or cooldown is enabled.
+
+The worker uses a short bounded polling interval to drain the existing event mailbox because the current event subscription API has no blocking wait primitive. It does not poll ACC or decoder state itself; all inputs come from the Stage 2 broker.
+
+Automated coverage added for the sequential assessment gate and duplicate lap-history idempotency. Live ACC validation is still required for timing, reconnect and session-transition behaviour.
