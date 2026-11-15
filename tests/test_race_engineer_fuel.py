@@ -3,7 +3,10 @@ from types import SimpleNamespace
 import math
 import unittest
 
-from src.race_engineer_acquisition.fuel_engineer import build_fuel_engineer_snapshot
+from src.race_engineer_acquisition.fuel_engineer import (
+    SessionFuelUsedAccumulator,
+    build_fuel_engineer_snapshot,
+)
 
 
 def telemetry(*, physics_fresh=True, graphics_fresh=True, fuel=42.5, per_lap=2.7, laps=15.7, mfd=20.0, used=8.4):
@@ -21,6 +24,25 @@ def telemetry(*, physics_fresh=True, graphics_fresh=True, fuel=42.5, per_lap=2.7
 
 
 class FuelEngineerTests(unittest.TestCase):
+
+    def test_session_fuel_accumulator_tracks_increases_and_stint_resets(self):
+        tracker = SessionFuelUsedAccumulator()
+        self.assertEqual(tracker.observe(session_id="race-1", acc_used_fuel_l=19.3), 19.3)
+        self.assertAlmostEqual(tracker.observe(session_id="race-1", acc_used_fuel_l=21.9), 21.9)
+        self.assertAlmostEqual(tracker.observe(session_id="race-1", acc_used_fuel_l=0.1), 22.0)
+        self.assertAlmostEqual(tracker.observe(session_id="race-1", acc_used_fuel_l=2.0), 23.9)
+
+    def test_session_fuel_accumulator_resets_for_a_new_session(self):
+        tracker = SessionFuelUsedAccumulator()
+        tracker.observe(session_id="race-1", acc_used_fuel_l=12.0)
+        self.assertEqual(tracker.observe(session_id="race-2", acc_used_fuel_l=0.4), 0.4)
+
+    def test_session_fuel_accumulator_ignores_missing_observations(self):
+        tracker = SessionFuelUsedAccumulator()
+        tracker.observe(session_id="race-1", acc_used_fuel_l=8.0)
+        self.assertEqual(tracker.observe(session_id="race-1", acc_used_fuel_l=None), 8.0)
+        self.assertEqual(tracker.observe(session_id=None, acc_used_fuel_l=10.0), None)
+
     def test_current_fuel_is_exposed_as_litres_without_conversion(self):
         result = build_fuel_engineer_snapshot(telemetry(fuel=42.5))
         self.assertEqual(result.current_fuel_l, 42.5)
