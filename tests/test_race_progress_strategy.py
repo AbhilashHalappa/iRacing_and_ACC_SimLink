@@ -199,3 +199,135 @@ def test_zero_filled_static_metadata_does_not_classify_session_as_lap_based():
     assert result.session_mode == "unknown"
     assert result.has_extra_lap is None
     assert any("Static race-mode metadata is unavailable" in item for item in result.blockers)
+
+
+
+def test_lap_based_distance_is_calculated_only_when_lap_limit_is_explicitly_qualified():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=-1.0,
+            completed=7,
+            lap_limit=30,
+            static_fresh=True,
+            is_timed_race=False,
+            has_extra_lap=False,
+        ),
+        lap_limit_qualified=True,
+    )
+
+    assert result.session_mode == "lap_based"
+    assert result.lap_limit_candidate == 30
+    assert result.lap_limit_qualified is True
+    assert result.laps_remaining == 23
+    assert result.estimated_race_laps_remaining == 23
+    assert result.estimated_race_laps_source == (
+        "ACC_Graphics.number_of_laps - ACC_Graphics.completed_laps"
+    )
+    assert result.estimated_race_laps_qualified is True
+
+
+def test_lap_based_distance_remains_unavailable_until_issue_22_qualifies_lap_limit():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=-1.0,
+            completed=7,
+            lap_limit=30,
+            static_fresh=True,
+            is_timed_race=False,
+        )
+    )
+
+    assert result.session_mode == "lap_based"
+    assert result.lap_limit_candidate == 30
+    assert result.lap_limit_qualified is False
+    assert result.laps_remaining is None
+    assert result.estimated_race_laps_remaining is None
+    assert result.estimated_race_laps_source is None
+    assert result.estimated_race_laps_qualified is False
+    assert any("issue #22" in blocker for blocker in result.blockers)
+
+
+def test_lap_based_race_at_lap_limit_has_zero_remaining_laps():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=-1.0,
+            completed=30,
+            lap_limit=30,
+            static_fresh=True,
+            is_timed_race=False,
+        ),
+        lap_limit_qualified=True,
+    )
+
+    assert result.estimated_race_laps_remaining == 0
+    assert result.estimated_race_laps_qualified is True
+
+
+def test_lap_based_race_with_completed_count_above_limit_is_unavailable():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=-1.0,
+            completed=31,
+            lap_limit=30,
+            static_fresh=True,
+            is_timed_race=False,
+        ),
+        lap_limit_qualified=True,
+    )
+
+    assert result.estimated_race_laps_remaining is None
+    assert result.estimated_race_laps_qualified is False
+    assert any("exceeds the qualified race lap limit" in blocker for blocker in result.blockers)
+
+
+def test_lap_based_race_with_missing_completed_count_is_unavailable():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=-1.0,
+            completed=-1,
+            lap_limit=30,
+            static_fresh=True,
+            is_timed_race=False,
+        ),
+        lap_limit_qualified=True,
+    )
+
+    assert result.estimated_race_laps_remaining is None
+    assert any("valid completed-lap count" in blocker for blocker in result.blockers)
+
+
+def test_timed_estimate_exposes_canonical_source_without_claiming_finish_qualification():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=295327.0,
+            static_fresh=True,
+            is_timed_race=True,
+            has_extra_lap=True,
+        ),
+        lap_records=_lap_records(120000, 118000, 121000, 119000, 122000),
+    )
+
+    assert result.laps_remaining == 2
+    assert result.estimated_race_laps_remaining == 2
+    assert result.estimated_race_laps_source == (
+        "ACC_Graphics.session_time_left_ms / "
+        "mean_of_latest_five_valid_completed_laps"
+    )
+    assert result.estimated_race_laps_qualified is False
+    assert any("extra-lap behaviour is not yet live-qualified" in blocker for blocker in result.blockers)
+
+
+def test_timed_race_timer_expiry_produces_zero_timer_fit_not_a_finish_guarantee():
+    result = assess_race_progress(
+        _telemetry(
+            time_left=0.0,
+            static_fresh=True,
+            is_timed_race=True,
+            has_extra_lap=True,
+        ),
+        lap_records=_lap_records(120000, 118000, 121000, 119000, 122000),
+    )
+
+    assert result.estimated_race_laps_remaining == 0
+    assert result.estimated_race_laps_qualified is False
+    assert any("finish-line and extra-lap behaviour" in blocker for blocker in result.blockers)
