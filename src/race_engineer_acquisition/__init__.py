@@ -5,6 +5,7 @@ from .physics_decoder import DecodedPhysics, decode_physics, WHEEL_ORDER
 from .physics_consumer import PhysicsDecodeConsumer, PhysicsConsumerSnapshot
 from .graphics_decoder import DecodedGraphics, decode_graphics
 from .graphics_consumer import GraphicsDecodeConsumer, GraphicsConsumerSnapshot
+from .static_consumer import StaticDecodeConsumer, StaticConsumerSnapshot
 from .health import AcquisitionHealth, AcquisitionHealthSnapshot
 from .fuel_engineer import FuelEngineerSnapshot, build_fuel_engineer_snapshot
 from .fuel_strategy import FuelStrategyAssessment, assess_fuel_strategy
@@ -79,6 +80,8 @@ __all__ = [
     "decode_graphics",
     "GraphicsDecodeConsumer",
     "GraphicsConsumerSnapshot",
+    "StaticDecodeConsumer",
+    "StaticConsumerSnapshot",
     "decode_physics",
     "WHEEL_ORDER",
     "RawPhysicsRead",
