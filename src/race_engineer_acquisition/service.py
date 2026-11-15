@@ -14,6 +14,17 @@ from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 
 
+def _fresh_acc_max_fuel_capacity_l(telemetry: Any) -> tuple[Any, bool]:
+    """Return ACC Static max_fuel only while the decoded Static page is fresh."""
+    static_view = getattr(telemetry, "static_decoded", None)
+    if static_view is None or not getattr(static_view, "is_fresh", False):
+        return None, False
+    static_data = getattr(static_view, "data", None)
+    if static_data is None:
+        return None, False
+    return getattr(static_data, "max_fuel", None), True
+
+
 def _is_next_assessable_lap_event(
     event: Any,
     *,
@@ -177,15 +188,8 @@ class RaceEngineerService:
         race_progress = assess_race_progress(
             telemetry, lap_records=lap_records, lap_limit_qualified=True,
         )
-        static_view = telemetry.static_decoded
-        static_data = (
-            static_view.data
-            if static_view.is_fresh and static_view.data is not None
-            else None
-        )
-        max_fuel_capacity_l = (
-            getattr(static_data, "max_fuel", None)
-            if static_data is not None else None
+        max_fuel_capacity_l, fuel_capacity_fresh = (
+            _fresh_acc_max_fuel_capacity_l(telemetry)
         )
         fuel_sufficiency = assess_fuel_sufficiency(
             acc_fuel_laps_remaining=fuel.acc_fuel_laps_remaining,
@@ -196,7 +200,7 @@ class RaceEngineerService:
             acc_fuel_per_lap_l=fuel.acc_fuel_per_lap_l,
             fuel_per_lap_fresh=fuel.fuel_per_lap_fresh,
             max_fuel_capacity_l=max_fuel_capacity_l,
-            fuel_capacity_fresh=static_data is not None,
+            fuel_capacity_fresh=fuel_capacity_fresh,
         )
         return race_progress_payload(race_progress), fuel_sufficiency_payload(fuel_sufficiency)
 
