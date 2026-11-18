@@ -13,6 +13,7 @@ from .fuel_engineer import SessionFuelUsedAccumulator, build_fuel_engineer_snaps
 from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency_payload
 from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
+from .performance_lap_capture import PerformanceLapCaptureWorker
 
 
 def _fresh_acc_max_fuel_capacity_l(telemetry: Any) -> tuple[Any, bool]:
@@ -108,6 +109,18 @@ class RaceEngineerService:
         self._lap_events = self._broker.subscribe_events(
             "strategy-lap-history-events", capacity=256
         )
+        # Performance Hub owns independent bounded subscriptions. These do not
+        # consume or alter the Race Strategy event mailbox or live snapshot.
+        self._performance_samples = self._broker.subscribe_samples(
+            "performance-hub-lap-capture", capacity=100_000
+        )
+        self._performance_events = self._broker.subscribe_events(
+            "performance-hub-lap-events", capacity=256
+        )
+        self._performance_capture = PerformanceLapCaptureWorker(
+            self._performance_samples, self._performance_events,
+            sample_capacity=100_000, result_capacity=4,
+        )
         self._lap_history = StrategyLapHistory(history_path)
         self._session_fuel_used = SessionFuelUsedAccumulator()
         self._assessment_stop = Event()
@@ -130,6 +143,7 @@ class RaceEngineerService:
 
     def start(self) -> None:
         self._broker.start()
+        self._performance_capture.start()
         if self._assessment_thread is None or not self._assessment_thread.is_alive():
             self._assessment_stop.clear()
             self._assessment_thread = Thread(
@@ -144,11 +158,16 @@ class RaceEngineerService:
         worker = self._assessment_thread
         if worker is not None:
             worker.join(timeout=2.0)
+        performance_stopped = self._performance_capture.close(timeout=2.0)
         self._live_subscription.close()
         self._lap_events.close()
+        self._broker.unsubscribe_samples(
+            "performance-hub-lap-capture", discard_pending=True
+        )
+        self._broker._events.unsubscribe("performance-hub-lap-events")
         stopped = self._broker.close()
         self._lap_history.close()
-        return stopped and (worker is None or not worker.is_alive())
+        return stopped and performance_stopped and (worker is None or not worker.is_alive())
 
     def subscribe_performance_samples(
         self, name: str, *, capacity: int
@@ -171,6 +190,15 @@ class RaceEngineerService:
     def performance_sample_delivery_metrics(self) -> dict[str, Any]:
         """Expose Stage 2 sample queue metrics for diagnostics."""
         return self._broker.metrics["sample_delivery"]
+
+    def read_performance_lap_assembly(self) -> Any | None:
+        """Read one bounded Performance Hub lap-assembly result, if available."""
+        return self._performance_capture.read_result()
+
+    @property
+    def performance_lap_capture_metrics(self) -> dict[str, Any]:
+        """Expose runtime assembly throughput, errors and bounded-handoff loss."""
+        return self._performance_capture.metrics
 
     def read_strategy_laps(
         self, *, limit: int | None = None
