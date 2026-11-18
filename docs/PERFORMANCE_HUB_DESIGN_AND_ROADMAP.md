@@ -202,6 +202,8 @@ Audit:
 
 ### Phase 1 — Bounded per-lap capture and persistence
 
+**Initial progress:** a bounded Stage 2 decoded-sample fan-out primitive is implemented and connected to the existing Physics and Graphics decode consumers. `RaceEngineerService` exposes subscription and cleanup methods plus delivery metrics. Its unit tests have been added; CI validation is currently unavailable because the GitHub Actions jobs fail before exposing any job steps/logs. Do not treat this initial component as validated for sustained 480 Hz / 100 Hz operation yet.
+
 Implement the approved policy in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. This supersedes the earlier assumption that the existing raw Physics recorder is continuously active in normal product runtime.
 
 Requirements:
