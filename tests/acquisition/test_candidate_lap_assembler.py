@@ -76,8 +76,8 @@ def test_samples_after_boundary_are_retained_for_next_lap_not_joined_by_index():
     assembler.ingest_sample(sample("physics", 3, 210))
     result = assembler.ingest_sample(sample("graphics", 3, 220))
     assert len(result.completed) == 1
-    assert [x.capture_sequence for x in result.completed[0].physics_samples] == [2, 3]
-    assert [x.capture_sequence for x in result.completed[0].graphics_samples] == [2, 3]
+    assert [x.capture_sequence for x in result.completed[0].physics_samples] == [2]
+    assert [x.capture_sequence for x in result.completed[0].graphics_samples] == [2]
 
 
 def test_invalid_lap_emits_compact_metadata_without_trace():
