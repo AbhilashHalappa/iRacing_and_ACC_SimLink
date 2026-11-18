@@ -173,6 +173,10 @@ class DecodedTelemetryBroker:
         """Register an independent bounded mailbox for important domain events."""
         return self._events.subscribe(name, capacity=capacity)
 
+    def unsubscribe_events(self, name: str) -> None:
+        """Remove one event consumer without affecting other subscribers."""
+        self._events.unsubscribe(name)
+
     def publish_event(
         self,
         event_type: str,
