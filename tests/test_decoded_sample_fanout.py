@@ -62,15 +62,19 @@ class DecodedSampleFanOutTests(unittest.TestCase):
         fast = fanout.subscribe("fast", capacity=2)
         slow = fanout.subscribe("slow", capacity=1)
 
-        fanout.publish(stream="physics", capture_sequence=1, capture_timestamp_ns=1, data=1)
-        fanout.publish(stream="physics", capture_sequence=2, capture_timestamp_ns=2, data=2)
-        result = fanout.publish(
-            stream="physics", capture_sequence=3, capture_timestamp_ns=3, data=3
-        )
+        for sequence in range(1, 4):
+            result = fanout.publish(
+                stream="physics",
+                capture_sequence=sequence,
+                capture_timestamp_ns=sequence,
+                data=sequence,
+            )
+            self.assertEqual(result["fast"], True)
+            self.assertEqual(fast.read_nowait().capture_sequence, sequence)
 
-        self.assertEqual(result, {"fast": False, "slow": False})
+        self.assertEqual(result["slow"], False)
         self.assertEqual(slow.metrics.rejected_count, 2)
-        self.assertEqual(fast.metrics.rejected_count, 1)
+        self.assertEqual(fast.metrics.rejected_count, 0)
 
     def test_unsubscribe_closes_only_the_selected_subscriber(self) -> None:
         fanout = DecodedSampleFanOut()
