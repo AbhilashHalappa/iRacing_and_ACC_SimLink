@@ -252,8 +252,9 @@ class RaceEngineerService:
     def performance_archive_metrics(self) -> dict[str, Any]:
         """Expose durable archive and asynchronous writer health."""
         return {
-            "archive": self._performance_archive.metrics,
+            "capture": self._performance_capture.metrics,
             "persistence": self._performance_persistence.metrics,
+            "archive": self._performance_archive.metrics,
         }
 
     def read_performance_archive_laps(
