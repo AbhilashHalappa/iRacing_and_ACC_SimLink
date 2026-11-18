@@ -164,7 +164,7 @@ class RaceEngineerService:
         self._broker.unsubscribe_samples(
             "performance-hub-lap-capture", discard_pending=True
         )
-        self._broker._events.unsubscribe("performance-hub-lap-events")
+        self._broker.unsubscribe_events("performance-hub-lap-events")
         stopped = self._broker.close()
         self._lap_history.close()
         return stopped and performance_stopped and (worker is None or not worker.is_alive())
