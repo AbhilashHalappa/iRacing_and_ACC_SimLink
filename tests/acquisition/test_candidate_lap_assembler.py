@@ -152,3 +152,42 @@ def test_per_stream_buffer_is_bounded_and_overflow_downgrades_trace():
     result = assembler.ingest_event(event(2, 2, 130))
     assert result.completed == ()
     assert result.compact[0].reason == "physics_sample_buffer_overflow"
+
+def test_sample_sequence_gap_downgrades_candidate_to_compact_only():
+    assembler = CandidateLapAssembler()
+    seed(assembler)
+    assembler.ingest_sample(sample("physics", 10, 110))
+    assembler.ingest_sample(sample("physics", 12, 120))
+    assembler.ingest_sample(sample("graphics", 20, 120))
+    result = assembler.ingest_event(event(2, 2, 130))
+    assert result.completed == ()
+    assert "physics_sequence_gap" in result.compact[0].reason
+
+
+def test_reported_sample_subscription_gap_downgrades_candidate():
+    assembler = CandidateLapAssembler()
+    seed(assembler)
+    assembler.ingest_sample(sample("physics", 1, 110))
+    assembler.ingest_sample(sample("graphics", 1, 110))
+    diagnostic = assembler.mark_stream_gap(
+        "physics", first_missing_sequence=2, last_missing_sequence=3
+    )
+    assert diagnostic.diagnostics[0].kind == "sample_gap"
+    result = assembler.ingest_event(event(2, 2, 120))
+    assert result.completed == ()
+    assert "physics_subscription_gap" in result.compact[0].reason
+
+
+def test_reported_event_mailbox_gap_discards_candidate_until_new_anchor():
+    assembler = CandidateLapAssembler()
+    seed(assembler)
+    assembler.ingest_sample(sample("physics", 1, 110))
+    assembler.ingest_sample(sample("graphics", 1, 110))
+    diagnostic = assembler.mark_event_gap()
+    assert diagnostic.diagnostics[0].kind == "event_gap"
+    assert assembler.waiting_for_boundary is True
+    reseed = assembler.ingest_event(event(3, 3, 130))
+    assert reseed.completed == ()
+    assert reseed.compact == ()
+    assert assembler.waiting_for_boundary is False
+
