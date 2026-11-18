@@ -75,12 +75,9 @@ class PerformanceLapCaptureWorker:
                     self._last_rejected_count = rejected
                     did_work = True
 
-                for sample in self._samples.read_batch(4096):
-                    self._publish(self._assembler.ingest_sample(sample))
-                    with self._lock:
-                        self._processed_sample_count += 1
-                    did_work = True
-
+                # Establish lap boundaries before draining samples in this
+                # pass. Samples may have accumulated while the worker was idle;
+                # feeding them first would discard them before the first anchor.
                 batch = self._events.read_batch(max_events=128)
                 if batch.gap_detected:
                     self._publish(self._assembler.mark_event_gap())
@@ -89,6 +86,12 @@ class PerformanceLapCaptureWorker:
                     self._publish(self._assembler.ingest_event(event))
                     with self._lock:
                         self._processed_event_count += 1
+                    did_work = True
+
+                for sample in self._samples.read_batch(4096):
+                    self._publish(self._assembler.ingest_sample(sample))
+                    with self._lock:
+                        self._processed_sample_count += 1
                     did_work = True
             except Exception as exc:
                 with self._lock:
