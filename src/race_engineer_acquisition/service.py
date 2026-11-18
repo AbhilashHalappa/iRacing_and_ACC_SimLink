@@ -294,10 +294,6 @@ class RaceEngineerService:
         """Expose Stage 2 sample queue metrics for diagnostics."""
         return self._broker.metrics["sample_delivery"]
 
-    def read_performance_lap_assembly(self) -> Any | None:
-        """Read one bounded Performance Hub lap-assembly result, if available."""
-        return self._performance_capture.read_result()
-
     @property
     def performance_lap_capture_metrics(self) -> dict[str, Any]:
         """Expose runtime assembly throughput, errors and bounded-handoff loss."""
