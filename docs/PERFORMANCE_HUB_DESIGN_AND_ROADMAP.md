@@ -202,7 +202,7 @@ Audit:
 
 ### Phase 1 — Bounded per-lap capture and persistence
 
-**Initial progress:** a bounded Stage 2 decoded-sample fan-out primitive is implemented and connected to the existing Physics and Graphics decode consumers. `RaceEngineerService` exposes subscription and cleanup methods plus delivery metrics. Its unit tests have been added; CI validation is currently unavailable because the GitHub Actions jobs fail before exposing any job steps/logs. Do not treat this initial component as validated for sustained 480 Hz / 100 Hz operation yet.
+**Initial progress:** a bounded Stage 2 decoded-sample fan-out is connected to the existing Physics and Graphics decode consumers, and `RaceEngineerService` exposes subscription/cleanup methods plus delivery metrics. The publisher call contract was corrected and local Windows unit/integration tests passed (user-reported). A standalone `CandidateLapAssembler` primitive now uses existing `lap.completed` / `lap.completion_gap` events and monotonic sample timestamps; it preserves independent Physics/Graphics sequences, waits for both stream watermarks, rejects gaps/regressions/overflow, and emits full traces only for explicitly valid non-out laps. It intentionally skips the first observed completion interval because the application may attach mid-lap. **It is not yet wired into the service/runtime, persisted, or validated under sustained 480 Hz / 100 Hz load.**
 
 Implement the approved policy in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. This supersedes the earlier assumption that the existing raw Physics recorder is continuously active in normal product runtime.
 
