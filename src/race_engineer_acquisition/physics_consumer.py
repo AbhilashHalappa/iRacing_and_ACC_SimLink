@@ -90,7 +90,12 @@ class PhysicsDecodeConsumer:
         if publisher is None:
             return
         try:
-            publisher("physics", raw.capture_sequence, raw.capture_timestamp_ns, decoded)
+            publisher(
+                stream="physics",
+                capture_sequence=raw.capture_sequence,
+                capture_timestamp_ns=raw.capture_timestamp_ns,
+                data=decoded,
+            )
         except Exception:
             # A downstream distribution failure must not terminate decoding.
             with self._lock:
