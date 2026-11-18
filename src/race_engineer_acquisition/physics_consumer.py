@@ -69,11 +69,32 @@ class PhysicsDecodeConsumer:
         self._latest: DecodedPhysics | None = None
         self._latest_capture_timestamp_ns: int | None = None
         self._update_notifier: Callable[[], None] | None = None
+        self._sample_publisher: Callable[[str, int, int, Any], None] | None = None
+        self._sample_publish_error_count = 0
 
     def set_update_notifier(self, notifier: Callable[[], None] | None) -> None:
         """Install an optional constant-time dirty notifier for decoded publication."""
         with self._lock:
             self._update_notifier = notifier
+
+    def set_sample_publisher(
+        self, publisher: Callable[[str, int, int, Any], None] | None
+    ) -> None:
+        """Attach the nonblocking Stage 2 decoded-sample fan-out publisher."""
+        with self._lock:
+            self._sample_publisher = publisher
+
+    def _publish_sample(self, raw: PhysicsSnapshot, decoded: DecodedPhysics) -> None:
+        with self._lock:
+            publisher = self._sample_publisher
+        if publisher is None:
+            return
+        try:
+            publisher("physics", raw.capture_sequence, raw.capture_timestamp_ns, decoded)
+        except Exception:
+            # A downstream distribution failure must not terminate decoding.
+            with self._lock:
+                self._sample_publish_error_count += 1
 
     def _notify_update(self) -> None:
         with self._lock:
@@ -126,6 +147,7 @@ class PhysicsDecodeConsumer:
                     self._last_error = None
                     self._latest = decoded
                     self._latest_capture_timestamp_ns = raw.capture_timestamp_ns
+                self._publish_sample(raw, decoded)
             processed += 1
         if processed:
             # Signal once per drained batch, outside the decoder state lock.
