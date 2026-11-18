@@ -81,6 +81,8 @@ def test_valid_lap_round_trip_preserves_source_sequences_timestamps_and_context(
         row = rows[0]
         assert row["track_configuration"] == ""
         assert row["lap_time_ms"] == 90_000
+        assert row["start_timestamp_ns"] == 1_000
+        assert row["end_timestamp_ns"] == 1_200
         assert row["lap_valid"] == 1
         assert row["out_lap"] == 0
         assert row["pinned_pb"] is True
