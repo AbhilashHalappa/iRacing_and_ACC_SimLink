@@ -12,6 +12,12 @@ from .fuel_strategy import FuelStrategyAssessment, assess_fuel_strategy
 from .fuel_consumption_strategy import FuelConsumptionAssessment, assess_measured_fuel
 from .race_progress_strategy import RaceProgressAssessment, assess_race_progress
 from .service import RaceEngineerService
+from .performance_lap_archive import (
+    LapArchiveContext,
+    PerformanceArchiveConfig,
+    PerformanceLapArchive,
+    PerformanceLapPersistenceWorker,
+)
 from .lap_events import (
     CompletedLapEventObserver,
     LapEventCandidate,
@@ -57,6 +63,10 @@ __all__ = [
     "RaceProgressAssessment",
     "assess_race_progress",
     "RaceEngineerService",
+    "LapArchiveContext",
+    "PerformanceArchiveConfig",
+    "PerformanceLapArchive",
+    "PerformanceLapPersistenceWorker",
     "CompletedLapEventObserver",
     "LapEventCandidate",
     "LapProgressReconciliation",
