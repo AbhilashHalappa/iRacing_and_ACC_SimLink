@@ -161,6 +161,12 @@ class RaceEngineerService:
         """
         return self._broker.subscribe_samples(name, capacity=capacity)
 
+    def unsubscribe_performance_samples(
+        self, name: str, *, discard_pending: bool = False
+    ) -> None:
+        """Release a Performance Hub sample subscription."""
+        self._broker.unsubscribe_samples(name, discard_pending=discard_pending)
+
     @property
     def performance_sample_delivery_metrics(self) -> dict[str, Any]:
         """Expose Stage 2 sample queue metrics for diagnostics."""
