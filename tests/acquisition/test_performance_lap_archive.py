@@ -81,6 +81,8 @@ def test_valid_lap_round_trip_preserves_source_sequences_timestamps_and_context(
         row = rows[0]
         assert row["track_configuration"] == ""
         assert row["lap_time_ms"] == 90_000
+        assert row["lap_valid"] == 1
+        assert row["out_lap"] == 0
         assert row["pinned_pb"] is True
         assert row["session_first_seen_utc"]
         assert row["weather"]["rain_intensity"] == 0
@@ -94,6 +96,23 @@ def test_valid_lap_round_trip_preserves_source_sequences_timestamps_and_context(
         assert trace["graphics"][0]["player_world_position"] == [1.0, 2.0, 3.0]
         assert trace["graphics"][0]["normalized_car_position"] == 0.1
         assert archive.metrics["retained_trace_count"] == 1
+    finally:
+        archive.close()
+
+
+
+def test_incomplete_identity_keeps_trace_without_assigning_a_pb_partition(tmp_path):
+    archive = PerformanceLapArchive(tmp_path / "archive.sqlite3")
+    try:
+        archive.write_output(
+            LapAssemblyOutput(completed=(_trace("run-unknown", 1),)),
+            LapArchiveContext(),
+        )
+        rows = archive.read_laps(limit=10)
+        assert len(rows) == 1
+        assert rows[0]["trace_status"] == "identity_incomplete"
+        assert rows[0]["pinned_pb"] is False
+        assert archive.read_trace("run-unknown", 1) is not None
     finally:
         archive.close()
 
