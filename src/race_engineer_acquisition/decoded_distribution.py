@@ -13,6 +13,7 @@ import time
 from uuid import uuid4
 from typing import Any, Mapping
 
+from .decoded_sample_fanout import DecodedSampleFanOut, DecodedSampleSubscription
 from .decoded_events import (
     DecodedDomainEvent,
     DecodedEventPublisher,
@@ -103,6 +104,9 @@ class DecodedTelemetryBroker:
     def __init__(self, runtime: Any, *, clock_ns=time.perf_counter_ns) -> None:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime, clock_ns=clock_ns)
         self._events = DecodedEventPublisher(clock_ns=clock_ns)
+        self._sample_fanout = DecodedSampleFanOut()
+        runtime.physics_consumer.set_sample_publisher(self._sample_fanout.publish)
+        runtime.graphics_consumer.set_sample_publisher(self._sample_fanout.publish)
         self._lap_event_observer = CompletedLapEventObserver()
         # A run-scoped identity prevents ACC's reusable session_index/session
         # pair from merging separate sessions or app launches in lap history.
@@ -152,6 +156,12 @@ class DecodedTelemetryBroker:
             subscription = self._subscribers.pop(name, None)
         if subscription is not None:
             subscription.close()
+
+    def subscribe_samples(
+        self, name: str, *, capacity: int
+    ) -> DecodedSampleSubscription:
+        """Subscribe to every decoded Physics/Graphics sample via a bounded FIFO."""
+        return self._sample_fanout.subscribe(name, capacity=capacity)
 
     def subscribe_events(
         self, name: str, *, capacity: int = 128
@@ -404,6 +414,7 @@ class DecodedTelemetryBroker:
                 "error_count": self._error_count,
                 "last_error": self._last_error,
                 "event_delivery": self._events.metrics,
+                "sample_delivery": self._sample_fanout.metrics,
             }
 
     def close(self, *, timeout: float = 2.0) -> bool:
@@ -420,6 +431,7 @@ class DecodedTelemetryBroker:
                 for subscriber in subscribers:
                     subscriber.close()
         self._events.close()
+        self._sample_fanout.close()
         self._dirty.set()
         if thread is not None:
             thread.join(max(0.0, timeout))
