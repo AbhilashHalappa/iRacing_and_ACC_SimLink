@@ -105,8 +105,13 @@ class DecodedTelemetryBroker:
         self._aggregator = RaceEngineerSnapshotAggregator(runtime, clock_ns=clock_ns)
         self._events = DecodedEventPublisher(clock_ns=clock_ns)
         self._sample_fanout = DecodedSampleFanOut()
-        runtime.physics_consumer.set_sample_publisher(self._sample_fanout.publish)
-        runtime.graphics_consumer.set_sample_publisher(self._sample_fanout.publish)
+        # Sample fan-out is an optional Stage 2 capability. Keep the broker
+        # compatible with lightweight runtimes and test doubles that expose
+        # decoded snapshots/notifiers but do not implement lossless samples.
+        for consumer in (runtime.physics_consumer, runtime.graphics_consumer):
+            set_sample_publisher = getattr(consumer, "set_sample_publisher", None)
+            if callable(set_sample_publisher):
+                set_sample_publisher(self._sample_fanout.publish)
         self._lap_event_observer = CompletedLapEventObserver()
         # A run-scoped identity prevents ACC's reusable session_index/session
         # pair from merging separate sessions or app launches in lap history.
