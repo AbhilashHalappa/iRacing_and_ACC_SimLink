@@ -163,6 +163,10 @@ class DecodedTelemetryBroker:
         """Subscribe to every decoded Physics/Graphics sample via a bounded FIFO."""
         return self._sample_fanout.subscribe(name, capacity=capacity)
 
+    def unsubscribe_samples(self, name: str, *, discard_pending: bool = False) -> None:
+        """Remove one per-sample subscriber without affecting other consumers."""
+        self._sample_fanout.unsubscribe(name, discard_pending=discard_pending)
+
     def subscribe_events(
         self, name: str, *, capacity: int = 128
     ) -> DecodedEventSubscription:
