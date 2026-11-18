@@ -91,8 +91,10 @@ def test_invalid_lap_emits_compact_metadata_without_trace():
     assert result.completed == ()
     assert len(result.compact) == 1
     assert result.compact[0].reason == "invalid_lap"
-    assert result.compact[0].physics_sample_count == 1
-    assert result.compact[0].graphics_sample_count == 1
+    # Samples timestamped exactly at the completion boundary belong to
+    # the lap being closed, so both samples from each stream are counted.
+    assert result.compact[0].physics_sample_count == 2
+    assert result.compact[0].graphics_sample_count == 2
     assert not hasattr(result.compact[0], "physics_samples")
 
 
