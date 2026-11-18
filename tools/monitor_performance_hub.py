@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from contextlib import closing
 from datetime import datetime, timezone
 import json
 import os
@@ -76,6 +77,8 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
             problems.append(f"{stream_name}_invalid_sequence")
         elif any(b <= a for a, b in zip(sequences, sequences[1:])):
             problems.append(f"{stream_name}_sequence_not_increasing")
+        elif any(b != a + 1 for a, b in zip(sequences, sequences[1:])):
+            problems.append(f"{stream_name}_sequence_gap")
         if any(not isinstance(v, int) or isinstance(v, bool) for v in timestamps):
             problems.append(f"{stream_name}_invalid_timestamp")
         elif any(b < a for a, b in zip(timestamps, timestamps[1:])):
@@ -94,7 +97,7 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
 
 
 def read_archive(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    with open_readonly(path) as db:
+    with closing(open_readonly(path)) as db:
         integrity = db.execute("PRAGMA quick_check").fetchone()
         schema = int(db.execute("PRAGMA user_version").fetchone()[0])
         rows = db.execute(
@@ -165,6 +168,10 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
     shm_bytes = shm_path.stat().st_size if shm_path.exists() else 0
     physical_bytes = db_bytes + wal_bytes + shm_bytes
     trace_bytes = sum(int(r["trace_bytes"] or 0) for r in rows)
+    if trace_bytes > 2 * GIB:
+        issues.append("accounted_trace_bytes_exceed_2_gib")
+    if physical_bytes > 2 * GIB:
+        issues.append("physical_archive_directory_files_exceed_2_gib")
 
     return {
         "lap_metadata_count": len(rows),
@@ -180,7 +187,7 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
         "physical_archive_over_2_gib": physical_bytes > 2 * GIB,
         "trace_checks": trace_checks,
         "issues": issues,
-        "archive_data_check": "PASS" if not issues else "FAIL",
+        "archive_data_check": ("NOT VERIFIED" if not rows else ("PASS" if not issues else "FAIL")),
     }
 
 
