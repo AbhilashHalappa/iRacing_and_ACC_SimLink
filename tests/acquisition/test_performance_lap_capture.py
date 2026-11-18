@@ -34,8 +34,6 @@ def _wait_for(predicate, timeout=1.0):
 
 def test_worker_assembles_trace_from_independent_feeds():
     samples = DecodedSampleSubscription("samples", capacity=32)
-    events = DecodedEventPublisher().subscribe("events", capacity=8)
-    publisher = events  # subscription is fed by its owning publisher below
     event_publisher = DecodedEventPublisher()
     events = event_publisher.subscribe("events", capacity=8)
     worker = PerformanceLapCaptureWorker(samples, events, poll_interval_s=0.002)
@@ -57,8 +55,18 @@ def test_worker_assembles_trace_from_independent_feeds():
             })())
         worker.start()
         assert _wait_for(lambda: worker.metrics["processed_sample_count"] == 4)
-        result = None
-        assert _wait_for(lambda: worker.read_result() is not None)
+        results = []
+        def collect_result():
+            result = worker.read_result()
+            if result is not None:
+                results.append(result)
+            return bool(results)
+        assert _wait_for(collect_result)
+        assert len(results[0].completed) == 1
+        trace = results[0].completed[0]
+        assert trace.lap_number == 2
+        assert len(trace.physics_samples) == 2
+        assert len(trace.graphics_samples) == 2
     finally:
         worker.close()
 
