@@ -154,9 +154,8 @@ def test_per_stream_buffer_is_bounded_and_overflow_downgrades_trace():
     seed(assembler)
     assembler.ingest_sample(sample("physics", 1, 110))
     assembler.ingest_sample(sample("physics", 2, 115))
-    assembler.ingest_sample(sample("graphics", 1, 120))
+    assembler.ingest_sample(sample("graphics", 1, 130))
     assembler.ingest_sample(sample("physics", 3, 130))
-    assembler.ingest_sample(sample("graphics", 2, 130))
     result = assembler.ingest_event(event(2, 2, 130))
     assert result.completed == ()
     assert result.compact[0].reason == "physics_sample_buffer_overflow"
