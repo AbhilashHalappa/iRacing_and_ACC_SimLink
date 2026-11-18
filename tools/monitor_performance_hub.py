@@ -24,8 +24,8 @@ LAP_COLUMNS = (
     "session_id", "lap_number", "car_model", "track", "track_configuration",
     "completed_at_utc", "lap_time_ms", "lap_valid", "out_lap",
     "start_timestamp_ns", "end_timestamp_ns", "physics_sample_count",
-    "graphics_sample_count", "weather_json", "quality_json", "trace_blob",
-    "trace_bytes", "trace_status", "reason", "pinned_pb",
+    "graphics_sample_count", "weather_json", "quality_json", "trace_bytes",
+    "trace_status", "reason", "pinned_pb",
 )
 
 
@@ -96,15 +96,15 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
     }
 
 
-def read_archive(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def read_archive(path: Path, *, check_integrity: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     with closing(open_readonly(path)) as db:
-        integrity = db.execute("PRAGMA quick_check").fetchone()
+        integrity = db.execute("PRAGMA quick_check").fetchone() if check_integrity else None
         schema = int(db.execute("PRAGMA user_version").fetchone()[0])
         rows = db.execute(
             """SELECT session_id,lap_number,car_model,track,track_configuration,
                completed_at_utc,lap_time_ms,lap_valid,out_lap,start_timestamp_ns,
                end_timestamp_ns,physics_sample_count,graphics_sample_count,
-               weather_json,quality_json,trace_blob,trace_bytes,trace_status,
+               weather_json,quality_json,trace_bytes,trace_status,
                reason,pinned_pb
                FROM laps ORDER BY completed_at_utc,id"""
         ).fetchall()
@@ -115,32 +115,38 @@ def read_archive(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             item["quality"] = json.loads(item.pop("quality_json") or "{}")
             item["pinned_pb"] = bool(item["pinned_pb"])
             result.append(item)
-        return result, {"integrity": integrity[0] if integrity else "no_result", "schema_version": schema}
+        return result, {"integrity": integrity[0] if integrity else "not_checked", "schema_version": schema}
+
+
+def read_trace_blob(path: Path, session_id: str, lap_number: int) -> bytes | None:
+    with closing(open_readonly(path)) as db:
+        row = db.execute(
+            "SELECT trace_blob FROM laps WHERE session_id=? AND lap_number=?",
+            (session_id, lap_number),
+        ).fetchone()
+    return row[0] if row else None
 
 
 def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
     issues: list[str] = []
-    full = [r for r in rows if r["trace_blob"] is not None]
-    compact = [r for r in rows if r["trace_blob"] is None]
+    full = [r for r in rows if r["trace_status"] in ("retained", "identity_incomplete")]
+    compact = [r for r in rows if r not in full]
     trace_checks = {}
     for row in rows:
         key = f'{row["session_id"]}:{row["lap_number"]}'
-        if row["trace_blob"] is not None:
-            trace_checks[key] = check_trace(
-                row["trace_blob"], int(row["physics_sample_count"] or 0),
-                int(row["graphics_sample_count"] or 0),
-            )
-            if not trace_checks[key]["ok"]:
-                issues.append(f"trace_invalid:{key}:{trace_checks[key]['reason']}")
-        elif row["trace_status"] in ("retained", "identity_incomplete"):
-            issues.append(f"trace_missing_for_status:{key}:{row['trace_status']}")
+        validation = row.get("trace_validation")
+        if row["trace_status"] in ("retained", "identity_incomplete"):
+            if not validation:
+                issues.append(f"trace_not_checked:{key}")
+            elif not validation.get("ok"):
+                issues.append(f"trace_invalid:{key}:{validation.get('reason')}")
 
-        if row["trace_blob"] is not None and (
+        if row["trace_status"] in ("retained", "identity_incomplete") and (
             row["lap_valid"] != 1 or row["out_lap"] != 0
         ):
             issues.append(f"ineligible_lap_has_full_trace:{key}")
 
-        if row["trace_blob"] is None and row["trace_status"] == "compact_metadata":
+        if row["trace_status"] == "compact_metadata":
             if row["lap_valid"] == 1 and row["out_lap"] == 0:
                 issues.append(f"eligible_lap_compacted:{key}")
 
@@ -233,6 +239,8 @@ def main() -> int:
     db_info: dict[str, Any] = {}
     started = time.monotonic()
     archive_seen = False
+    integrity_checked = False
+    trace_checks_cache: dict[tuple[str, int], dict[str, Any]] = {}
 
     try:
         while True:
@@ -241,7 +249,8 @@ def main() -> int:
                 time.sleep(args.interval)
                 continue
             try:
-                rows, db_info = read_archive(args.db)
+                rows, db_info = read_archive(args.db, check_integrity=not integrity_checked)
+                integrity_checked = True
                 archive_seen = True
                 last_rows = rows
                 new_rows = []
@@ -251,6 +260,14 @@ def main() -> int:
                         seen.add(key)
                         first_seen[key] = utc_now()
                         new_rows.append(row)
+                        if row["trace_status"] in ("retained", "identity_incomplete"):
+                            blob = read_trace_blob(args.db, key[0], key[1])
+                            trace_checks_cache[key] = check_trace(
+                                blob, int(row["physics_sample_count"] or 0),
+                                int(row["graphics_sample_count"] or 0),
+                            )
+                    if key in trace_checks_cache:
+                        row["trace_validation"] = trace_checks_cache[key]
 
                 report = evaluate(rows, args.db)
                 snapshot = {
