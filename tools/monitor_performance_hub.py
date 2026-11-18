@@ -240,6 +240,8 @@ def main() -> int:
     started = time.monotonic()
     archive_seen = False
     integrity_checked = False
+    integrity_status = "not_run"
+    schema_status: int | None = None
     trace_checks_cache: dict[tuple[str, int], dict[str, Any]] = {}
 
     try:
@@ -250,6 +252,9 @@ def main() -> int:
                 continue
             try:
                 rows, db_info = read_archive(args.db, check_integrity=not integrity_checked)
+                if not integrity_checked:
+                    integrity_status = str(db_info["integrity"])
+                    schema_status = int(db_info["schema_version"])
                 integrity_checked = True
                 archive_seen = True
                 last_rows = rows
@@ -270,6 +275,12 @@ def main() -> int:
                         row["trace_validation"] = trace_checks_cache[key]
 
                 report = evaluate(rows, args.db)
+                if integrity_status != "ok":
+                    report["issues"].append(f"sqlite_integrity_check:{integrity_status}")
+                if schema_status != 1:
+                    report["issues"].append(f"unsupported_archive_schema:{schema_status}")
+                if report["issues"]:
+                    report["archive_data_check"] = "FAIL"
                 snapshot = {
                     "timestamp_utc": utc_now(),
                     "elapsed_seconds": round(time.monotonic() - started, 1),
@@ -308,6 +319,14 @@ def main() -> int:
     }
     if archive_seen:
         final_report["results"] = evaluate(last_rows, args.db)
+        if integrity_status != "ok":
+            final_report["results"]["issues"].append(f"sqlite_integrity_check:{integrity_status}")
+        if schema_status != 1:
+            final_report["results"]["issues"].append(f"unsupported_archive_schema:{schema_status}")
+        if final_report["results"]["issues"]:
+            final_report["results"]["archive_data_check"] = "FAIL"
+        final_report["archive_integrity"] = integrity_status
+        final_report["archive_schema_version"] = schema_status
         final_report["laps"] = serializable_rows(last_rows)
         final_report["new_lap_first_seen_utc"] = {
             f"{session}:{lap}": seen_at for (session, lap), seen_at in first_seen.items()
