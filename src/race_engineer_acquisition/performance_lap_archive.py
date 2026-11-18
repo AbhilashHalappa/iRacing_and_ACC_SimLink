@@ -305,8 +305,9 @@ class PerformanceLapArchive:
             progress = _get(data, "normalized_car_position")
             distance = _get(data, "distance_traveled_m")
             world = _get(data, "player_world_position")
-            if isinstance(world, (tuple, list)) and len(world) >= 2 and all(
-                item is None or _finite_number(item) for item in world
+            if (
+                isinstance(world, (tuple, list)) and len(world) >= 2
+                and sum(_finite_number(item) for item in world) >= 2
             ):
                 position_count += 1
             if _finite_number(progress):
@@ -598,7 +599,7 @@ class PerformanceLapArchive:
             raise ValueError("limit must be positive")
         if not self.path.exists():
             return ()
-        uri = f"file:{self.path.as_posix()}?mode=ro"
+        uri = self.path.resolve().as_uri() + "?mode=ro"
         with sqlite3.connect(uri, uri=True, timeout=5.0) as db:
             clauses: list[str] = []
             values: list[Any] = []
@@ -624,6 +625,7 @@ class PerformanceLapArchive:
             "completed_at_utc","lap_time_ms","lap_valid","out_lap",
             "physics_sample_count","graphics_sample_count","weather_json",
             "quality_json","trace_status","reason","pinned_pb","trace_bytes",
+            "session_first_seen_utc",
         )
         result=[]
         for row in rows:
