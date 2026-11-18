@@ -64,23 +64,23 @@ class DecodedSampleSubscription:
         self._closed = False
 
     def _offer(self, sample: DecodedSample) -> bool:
+        # Keep the closed check and nonblocking offer under one lock so close()
+        # cannot race an in-flight offer into a queue after shutdown.
         with self._lock:
             if self._closed:
                 return False
             self._offered_count += 1
-        try:
-            self._queue.put_nowait(sample)
-        except Full:
-            with self._lock:
+            try:
+                self._queue.put_nowait(sample)
+            except Full:
                 self._rejected_count += 1
                 if self._first_rejected_sequence is None:
                     self._first_rejected_sequence = sample.capture_sequence
                 self._last_rejected_sequence = sample.capture_sequence
-            return False
-        with self._lock:
+                return False
             self._accepted_count += 1
             self._high_water_mark = max(self._high_water_mark, self._queue.qsize())
-        return True
+            return True
 
     def read_nowait(self) -> DecodedSample | None:
         """Return the oldest queued sample, or None when currently empty."""
