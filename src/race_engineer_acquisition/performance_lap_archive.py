@@ -199,7 +199,10 @@ class PerformanceLapArchive:
         db.execute(f"PRAGMA user_version={cls.SCHEMA_VERSION}")
 
     def _now(self) -> datetime:
-        return self._clock().astimezone(timezone.utc)
+        value = self._clock()
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     def _apply_startup_retention(self) -> None:
         if self._db is None:
@@ -369,8 +372,12 @@ class PerformanceLapArchive:
         identity_complete = car is not None and track is not None and track_config is not None
         trace_blob: bytes | None = None
         quality: dict[str, Any] = {
-            "physics_sample_count": int(_get(lap, "physics_sample_count", 0) or 0),
-            "graphics_sample_count": int(_get(lap, "graphics_sample_count", 0) or 0),
+            "physics_sample_count": int(
+                _get(lap, "physics_sample_count", len(_get(lap, "physics_samples", ()) or ())) or 0
+            ),
+            "graphics_sample_count": int(
+                _get(lap, "graphics_sample_count", len(_get(lap, "graphics_samples", ()) or ())) or 0
+            ),
             "racing_line_available": False,
             "source_sequences_preserved": False,
             "source_timestamps_preserved": False,
@@ -525,19 +532,21 @@ class PerformanceLapArchive:
 
     @property
     def storage_bytes(self) -> int:
-        if self._db is None:
-            return 0
-        row = self._db.execute("SELECT COALESCE(SUM(trace_bytes),0) FROM laps").fetchone()
-        return int(row[0] or 0)
+        with self._lock:
+            if self._db is None:
+                return 0
+            row = self._db.execute("SELECT COALESCE(SUM(trace_bytes),0) FROM laps").fetchone()
+            return int(row[0] or 0)
 
     @property
     def storage_blocked(self) -> bool:
-        if self._db is None:
-            return True
-        row = self._db.execute(
-            "SELECT COALESCE(SUM(trace_bytes),0) FROM laps WHERE pinned_pb=1"
-        ).fetchone()
-        return int(row[0] or 0) >= self.config.max_storage_bytes
+        with self._lock:
+            if self._db is None:
+                return True
+            row = self._db.execute(
+                "SELECT COALESCE(SUM(trace_bytes),0) FROM laps WHERE pinned_pb=1"
+            ).fetchone()
+            return int(row[0] or 0) >= self.config.max_storage_bytes
 
     @property
     def metrics(self) -> dict[str, Any]:
@@ -547,11 +556,24 @@ class PerformanceLapArchive:
                 "storage_bytes": 0, "storage_limit_bytes": self.config.max_storage_bytes,
                 "storage_blocked": True, "storage_limit_rejections": self._storage_limit_rejections,
             }
-        counts = self._db.execute(
-            """SELECT COUNT(*),SUM(CASE WHEN trace_blob IS NOT NULL THEN 1 ELSE 0 END),
-               SUM(CASE WHEN trace_status='compact_metadata' THEN 1 ELSE 0 END)
-               FROM laps"""
-        ).fetchone()
+        with self._lock:
+            if self._db is None:
+                return {
+                    "available": False, "path": str(self.path), "last_error": self._last_error,
+                    "storage_bytes": 0, "storage_limit_bytes": self.config.max_storage_bytes,
+                    "storage_blocked": True, "storage_limit_rejections": self._storage_limit_rejections,
+                }
+            counts = self._db.execute(
+                """SELECT COUNT(*),SUM(CASE WHEN trace_blob IS NOT NULL THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN trace_status='compact_metadata' THEN 1 ELSE 0 END)
+                   FROM laps"""
+            ).fetchone()
+            storage_bytes = int(self._db.execute(
+                "SELECT COALESCE(SUM(trace_bytes),0) FROM laps"
+            ).fetchone()[0] or 0)
+            pinned_bytes = int(self._db.execute(
+                "SELECT COALESCE(SUM(trace_bytes),0) FROM laps WHERE pinned_pb=1"
+            ).fetchone()[0] or 0)
         return {
             "available": True,
             "path": str(self.path),
@@ -559,9 +581,9 @@ class PerformanceLapArchive:
             "lap_metadata_count": int(counts[0] or 0),
             "retained_trace_count": int(counts[1] or 0),
             "compact_metadata_count": int(counts[2] or 0),
-            "storage_bytes": self.storage_bytes,
+            "storage_bytes": storage_bytes,
             "storage_limit_bytes": self.config.max_storage_bytes,
-            "storage_blocked": self.storage_blocked,
+            "storage_blocked": pinned_bytes >= self.config.max_storage_bytes,
             "storage_limit_rejections": self._storage_limit_rejections,
             "max_age_days": self.config.max_age_days,
             "recent_laps_per_identity": self.config.recent_laps_per_identity,
@@ -589,10 +611,11 @@ class PerformanceLapArchive:
                     values.append(value)
             where = " WHERE " + " AND ".join(clauses) if clauses else ""
             rows = db.execute(
-                """SELECT session_id,lap_number,car_model,track,track_configuration,
+                """SELECT laps.session_id,lap_number,car_model,track,track_configuration,
                    completed_at_utc,lap_time_ms,lap_valid,out_lap,physics_sample_count,
                    graphics_sample_count,weather_json,quality_json,trace_status,reason,
-                   pinned_pb,trace_bytes FROM laps"""
+                   pinned_pb,trace_bytes,sessions.first_seen_utc
+                   FROM laps JOIN sessions ON sessions.session_id=laps.session_id"""
                 + where + " ORDER BY completed_at_utc DESC,id DESC LIMIT ?",
                 (*values, limit),
             ).fetchall()
