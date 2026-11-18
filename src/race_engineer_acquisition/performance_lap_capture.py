@@ -55,8 +55,9 @@ class PerformanceLapCaptureWorker:
         try:
             self._results.put_nowait(output)
         except Full:
-            # Never block acquisition-facing consumers. Loss is explicit and
-            # visible; a future persistence consumer must size/drain this queue.
+            # Never block acquisition-facing consumers. The archive writer
+            # drains this bounded handoff; if it falls behind, loss is explicit
+            # and visible in result_drop_count.
             with self._lock:
                 self._result_drop_count += len(output.completed) + len(output.compact)
                 self._diagnostic_count += 1
