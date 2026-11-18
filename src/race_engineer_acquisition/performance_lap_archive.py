@@ -371,6 +371,7 @@ class PerformanceLapArchive:
         self._insert_session(db, session_id, context, now_iso)
         car, track, track_config = self._identity(context)
         identity_complete = car is not None and track is not None and track_config is not None
+        requested_trace = not compact
         trace_blob: bytes | None = None
         quality: dict[str, Any] = {
             "physics_sample_count": int(
@@ -457,7 +458,7 @@ class PerformanceLapArchive:
                 db.execute("UPDATE laps SET pinned_pb=1 WHERE id=?", (row_id,))
             self._apply_identity_retention(db, car, track, track_config)
             self._apply_global_retention(db)
-        return True, trace_blob is None and not compact
+        return True, trace_blob is None and requested_trace
 
     def _apply_identity_retention(
         self, db: sqlite3.Connection, car: str, track: str, track_config: str
