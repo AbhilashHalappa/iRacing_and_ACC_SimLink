@@ -101,7 +101,9 @@ The storage implementation must provide:
 - Deletion/eviction that never leaves dangling personal-best references.
 - A user-visible way to inspect and manage retained-lap storage before adding automatic cleanup controls.
 
-The exact physical representation (SQLite metadata plus compressed trace files, or an equivalent transactional layout) is an implementation choice to be validated against expected write rate, query latency and storage footprint. Do not commit to a format before measuring a representative lap.
+The initial implementation uses a versioned SQLite database with WAL journaling and FULL synchronous commits. Each completed lap's source-preserving trace is serialized to JSON and zlib-compressed into a transactional BLOB; metadata and trace finalization commit together. Read queries use separate read-only SQLite connections. This is the selected initial layout, but it remains subject to representative-lap, sustained-rate, query-latency and storage-footprint benchmarks before endurance use.
+
+The configured 2 GiB limit currently accounts for compressed trace BLOB bytes. SQLite page/index/WAL overhead and compact metadata are additional and are not yet included in that byte counter; measuring and bounding total on-disk footprint remains an explicit Phase 1 validation item.
 
 ## 7. Required acceptance tests
 
@@ -122,14 +124,14 @@ The exact physical representation (SQLite metadata plus compressed trace files, 
 
 ## 8. Implementation sequence
 
-1. Define the typed candidate-lap and retained-lap data contracts.
-2. Design the bounded Stage 2 per-sample delivery contract and overflow/loss reporting.
-3. Implement the candidate-lap assembler using existing lap events and classification.
-4. Validate Physics/Graphics association and coordinate quality with controlled ACC runs.
-5. Benchmark representative per-lap storage and select the physical persistence format.
-6. Implement atomic storage, read-only query service, retention and recovery.
-7. Implement analysis readers and the Racing Line overlay.
-8. Add multi-session progress and coaching consumers after the archive contract is stable.
+1. **Implemented:** typed candidate-lap and archive metadata contracts.
+2. **Implemented:** bounded Stage 2 per-sample delivery and explicit overflow/loss reporting.
+3. **Implemented:** candidate-lap assembly using existing lap events and classification.
+4. **Partially validated:** timestamp-based Physics/Graphics association; live ACC coordinate-quality validation remains.
+5. **Selected, benchmark pending:** SQLite metadata with zlib-compressed trace BLOBs.
+6. **Implemented, local validation pending:** atomic storage, read-only query service, count/age/global compressed-trace retention and restart integrity checks.
+7. Next: validate archive writes/reads and measure representative lap size, sustained sample throughput, database/WAL growth and shutdown/restart behaviour.
+8. Then: implement analysis readers and the Racing Line overlay; add multi-session progress and coaching consumers after the archive contract is validated.
 
 ## 9. Non-negotiable constraints
 
