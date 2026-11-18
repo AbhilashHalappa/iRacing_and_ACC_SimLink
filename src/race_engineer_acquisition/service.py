@@ -14,6 +14,13 @@ from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency
 from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 from .performance_lap_capture import PerformanceLapCaptureWorker
+from .performance_lap_archive import (
+    LapArchiveContext,
+    PerformanceArchiveConfig,
+    PerformanceLapArchive,
+    PerformanceLapPersistenceWorker,
+    default_performance_archive_path,
+)
 
 
 def _fresh_acc_max_fuel_capacity_l(telemetry: Any) -> tuple[Any, bool]:
@@ -103,7 +110,11 @@ def _is_next_assessable_lap_event(
 class RaceEngineerService:
     """Expose fresh live state and shared compact lap history to consumers."""
 
-    def __init__(self, runtime: Any, *, history_path: str | Path | None = None) -> None:
+    def __init__(
+        self, runtime: Any, *, history_path: str | Path | None = None,
+        performance_archive_path: str | Path | None = None,
+        performance_archive_config: PerformanceArchiveConfig | None = None,
+    ) -> None:
         self._broker = DecodedTelemetryBroker(runtime)
         self._live_subscription = self._broker.subscribe("race-engineer-live-state")
         self._lap_events = self._broker.subscribe_events(
@@ -120,6 +131,15 @@ class RaceEngineerService:
         self._performance_capture = PerformanceLapCaptureWorker(
             self._performance_samples, self._performance_events,
             sample_capacity=100_000, result_capacity=4,
+        )
+        self._performance_archive = PerformanceLapArchive(
+            performance_archive_path or default_performance_archive_path(),
+            config=performance_archive_config,
+        )
+        self._performance_persistence = PerformanceLapPersistenceWorker(
+            self._performance_capture,
+            self._performance_archive,
+            self._performance_archive_context,
         )
         self._lap_history = StrategyLapHistory(history_path)
         self._session_fuel_used = SessionFuelUsedAccumulator()
@@ -144,6 +164,7 @@ class RaceEngineerService:
     def start(self) -> None:
         self._broker.start()
         self._performance_capture.start()
+        self._performance_persistence.start()
         if self._assessment_thread is None or not self._assessment_thread.is_alive():
             self._assessment_stop.clear()
             self._assessment_thread = Thread(
@@ -158,7 +179,12 @@ class RaceEngineerService:
         worker = self._assessment_thread
         if worker is not None:
             worker.join(timeout=2.0)
-        performance_stopped = self._performance_capture.close(timeout=2.0)
+        performance_stopped = self._performance_capture.close(timeout=5.0)
+        persistence_stopped = False
+        if performance_stopped:
+            persistence_stopped = self._performance_persistence.close(timeout=10.0)
+            if persistence_stopped:
+                self._performance_archive.close()
         self._live_subscription.close()
         self._lap_events.close()
         self._broker.unsubscribe_samples(
@@ -167,7 +193,84 @@ class RaceEngineerService:
         self._broker.unsubscribe_events("performance-hub-lap-events")
         stopped = self._broker.close()
         self._lap_history.close()
-        return stopped and performance_stopped and (worker is None or not worker.is_alive())
+        return (
+            stopped and performance_stopped and persistence_stopped
+            and (worker is None or not worker.is_alive())
+        )
+
+    def _performance_archive_context(self) -> LapArchiveContext:
+        """Snapshot identity/weather metadata without touching acquisition feeds."""
+        envelope = self._live_subscription.latest
+        if envelope is None:
+            return LapArchiveContext()
+        telemetry = envelope.telemetry
+        static_view = getattr(telemetry, "static_decoded", None)
+        static_data = (
+            getattr(static_view, "data", None)
+            if static_view is not None and getattr(static_view, "is_fresh", False)
+            else None
+        )
+        graphics_view = getattr(telemetry, "graphics", None)
+        graphics = (
+            getattr(graphics_view, "data", None)
+            if graphics_view is not None and getattr(graphics_view, "is_fresh", False)
+            else None
+        )
+        physics_view = getattr(telemetry, "physics", None)
+        physics = (
+            getattr(physics_view, "data", None)
+            if physics_view is not None and getattr(physics_view, "is_fresh", False)
+            else None
+        )
+        weather = {
+            "rain_intensity": getattr(graphics, "rain_intensity", None),
+            "rain_10min": getattr(graphics, "rain_10min", None),
+            "rain_30min": getattr(graphics, "rain_30min", None),
+            "track_grip_status": getattr(graphics, "track_grip_status", None),
+            "surface_grip": getattr(graphics, "surface_grip", None),
+            "wind_speed": getattr(graphics, "wind_speed", None),
+            "wind_direction": getattr(graphics, "wind_direction", None),
+            "air_temp_c": getattr(physics, "air_temp_c", None),
+            "road_temp_c": getattr(physics, "road_temp_c", None),
+        }
+        source_timestamps = {
+            "static": getattr(static_view, "capture_timestamp_ns", None),
+            "graphics": getattr(graphics_view, "capture_timestamp_ns", None),
+            "physics": getattr(physics_view, "capture_timestamp_ns", None),
+        }
+        return LapArchiveContext(
+            car_model=getattr(static_data, "car_model", None),
+            track=getattr(static_data, "track", None),
+            track_configuration=getattr(static_data, "track_configuration", None),
+            session_index=getattr(graphics, "session_index", None),
+            session_type=getattr(graphics, "session", None),
+            weather=weather,
+            metadata_source_timestamps_ns=source_timestamps,
+        )
+
+    @property
+    def performance_archive_metrics(self) -> dict[str, Any]:
+        """Expose durable archive and asynchronous writer health."""
+        return {
+            "archive": self._performance_archive.metrics,
+            "persistence": self._performance_persistence.metrics,
+        }
+
+    def read_performance_archive_laps(
+        self, *, car_model: str | None = None, track: str | None = None,
+        track_configuration: str | None = None, limit: int = 100,
+    ) -> tuple[dict[str, Any], ...]:
+        """Read archive metadata through the service, never from the UI directly."""
+        return self._performance_archive.read_laps(
+            car_model=car_model, track=track,
+            track_configuration=track_configuration, limit=limit,
+        )
+
+    def read_performance_lap_trace(
+        self, session_id: str, lap_number: int
+    ) -> dict[str, Any] | None:
+        """Read one source-preserving retained trace for analysis consumers."""
+        return self._performance_archive.read_trace(session_id, lap_number)
 
     def subscribe_performance_samples(
         self, name: str, *, capacity: int
