@@ -1,6 +1,6 @@
 # Performance Hub — Architecture and Implementation Roadmap
 
-**Status:** Design baseline / implementation not yet audited  
+**Status:** Phase 0 source audit completed; bounded lap-retention decision accepted  
 **Branch:** `feature/performance-hub`  
 **Base branch:** `feature/fuel-strategy`
 
@@ -200,19 +200,23 @@ Audit:
 
 **Guardrail:** No code changes in this phase.
 
-### Phase 1 — High-resolution recording reader
+### Phase 1 — Bounded per-lap capture and persistence
 
-Implement a read-only analysis reader over the existing recorder output.
+Implement the approved policy in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. This supersedes the earlier assumption that the existing raw Physics recorder is continuously active in normal product runtime.
 
 Requirements:
-- Read persisted high-resolution Physics samples.
-- Preserve sample order and timestamps.
-- Retrieve individual lap/session ranges efficiently.
-- Detect incomplete, corrupt or truncated recordings.
-- Expose sample/channel availability and data-quality information.
-- Avoid loading entire long sessions into memory unnecessarily.
+- Add an independent bounded Stage 2 decoded-sample consumer; do not use the coalesced latest-value UI subscription as a historical capture source.
+- Preserve full-rate decoded Physics samples and Graphics position/progress samples with source sequences and timestamps.
+- Assemble temporary candidate laps and finalize only after the existing completed-lap event and classification authority confirm the boundary and eligibility.
+- Record overflow, gaps, alignment confidence and data-quality metrics; do not silently interpolate or fabricate missing samples.
+- Retain the 30 most recent eligible laps per car/track/configuration plus a separately pinned PB when outside that set.
+- Keep invalid laps/out-laps as compact diagnostic metadata only.
+- Enforce the 2 GiB global storage budget and 365-day default age limit without evicting pinned PB references.
+- Use atomic finalization, crash recovery and a single storage owner.
+- Expose read-only lap queries through a Performance Hub service.
+- Keep capture and storage off Stage 1, acquisition, decoder hot paths, Overview, Race Strategy and live coaching.
 
-**Deliverable:** A tested reader that can retrieve a lap's high-resolution telemetry without changing acquisition or recording.
+**Deliverable:** A tested bounded archive of identifiable, quality-qualified per-lap Physics traces and Graphics trajectories, with retention and recovery.
 
 ### Phase 2 — Lap and session reconstruction
 
@@ -409,4 +413,4 @@ Performance Hub is complete when a user can:
 
 ## 11. Immediate next step
 
-Begin with **Phase 0 — Read-only source and data audit** on the branch's base code. Produce a verified component-by-component checklist and record the exact files, classes, interfaces, recording channels and tests that already exist before implementing Phase 1.
+Phase 0 is recorded in `docs/PERFORMANCE_HUB_PHASE_0_SOURCE_AUDIT.md`. The bounded-retention decision is recorded in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. Begin Phase 1 by specifying and testing the loss-accounted Stage 2 per-sample delivery contract before implementing candidate capture or persistence.
