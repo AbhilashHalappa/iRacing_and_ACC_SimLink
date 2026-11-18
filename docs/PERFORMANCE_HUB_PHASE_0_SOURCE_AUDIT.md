@@ -92,7 +92,7 @@ The existing 80-point threshold is only a capture minimum, not a validated spati
 - lap/session identity across restarts and session changes;
 - repeatability when driving the same line on repeated laps.
 
-The latest-value broker intentionally coalesces snapshots. It is suitable for current UI state but cannot guarantee delivery of every Graphics sample to a historical trajectory recorder. If the existing Graphics raw recording is used as the lossless source, its reader must associate raw samples with completed laps without changing Stage 1 or blocking acquisition. If product runtime is to retain per-lap trajectories directly from live Graphics, it needs a separately designed bounded consumer path with explicit loss accounting—not a UI effect that assumes every snapshot arrives.
+The latest-value broker intentionally coalesces snapshots and remains suitable only for current UI state. An initial separate bounded Stage 2 decoded-sample FIFO has now been added and attached to the Physics/Graphics decode consumers; it is exposed through `RaceEngineerService.subscribe_performance_samples()`. It uses nonblocking per-subscriber queues, drop-newest overflow and per-subscriber sequence/loss counters. This is an initial delivery primitive, not yet a completed capture/archive: it still needs automated validation, load testing at target rates, candidate-lap assembly, stream association and lifecycle integration.
 
 ## 4. Recording and persistence decision gap
 
@@ -158,6 +158,7 @@ This is a migration, not a drop-in UI move. Before porting, trace the legacy run
 | Performance Hub frontend shell | Not implemented; placeholder navigation exists |
 | Legacy Corner Coach source | Located in old repository `main`; migration audit still required |
 | Product high-resolution retention policy | Accepted: bounded per-lap retention; see decision record |
+| Stage 2 loss-accounted decoded sample feed | Initial implementation added; tests/CI validation pending |
 | Physics/Graphics lap association and synchronization | **Open technical specification** |
 | Corner Coach ACC adapter and runtime lifecycle | **Open migration specification** |
 
@@ -173,4 +174,4 @@ This is a migration, not a drop-in UI move. Before porting, trace the legacy run
 8. Migrate the legacy Corner Coach behind an ACC-specific adapter, preserving its voice path.
 9. Build the Performance Hub UI on the established service contracts.
 
-**Phase 0 status:** source-level audit completed for the main recording, decoded distribution, lap-history, track-map and Corner Coach entry points. The bounded per-lap retention policy is accepted. The Stage 2 loss-accounted sample-delivery design, cross-stream association, live spatial accuracy and detailed legacy Corner Coach dependency/runtime tracing remain open. No application source code was changed during this audit.
+**Phase 0 status:** source-level audit completed for the main recording, decoded distribution, lap-history, track-map and Corner Coach entry points. The bounded per-lap retention policy is accepted. The Stage 2 per-sample feed has an initial implementation; its load/loss behaviour still needs validation. Cross-stream association, live spatial accuracy and detailed legacy Corner Coach dependency/runtime tracing remain open. No application source code was changed during this audit.
