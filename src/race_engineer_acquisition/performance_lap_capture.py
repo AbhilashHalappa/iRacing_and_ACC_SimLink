@@ -70,8 +70,11 @@ class PerformanceLapCaptureWorker:
                 if rejected > self._last_rejected_count:
                     # The fan-out metric is aggregate across Physics and
                     # Graphics, so conservatively invalidate both streams.
-                    for stream in CandidateLapAssembler.STREAMS:
-                        self._publish(self._assembler.mark_stream_gap(stream))
+                    # Loss before the first trusted boundary cannot affect a
+                    # candidate interval and must not poison the first lap.
+                    if not self._assembler.waiting_for_boundary:
+                        for stream in CandidateLapAssembler.STREAMS:
+                            self._publish(self._assembler.mark_stream_gap(stream))
                     self._last_rejected_count = rejected
                     did_work = True
 
