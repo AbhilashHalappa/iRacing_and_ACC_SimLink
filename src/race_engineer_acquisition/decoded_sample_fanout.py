@@ -125,8 +125,11 @@ class DecodedSampleSubscription:
         with self._lock:
             self._closed = True
         if discard_pending:
-            while self.read_nowait() is not None:
-                pass
+            while True:
+                try:
+                    self._queue.get_nowait()
+                except Empty:
+                    break
 
 
 class DecodedSampleFanOut:
