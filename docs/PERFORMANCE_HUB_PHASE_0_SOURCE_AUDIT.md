@@ -3,7 +3,7 @@
 **Branch:** `feature/performance-hub`  
 **Audit date:** 18 November 2026  
 **Scope:** Read-only audit of the greenfield ACC repository and the legacy F1 application's Corner Coach source.  
-**Code changes:** None. This document records verified source facts and implementation gaps; it does not claim the audit is a live ACC runtime validation.
+**Code changes:** None. This document records verified source facts and implementation gaps; it does not claim the audit is a live ACC runtime validation. The bounded per-lap retention policy is now accepted in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`.
 
 ## 1. Executive findings
 
@@ -103,12 +103,9 @@ The Performance Hub roadmap currently says analysis reads existing persisted hig
 - `docs/STRATEGY_LIVE_DATA_AND_COMPACT_LAP_HISTORY.md` says normal product runtime does not continuously archive every Physics/Graphics sample and retains compact lap history only;
 - `docs/decisions/ACC_LIVE_DATA_CONSUMERS_AND_BEST_LAP_REFERENCE.md` defines selective candidate capture and best-lap reference retention rather than unlimited raw-session retention.
 
-This is a real architecture decision gap, not a coding detail. Before Phase 1, choose and document the product persistence contract:
-1. selectively retain high-resolution per-lap candidate data for analysis; or
-2. use the existing raw Physics/Graphics recording path under an explicitly approved retention policy; or
-3. define a different bounded, loss-accounted per-lap capture mechanism.
+**Decision resolved:** Performance Hub uses bounded per-lap retention as defined in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. It captures eligible laps from an independent, bounded Stage 2 decoded-sample consumer; it does not enable continuous raw session recording or create another raw recorder. This extends the earlier best-lap-only persistence contract for Performance Hub history while preserving the existing live-coaching best-lap reference.
 
-Do not turn on unlimited session recording by assumption. Do not create a second ACC acquisition reader or modify Stage 1.
+The implementation still must prove a loss-accounted per-sample delivery path. The existing latest-value Stage 2 subscription is coalescing and is not a valid lossless source for historical traces.
 
 For Racing Line specifically, Graphics position is the direct source. Physics data is needed for braking/throttle/steering/speed analysis and must be correlated using source metadata and a verified lap-boundary association. Physics and Graphics files have independent timestamps; do not infer sample-level synchronization from their persistence timestamps.
 
@@ -160,20 +157,20 @@ This is a migration, not a drop-in UI move. Before porting, trace the legacy run
 | Compact Strategy Lap History | Source verified; not suitable for high-resolution analysis |
 | Performance Hub frontend shell | Not implemented; placeholder navigation exists |
 | Legacy Corner Coach source | Located in old repository `main`; migration audit still required |
-| Product high-resolution retention policy | **Open architecture decision** |
+| Product high-resolution retention policy | Accepted: bounded per-lap retention; see decision record |
 | Physics/Graphics lap association and synchronization | **Open technical specification** |
 | Corner Coach ACC adapter and runtime lifecycle | **Open migration specification** |
 
 ## 9. Recommended next implementation sequence
 
-1. Resolve the high-resolution retention decision before writing the Phase 1 reader.
-2. Specify the Graphics trajectory archive and loss-accounted sample-delivery path for per-lap racing lines.
-3. Define lap/session association using the existing completed-lap events and classification authority.
-4. Implement the read-only analysis reader and lap reconstruction against the approved persistence contract.
-5. Build telemetry normalization and quality reporting.
-6. Build the lap comparison and corner analysis services.
+1. Design the bounded Stage 2 decoded-sample delivery path and its overflow/loss accounting. The existing coalesced latest-value mailbox is not sufficient.
+2. Define the typed candidate-lap contract and lap/session association using existing completed-lap events and classification authority.
+3. Implement candidate assembly and validate Physics/Graphics association and spatial quality with controlled ACC runs.
+4. Benchmark representative lap storage, then implement atomic persistence, recovery, retention and read-only queries.
+5. Implement the analysis reader and lap reconstruction against the approved persistence contract.
+6. Build telemetry normalization, quality reporting, lap comparison and corner analysis.
 7. Add per-lap racing-line overlay and spatial comparison using the existing track-map projection helpers.
 8. Migrate the legacy Corner Coach behind an ACC-specific adapter, preserving its voice path.
 9. Build the Performance Hub UI on the established service contracts.
 
-**Phase 0 status:** source-level audit completed for the main recording, decoded distribution, lap-history, track-map and Corner Coach entry points. Product persistence policy, cross-stream association, live spatial accuracy and detailed legacy Corner Coach dependency/runtime tracing remain open. No application source code was changed during this audit.
+**Phase 0 status:** source-level audit completed for the main recording, decoded distribution, lap-history, track-map and Corner Coach entry points. The bounded per-lap retention policy is accepted. The Stage 2 loss-accounted sample-delivery design, cross-stream association, live spatial accuracy and detailed legacy Corner Coach dependency/runtime tracing remain open. No application source code was changed during this audit.
