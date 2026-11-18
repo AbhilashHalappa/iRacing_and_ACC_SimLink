@@ -569,7 +569,7 @@ class PerformanceLapArchive:
                 }
             counts = self._db.execute(
                 """SELECT COUNT(*),SUM(CASE WHEN trace_blob IS NOT NULL THEN 1 ELSE 0 END),
-                   SUM(CASE WHEN trace_status='compact_metadata' THEN 1 ELSE 0 END)
+                   SUM(CASE WHEN trace_blob IS NULL THEN 1 ELSE 0 END)
                    FROM laps"""
             ).fetchone()
             storage_bytes = int(self._db.execute(
@@ -642,7 +642,7 @@ class PerformanceLapArchive:
     def read_trace(self, session_id: str, lap_number: int) -> dict[str, Any] | None:
         if not self.path.exists():
             return None
-        uri = f"file:{self.path.as_posix()}?mode=ro"
+        uri = self.path.resolve().as_uri() + "?mode=ro"
         with sqlite3.connect(uri, uri=True, timeout=5.0) as db:
             row = db.execute(
                 "SELECT trace_blob,trace_status FROM laps WHERE session_id=? AND lap_number=?",
@@ -661,9 +661,12 @@ class PerformanceLapArchive:
                 return
             self._closed = True
             if self._db is not None:
-                self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                self._db.close()
-                self._db = None
+                db = self._db
+                try:
+                    db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                finally:
+                    db.close()
+                    self._db = None
 
 
 class PerformanceLapPersistenceWorker:
