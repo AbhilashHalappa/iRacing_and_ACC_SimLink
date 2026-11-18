@@ -1,6 +1,6 @@
 # Performance Hub — Architecture and Implementation Roadmap
 
-**Status:** Phase 0 source audit completed; bounded lap-retention decision accepted  
+**Status:** Phase 0 source audit completed; Phase 1 capture and archive implementation pushed; local archive validation pending  
 **Branch:** `feature/performance-hub`  
 **Base branch:** `feature/fuel-strategy`
 
@@ -202,7 +202,17 @@ Audit:
 
 ### Phase 1 — Bounded per-lap capture and persistence
 
-**Initial progress:** a bounded Stage 2 decoded-sample fan-out is connected to the existing Physics and Graphics decode consumers, and `RaceEngineerService` exposes subscription/cleanup methods plus delivery metrics. The publisher call contract was corrected and local Windows unit/integration tests passed (user-reported). A standalone `CandidateLapAssembler` primitive now uses existing `lap.completed` / `lap.completion_gap` events and monotonic sample timestamps; it preserves independent Physics/Graphics sequences, waits for both stream watermarks, rejects gaps/regressions/overflow, and emits full traces only for explicitly valid non-out laps. It intentionally skips the first observed completion interval because the application may attach mid-lap. **It is not yet wired into the service/runtime, persisted, or validated under sustained 480 Hz / 100 Hz load.**
+**Implementation progress (local validation status is tracked separately):**
+
+- The bounded Stage 2 decoded-sample fan-out is connected to the existing Physics and Graphics consumers. Publisher integration and the candidate-lap assembler/runtime worker were locally validated by the user before this archive work.
+- `CandidateLapAssembler` uses the existing `lap.completed` / `lap.completion_gap` authority and independent monotonic Physics/Graphics timestamps. It preserves source sequences, waits for both stream watermarks, downgrades candidates on gaps/regressions/overflow, and emits full traces only for explicitly valid non-out laps. The first observed completion remains a boundary anchor.
+- `PerformanceLapArchive` now provides a versioned SQLite schema, WAL-backed atomic transactions, compressed trace blobs, source-sequence/timestamp preservation, read-only query methods, startup integrity checking, and restart recovery.
+- A separate `PerformanceLapPersistenceWorker` drains the capture worker's bounded result queue and performs serialization, compression, SQLite writes and retention away from acquisition, decoders and UI consumers.
+- The archive stores full decoded Physics samples and the Graphics progress/world-position trajectory. It records weather values with their source timestamps, plus per-lap sample and racing-line availability metadata.
+- Retention applies the latest 30 eligible traces per car/track/configuration plus a pinned PB, compact metadata for invalid laps/out-laps, the 365-day age rule, and the configured 2 GiB compressed-trace budget. A storage-limit rejection preserves existing pinned PB traces and is visible in archive metrics.
+- The default archive location is per-user application data. `RaceEngineerService` exposes archive metrics, lap metadata queries and trace reads. If car/track/configuration metadata is not fresh, a trace is retained as identity-incomplete and is not assigned to a PB partition.
+
+**Not yet validated:** the archive tests and full acquisition regression suite must be run locally on Windows. The implementation has not yet been load-tested at sustained 480 Hz / 100 Hz rates or during a long endurance session. Do not use it as endurance-ready until those checks pass.
 
 Implement the approved policy in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. This supersedes the earlier assumption that the existing raw Physics recorder is continuously active in normal product runtime.
 
@@ -415,4 +425,4 @@ Performance Hub is complete when a user can:
 
 ## 11. Immediate next step
 
-Phase 0 is recorded in `docs/PERFORMANCE_HUB_PHASE_0_SOURCE_AUDIT.md`. The bounded-retention decision is recorded in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. Begin Phase 1 by specifying and testing the loss-accounted Stage 2 per-sample delivery contract before implementing candidate capture or persistence.
+Phase 0 is recorded in `docs/PERFORMANCE_HUB_PHASE_0_SOURCE_AUDIT.md`; the retention policy is in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. Phase 1 capture and persistence are implemented on this branch. Next: run the archive and acquisition regression tests locally, then benchmark representative lap size, sustained sample throughput, storage growth, and shutdown/restart recovery before an endurance test.
