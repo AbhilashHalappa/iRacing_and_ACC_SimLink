@@ -85,6 +85,8 @@ def test_invalid_lap_emits_compact_metadata_without_trace():
     seed(assembler)
     assembler.ingest_sample(sample("physics", 1, 110))
     assembler.ingest_sample(sample("graphics", 1, 110))
+    assembler.ingest_sample(sample("physics", 2, 120))
+    assembler.ingest_sample(sample("graphics", 2, 120))
     result = assembler.ingest_event(event(2, 2, 120, valid=False))
     assert result.completed == ()
     assert len(result.compact) == 1
@@ -99,11 +101,13 @@ def test_unknown_validity_and_out_lap_are_not_eligible_for_full_trace():
     seed(assembler)
     assembler.ingest_sample(sample("physics", 1, 110))
     assembler.ingest_sample(sample("graphics", 1, 110))
+    assembler.ingest_sample(sample("physics", 2, 120))
+    assembler.ingest_sample(sample("graphics", 2, 120))
     unknown = assembler.ingest_event(event(2, 2, 120, valid=None))
     assert unknown.compact[0].reason == "validity_unknown"
 
-    assembler.ingest_sample(sample("physics", 2, 130))
-    assembler.ingest_sample(sample("graphics", 2, 130))
+    assembler.ingest_sample(sample("physics", 3, 140))
+    assembler.ingest_sample(sample("graphics", 3, 140))
     out_lap = assembler.ingest_event(event(3, 3, 140, out_lap=True))
     assert out_lap.compact[0].reason == "out_lap"
 
@@ -137,7 +141,9 @@ def test_timestamp_regression_prevents_candidate_from_becoming_eligible():
     seed(assembler)
     assembler.ingest_sample(sample("physics", 2, 120))
     assembler.ingest_sample(sample("physics", 3, 115))
+    assembler.ingest_sample(sample("physics", 4, 130))
     assembler.ingest_sample(sample("graphics", 1, 120))
+    assembler.ingest_sample(sample("graphics", 2, 130))
     result = assembler.ingest_event(event(2, 2, 130))
     assert len(result.compact) == 1
     assert "physics_timestamp_regressed" in result.compact[0].reason
@@ -149,6 +155,8 @@ def test_per_stream_buffer_is_bounded_and_overflow_downgrades_trace():
     assembler.ingest_sample(sample("physics", 1, 110))
     assembler.ingest_sample(sample("physics", 2, 115))
     assembler.ingest_sample(sample("graphics", 1, 120))
+    assembler.ingest_sample(sample("physics", 3, 130))
+    assembler.ingest_sample(sample("graphics", 2, 130))
     result = assembler.ingest_event(event(2, 2, 130))
     assert result.completed == ()
     assert result.compact[0].reason == "physics_sample_buffer_overflow"
@@ -159,6 +167,8 @@ def test_sample_sequence_gap_downgrades_candidate_to_compact_only():
     assembler.ingest_sample(sample("physics", 10, 110))
     assembler.ingest_sample(sample("physics", 12, 120))
     assembler.ingest_sample(sample("graphics", 20, 120))
+    assembler.ingest_sample(sample("physics", 13, 130))
+    assembler.ingest_sample(sample("graphics", 21, 130))
     result = assembler.ingest_event(event(2, 2, 130))
     assert result.completed == ()
     assert "physics_sequence_gap" in result.compact[0].reason
@@ -173,6 +183,8 @@ def test_reported_sample_subscription_gap_downgrades_candidate():
         "physics", first_missing_sequence=2, last_missing_sequence=3
     )
     assert diagnostic.diagnostics[0].kind == "sample_gap"
+    assembler.ingest_sample(sample("physics", 2, 120))
+    assembler.ingest_sample(sample("graphics", 2, 120))
     result = assembler.ingest_event(event(2, 2, 120))
     assert result.completed == ()
     assert "physics_subscription_gap" in result.compact[0].reason
