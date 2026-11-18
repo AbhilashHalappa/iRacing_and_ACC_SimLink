@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .decoded_distribution import DecodedTelemetryBroker
+from .decoded_sample_fanout import DecodedSampleSubscription
 from .fuel_engineer import SessionFuelUsedAccumulator, build_fuel_engineer_snapshot
 from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency_payload
 from .race_progress_strategy import assess_race_progress, race_progress_payload
@@ -148,6 +149,22 @@ class RaceEngineerService:
         stopped = self._broker.close()
         self._lap_history.close()
         return stopped and (worker is None or not worker.is_alive())
+
+    def subscribe_performance_samples(
+        self, name: str, *, capacity: int
+    ) -> DecodedSampleSubscription:
+        """Subscribe to decoded Physics/Graphics samples for offline lap capture.
+
+        The subscription is bounded and loss-accounted. It is deliberately
+        separate from the coalescing live-state subscription used by Overview
+        and Race Strategy.
+        """
+        return self._broker.subscribe_samples(name, capacity=capacity)
+
+    @property
+    def performance_sample_delivery_metrics(self) -> dict[str, Any]:
+        """Expose Stage 2 sample queue metrics for diagnostics."""
+        return self._broker.metrics["sample_delivery"]
 
     def read_strategy_laps(
         self, *, limit: int | None = None
