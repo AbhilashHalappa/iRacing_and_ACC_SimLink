@@ -144,6 +144,8 @@ class CandidateLapAssembler:
         if previous_sequence is not None and sequence <= previous_sequence:
             self._quality_reasons.add(f"{stream}_sequence_not_increasing")
             return self._drain_events()
+        if previous_sequence is not None and sequence > previous_sequence + 1:
+            self._quality_reasons.add(f"{stream}_sequence_gap")
         if previous_timestamp is not None and timestamp < previous_timestamp:
             self._quality_reasons.add(f"{stream}_timestamp_regressed")
             self._last_sequence[stream] = sequence
@@ -158,6 +160,40 @@ class CandidateLapAssembler:
             else:
                 self._overflow_streams.add(stream)
         return self._drain_events()
+
+    def mark_stream_gap(
+        self, stream: str, *, first_missing_sequence: int | None = None,
+        last_missing_sequence: int | None = None,
+    ) -> LapAssemblyOutput:
+        """Downgrade the active candidate after the subscription reports loss."""
+        if stream not in self.STREAMS:
+            raise ValueError(f"Unsupported decoded stream: {stream!r}")
+        self._quality_reasons.add(f"{stream}_subscription_gap")
+        detail = f"{stream} sample subscription reported loss"
+        if first_missing_sequence is not None or last_missing_sequence is not None:
+            detail += (
+                f" (first_missing={first_missing_sequence},"
+                f" last_missing={last_missing_sequence})"
+            )
+        return LapAssemblyOutput(diagnostics=(
+            LapAssemblyDiagnostic("sample_gap", self._session_id,
+                                  self._start_lap_number, detail),
+        ))
+
+    def mark_event_gap(self) -> LapAssemblyOutput:
+        """Discard the active interval after event-mailbox loss; await a new anchor."""
+        session_id = self._session_id
+        lap_number = self._start_lap_number
+        self._start_timestamp_ns = None
+        self._start_lap_number = None
+        self._pending_events.clear()
+        self._clear_interval()
+        return LapAssemblyOutput(diagnostics=(
+            LapAssemblyDiagnostic(
+                "event_gap", session_id, lap_number,
+                "Lap-event subscription reported loss; waiting for a fresh boundary anchor",
+            ),
+        ))
 
     def ingest_event(self, event: Any) -> LapAssemblyOutput:
         event_type = self._get(event, "event_type")
