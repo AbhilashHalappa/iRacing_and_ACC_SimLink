@@ -419,6 +419,8 @@ class PerformanceLapArchive:
                 reason = "global_storage_limit_preserving_pinned_references"
                 self._storage_limit_rejections += 1
 
+        lap_valid_value = True if requested_trace else _get(lap, "lap_valid")
+        out_lap_value = False if requested_trace else _get(lap, "out_lap")
         weather = dict(context.weather or {})
         source_timestamps = dict(context.metadata_source_timestamps_ns or {})
         quality["metadata_source_timestamps_ns"] = source_timestamps
@@ -434,8 +436,8 @@ class PerformanceLapArchive:
             (
                 session_id, lap_number, car, track, track_config, now_iso,
                 _get(lap, "lap_time_ms"),
-                (1 if _get(lap, "lap_valid") is True else 0 if _get(lap, "lap_valid") is False else None),
-                (1 if _get(lap, "out_lap") is True else 0 if _get(lap, "out_lap") is False else None),
+                (1 if lap_valid_value is True else 0 if lap_valid_value is False else None),
+                (1 if out_lap_value is True else 0 if out_lap_value is False else None),
                 int(_get(lap, "start_timestamp_ns", 0) or 0),
                 int(_get(lap, "end_timestamp_ns", 0) or 0),
                 int(_get(lap, "physics_sample_count", quality["physics_sample_count"]) or 0),
