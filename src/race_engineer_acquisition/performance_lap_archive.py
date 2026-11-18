@@ -616,8 +616,9 @@ class PerformanceLapArchive:
             where = " WHERE " + " AND ".join(clauses) if clauses else ""
             rows = db.execute(
                 """SELECT laps.session_id,lap_number,car_model,track,track_configuration,
-                   completed_at_utc,lap_time_ms,lap_valid,out_lap,physics_sample_count,
-                   graphics_sample_count,weather_json,quality_json,trace_status,reason,
+                   completed_at_utc,lap_time_ms,lap_valid,out_lap,start_timestamp_ns,
+                   end_timestamp_ns,physics_sample_count,graphics_sample_count,
+                   weather_json,quality_json,trace_status,reason,
                    pinned_pb,trace_bytes,sessions.first_seen_utc
                    FROM laps JOIN sessions ON sessions.session_id=laps.session_id"""
                 + where + " ORDER BY completed_at_utc DESC,id DESC LIMIT ?",
@@ -626,7 +627,8 @@ class PerformanceLapArchive:
         keys = (
             "session_id","lap_number","car_model","track","track_configuration",
             "completed_at_utc","lap_time_ms","lap_valid","out_lap",
-            "physics_sample_count","graphics_sample_count","weather_json",
+            "start_timestamp_ns","end_timestamp_ns","physics_sample_count",
+            "graphics_sample_count","weather_json",
             "quality_json","trace_status","reason","pinned_pb","trace_bytes",
             "session_first_seen_utc",
         )
