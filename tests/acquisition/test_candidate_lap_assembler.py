@@ -314,3 +314,33 @@ def test_invalid_lap_keeps_compact_graphics_timing_change_points_only():
     assert "sector" in observation["changed_fields"]
     assert "is_valid_lap" in observation["changed_fields"]
     assert not hasattr(compact, "graphics_samples")
+
+
+
+def test_compact_timing_change_points_do_not_reset_baseline_on_unavailable_fields():
+    assembler = CandidateLapAssembler()
+    observations = assembler._compact_graphics_timing_observations((
+        N(
+            stream="graphics", capture_sequence=10, capture_timestamp_ns=100,
+            data={"sector": 1, "last_sector_time_ms": 30_000,
+                  "is_valid_lap": True, "current_time_ms": 30_000},
+        ),
+        N(
+            stream="graphics", capture_sequence=11, capture_timestamp_ns=110,
+            data={"sector": None, "last_sector_time_ms": None,
+                  "is_valid_lap": None, "current_time_ms": 30_100},
+        ),
+        N(
+            stream="graphics", capture_sequence=12, capture_timestamp_ns=120,
+            data={"sector": 2, "last_sector_time_ms": 30_000,
+                  "is_valid_lap": True, "current_time_ms": 30_200},
+        ),
+    ))
+
+    assert len(observations) == 2
+    assert observations[0]["observation_kind"] == "graphics_timing_change_point"
+    assert observations[0]["source_stream"] == "graphics"
+    assert observations[0]["capture_sequence"] == 10
+    assert observations[1]["capture_sequence"] == 12
+    assert observations[1]["changed_fields"] == ["sector"]
+    assert observations[1]["data"]["current_time_ms"] == 30_200
