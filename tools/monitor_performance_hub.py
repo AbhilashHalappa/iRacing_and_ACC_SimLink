@@ -211,6 +211,8 @@ def main() -> int:
                         help="Polling interval in seconds (default: 2).")
     parser.add_argument("--output", type=Path, default=None,
                         help="Output directory (default: LOCALAPPDATA/.../monitor_reports/<timestamp>).")
+    parser.add_argument("--once", action="store_true",
+                        help="Validate the archive once and exit (use after closing the game/app).")
     args = parser.parse_args()
     if args.interval < 0.5:
         parser.error("--interval must be at least 0.5 seconds")
@@ -229,8 +231,11 @@ def main() -> int:
     print("Performance Hub monitor — read-only mode")
     print(f"Archive: {args.db}")
     print(f"Evidence folder: {output_dir}")
-    print("Start/continue driving in ACC. Stop this monitor with Ctrl+C.")
-    print("The report only verifies data persisted in the archive; it cannot read internal live queue counters.")
+    if args.once:
+        print("One-shot validation mode — checking the archive as it exists now.")
+    else:
+        print("Live monitoring mode — leave this running while driving; stop with Ctrl+C.")
+    print("The report verifies persisted archive data; it cannot read internal live queue counters.")
 
     seen: set[tuple[str, int]] = set()
     first_seen: dict[tuple[str, int], str] = {}
@@ -247,7 +252,9 @@ def main() -> int:
     try:
         while True:
             if not args.db.exists():
-                print(f"[{utc_now()}] WAITING — archive database has not been created yet")
+                print(f"[{utc_now()}] ARCHIVE NOT FOUND — {args.db}")
+                if args.once:
+                    break
                 time.sleep(args.interval)
                 continue
             try:
@@ -300,6 +307,8 @@ def main() -> int:
                 if report["issues"]:
                     for issue in report["issues"]:
                         print(f"  ISSUE: {issue}")
+                if args.once:
+                    break
                 time.sleep(args.interval)
             except (sqlite3.Error, OSError, ValueError, json.JSONDecodeError) as exc:
                 print(f"[{utc_now()}] RETRY — archive temporarily unavailable: {type(exc).__name__}: {exc}")
