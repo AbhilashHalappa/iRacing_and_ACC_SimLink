@@ -17,7 +17,9 @@ from race_engineer_acquisition.performance_lap_archive import (
     PerformanceLapArchive,
     PerformanceLapPersistenceWorker,
     GRAPHICS_ARCHIVE_FIELDS,
+    GRAPHICS_EXCLUDED_FIELDS,
 )
+from race_engineer_acquisition.graphics_decoder import DecodedGraphics
 
 
 def _trace(session: str, lap: int, lap_time_ms: int = 90_000) -> CompletedLapTrace:
@@ -344,3 +346,14 @@ def test_archive_round_trip_preserves_entire_graphics_field_contract_and_physics
         assert physics["data"] == physics_data
     finally:
         archive.close()
+
+
+
+def test_every_decoded_graphics_field_is_archived_or_explicitly_excluded():
+    decoder_fields = set(DecodedGraphics.__dataclass_fields__)
+    archived_fields = set(GRAPHICS_ARCHIVE_FIELDS)
+    excluded_fields = set(GRAPHICS_EXCLUDED_FIELDS)
+
+    assert archived_fields.isdisjoint(excluded_fields)
+    assert decoder_fields == archived_fields | excluded_fields
+    assert all(GRAPHICS_EXCLUDED_FIELDS.values())
