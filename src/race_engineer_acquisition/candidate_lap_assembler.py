@@ -252,7 +252,21 @@ class CandidateLapAssembler:
             self._start_lap_number = None
             self._pending_events.clear()
             if previous is not None:
-                self._clear_interval()
+                if event_type == "lap.started":
+                    # The new session's sample worker may already have
+                    # delivered frames before this boundary event. Retain only
+                    # samples after its timestamp; discard the old interval.
+                    for stream in self.STREAMS:
+                        self._buffers[stream] = deque(
+                            sample for sample in self._buffers[stream]
+                            if self._get(sample, "capture_timestamp_ns") > timestamp
+                        )
+                        dropped_through = self._pre_boundary_dropped_through[stream]
+                        if dropped_through is not None and dropped_through > timestamp:
+                            self._overflow_streams.add(stream)
+                        self._pre_boundary_dropped_through[stream] = None
+                else:
+                    self._clear_interval()
                 diagnostic = LapAssemblyDiagnostic(
                     "session_changed", previous, None,
                     "Previous candidate interval discarded at session transition",
