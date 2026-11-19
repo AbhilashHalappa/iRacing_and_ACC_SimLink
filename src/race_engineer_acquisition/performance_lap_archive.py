@@ -17,6 +17,7 @@ import time
 from typing import Any, Callable, Mapping
 import zlib
 
+from .sector_evidence import build_sector_observations, summarize_sector_evidence
 from .storage_paths import (
     default_performance_archive_path,
     migrate_legacy_performance_hub_data,
@@ -479,6 +480,9 @@ class PerformanceLapArchive:
             "racing_line_available": position_count > 0,
             "source_sequences_preserved": True,
             "source_timestamps_preserved": True,
+            "sector_evidence": summarize_sector_evidence(
+                build_sector_observations(graphics_samples)
+            ),
         }
         return compressed, quality
 
@@ -577,6 +581,9 @@ class PerformanceLapArchive:
             )
             quality["graphics_timing_observations"] = _jsonable(timing_observations)
             quality["graphics_timing_observation_count"] = len(timing_observations)
+            sector_observations = build_sector_observations(timing_observations)
+            quality["sector_observations"] = _jsonable(sector_observations)
+            quality["sector_evidence"] = summarize_sector_evidence(sector_observations)
             quality["compact_evidence_policy"] = "graphics_timing_change_points_only"
         db.execute(
             """INSERT INTO laps(
