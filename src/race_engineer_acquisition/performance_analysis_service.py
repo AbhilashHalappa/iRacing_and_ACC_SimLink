@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any
+import math
 
 from .analysis_coach import rank_corner_opportunities
 from .corner_analysis import analyze_corner
@@ -18,6 +19,7 @@ _REQUIRED_POLICY = (
     "max_alignment_delta_ns",
     "distance_step_m",
     "max_bracket_gap_m",
+    "minimum_point_spacing_m",
     "minimum_channel_coverage",
     "max_progress_step",
     "minimum_turn_angle_rad",
@@ -79,7 +81,7 @@ def _analyse_one_lap(
     profile = build_lap_profile(aligned)
     trajectory = build_track_trajectory(
         trace.get("graphics", ()),
-        minimum_point_spacing_m=policy.get("minimum_point_spacing_m", 0.25),
+        minimum_point_spacing_m=policy["minimum_point_spacing_m"],
     )
     progress = check_progress_continuity(
         graphics, max_progress_step=policy["max_progress_step"]
@@ -121,10 +123,42 @@ def analyze_archived_laps(
     missing_policy = [name for name in _REQUIRED_POLICY if name not in policy]
     if missing_policy:
         raise ValueError("missing analysis policy values: " + ", ".join(missing_policy))
+    numeric_policy = (
+        "max_alignment_delta_ns", "distance_step_m", "max_bracket_gap_m",
+        "minimum_point_spacing_m", "minimum_channel_coverage",
+        "max_progress_step", "minimum_turn_angle_rad",
+        "minimum_corner_length_m", "merge_gap_m",
+        "max_corner_apex_separation_m", "max_corner_apex_distance_delta_m",
+        "brake_onset_threshold", "throttle_pickup_threshold",
+        "steering_threshold_rad",
+    )
+    if any(
+        not isinstance(policy[name], (int, float))
+        or isinstance(policy[name], bool)
+        or not math.isfinite(float(policy[name]))
+        for name in numeric_policy
+    ):
+        raise ValueError("all numeric analysis policy values must be finite numbers")
     if policy["max_alignment_delta_ns"] < 0:
         raise ValueError("max_alignment_delta_ns must be non-negative")
     if policy["distance_step_m"] <= 0 or policy["max_bracket_gap_m"] <= 0:
         raise ValueError("distance comparison policy values must be positive")
+    if policy["minimum_point_spacing_m"] < 0:
+        raise ValueError("minimum_point_spacing_m must be non-negative")
+    if not 0 <= policy["minimum_channel_coverage"] <= 1:
+        raise ValueError("minimum_channel_coverage must be between 0 and 1")
+    if policy["max_progress_step"] <= 0:
+        raise ValueError("max_progress_step must be positive")
+    if not 0 < policy["minimum_turn_angle_rad"] < math.pi:
+        raise ValueError("minimum_turn_angle_rad must be between 0 and pi")
+    if policy["minimum_corner_length_m"] <= 0 or policy["merge_gap_m"] < 0:
+        raise ValueError("corner geometry policy is invalid")
+    if policy["max_corner_apex_separation_m"] <= 0 or policy["max_corner_apex_distance_delta_m"] <= 0:
+        raise ValueError("corner identity tolerances must be positive")
+    if not 0 <= policy["brake_onset_threshold"] <= 1 or not 0 <= policy["throttle_pickup_threshold"] <= 1:
+        raise ValueError("pedal event thresholds must be between 0 and 1")
+    if policy["steering_threshold_rad"] <= 0:
+        raise ValueError("steering_threshold_rad must be positive")
 
     reference_metadata, reference_trace = _load_eligible_trace(
         archive, reference_session_id, reference_lap_number
