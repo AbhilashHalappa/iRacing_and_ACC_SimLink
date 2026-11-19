@@ -26,7 +26,7 @@ def rank_corner_opportunities(
         differences = []
         for key, label, direction in (
             ("braking_point_m", "braking point", "later"),
-            ("minimum_speed_mps", "minimum speed", "lower"),
+            ("minimum_speed_mps", "minimum speed", "higher"),
             ("throttle_pickup_point_m", "throttle pickup", "later"),
             ("turn_in_point_m", "steering response point", "later"),
         ):
@@ -46,7 +46,7 @@ def rank_corner_opportunities(
                     "reference_value": reference_value,
                     "difference": current_value - reference_value,
                     "direction": direction if current_value > reference_value else (
-                        "earlier" if direction == "later" else "higher"
+                        "lower" if key == "minimum_speed_mps" else "earlier"
                     ),
                 })
         if not differences:
