@@ -21,7 +21,7 @@ def test_corner_analysis_measures_braking_turn_in_min_speed_and_throttle_pickup(
         point(120, 12.0, 30, 0.8, 0.0, 0.3),
         point(130, 13.0, 25, 0.4, 0.1, 0.4),
         point(140, 14.0, 28, 0.0, 0.3, 0.2),
-        point(150, 15.0, 35, 0.0, 0.8, 0.1),
+        point(150, 15.0, 35, 0.0, 1.0, 0.1),
     ]
     result = analyze_corner(
         profile,
@@ -42,6 +42,7 @@ def test_corner_analysis_measures_braking_turn_in_min_speed_and_throttle_pickup(
     assert result["minimum_speed_mps"] == 25
     assert result["minimum_speed_point_m"] == 130
     assert result["throttle_pickup_point_m"] == 150
+    assert result["full_throttle_point_m"] == 150
 
 
 def test_corner_analysis_calculates_time_delta_only_when_both_profiles_bracket_corner():
