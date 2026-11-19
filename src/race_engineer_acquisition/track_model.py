@@ -68,12 +68,17 @@ def build_track_model(
         if merged and segment["start_distance_m"] - merged[-1]["end_distance_m"] <= merge_gap_m:
             merged[-1]["end_distance_m"] = segment["end_distance_m"]
             merged[-1]["turn_angle_sum_rad"] += segment["turn_angle_rad"]
+            if segment["turn_angle_rad"] > merged[-1]["max_turn_angle_rad"]:
+                merged[-1]["max_turn_angle_rad"] = segment["turn_angle_rad"]
+                merged[-1]["apex_point_index"] = segment["source_point_index"]
             merged[-1]["source_point_indices"].append(segment["source_point_index"])
         else:
             merged.append({
                 "start_distance_m": segment["start_distance_m"],
                 "end_distance_m": segment["end_distance_m"],
                 "turn_angle_sum_rad": segment["turn_angle_rad"],
+                "max_turn_angle_rad": segment["turn_angle_rad"],
+                "apex_point_index": segment["source_point_index"],
                 "source_point_indices": [segment["source_point_index"]],
             })
 
@@ -82,13 +87,17 @@ def build_track_model(
         length = region["end_distance_m"] - region["start_distance_m"]
         if length < minimum_corner_length_m:
             continue
+        apex_point = points[region["apex_point_index"]]
         corners.append({
             "corner_id": f"turn-{ordinal:02d}",
             "ordinal": ordinal,
             "start_distance_m": region["start_distance_m"],
             "end_distance_m": region["end_distance_m"],
+            "apex_distance_m": apex_point["distance_m"],
+            "apex_position_xyz_m": tuple(apex_point["position_xyz_m"]),
             "length_m": length,
             "accumulated_turn_angle_rad": region["turn_angle_sum_rad"],
+            "maximum_turn_angle_rad": region["max_turn_angle_rad"],
             "geometry_confidence": "candidate",
             "identity_scope": "lap_order_only",
         })
