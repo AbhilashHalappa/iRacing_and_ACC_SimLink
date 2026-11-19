@@ -10,13 +10,17 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timedelta, timezone
 import json
-import os
 from pathlib import Path
 import sqlite3
 from threading import Event, Lock, Thread
 import time
 from typing import Any, Callable, Mapping
 import zlib
+
+from .storage_paths import (
+    default_performance_archive_path,
+    migrate_legacy_performance_hub_data,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,15 +63,6 @@ class ArchiveWriteResult:
     diagnostics_stored: int = 0
     storage_bytes: int = 0
     storage_blocked: bool = False
-
-
-def default_performance_archive_path() -> Path:
-    """Return a per-user writable archive path without depending on the CWD."""
-    if os.name == "nt":
-        root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
-        return root / "RaceEngineerACC" / "PerformanceHub" / "lap_archive.sqlite3"
-    root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
-    return root / "race-engineer-acc" / "performance_hub" / "lap_archive.sqlite3"
 
 
 def _utc_iso(value: datetime) -> str:
@@ -115,7 +110,11 @@ class PerformanceLapArchive:
         config: PerformanceArchiveConfig | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
-        self.path = Path(path) if path is not None else default_performance_archive_path()
+        if path is None:
+            migrate_legacy_performance_hub_data()
+            self.path = default_performance_archive_path()
+        else:
+            self.path = Path(path)
         self.config = config or PerformanceArchiveConfig()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._lock = Lock()
