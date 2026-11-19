@@ -258,12 +258,13 @@ class RaceEngineerService:
         }
 
     def read_performance_archive_laps(
-        self, *, car_model: str | None = None, track: str | None = None,
-        track_configuration: str | None = None, limit: int = 100,
+        self, *, session_id: str | None = None, car_model: str | None = None,
+        track: str | None = None, track_configuration: str | None = None,
+        limit: int = 100,
     ) -> tuple[dict[str, Any], ...]:
         """Read archive metadata through the service, never from the UI directly."""
         return self._performance_archive.read_laps(
-            car_model=car_model, track=track,
+            session_id=session_id, car_model=car_model, track=track,
             track_configuration=track_configuration, limit=limit,
         )
 
