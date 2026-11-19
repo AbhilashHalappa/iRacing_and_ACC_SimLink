@@ -48,10 +48,14 @@ class CompletedLapEventObserver:
     def __init__(self) -> None:
         self._session_key: tuple[int | None, int | None] | None = None
         self._completed_laps: int | None = None
+        # Match Overview: retain ACC's invalid observation for the whole lap,
+        # rather than sampling validity only on the completion-boundary frame.
+        self._lap_validity: bool | None = None
 
     def reset(self) -> None:
         self._session_key = None
         self._completed_laps = None
+        self._lap_validity = None
 
     @staticmethod
     def _integer(value: Any) -> int | None:
@@ -82,6 +86,8 @@ class CompletedLapEventObserver:
         if self._session_key != session_key or self._completed_laps is None:
             self._session_key = session_key
             self._completed_laps = completed
+            validity = getattr(graphics, "is_valid_lap", None)
+            self._lap_validity = validity if isinstance(validity, bool) else None
             return ()
 
         previous = self._completed_laps
@@ -89,9 +95,16 @@ class CompletedLapEventObserver:
             # ACC reset/restarted its lap counter without a usable session key
             # transition. Re-seed instead of interpreting this as a lap.
             self._completed_laps = completed
+            validity = getattr(graphics, "is_valid_lap", None)
+            self._lap_validity = validity if isinstance(validity, bool) else None
             return ()
 
         if completed == previous:
+            validity = getattr(graphics, "is_valid_lap", None)
+            if validity is False:
+                self._lap_validity = False
+            elif validity is True and self._lap_validity is None:
+                self._lap_validity = True
             return ()
 
         self._completed_laps = completed
@@ -100,6 +113,8 @@ class CompletedLapEventObserver:
         source_timestamp = graphics_view.capture_timestamp_ns
 
         if delta > 1:
+            validity = getattr(graphics, "is_valid_lap", None)
+            self._lap_validity = validity if isinstance(validity, bool) else None
             return (
                 LapEventCandidate(
                     event_type="lap.completion_gap",
@@ -119,8 +134,12 @@ class CompletedLapEventObserver:
 
         lap_time_ms = self._integer(getattr(graphics, "last_time_ms", None))
         lap_time_str = getattr(graphics, "last_time_str", None)
-        lap_valid = getattr(graphics, "is_valid_lap", None)
+        # Use the validity accumulated during this lap, exactly as Overview
+        # does. ACC may already have changed is_valid_lap for the next lap on
+        # the frame where completed_laps increments.
+        lap_valid = self._lap_validity
         validity_known = isinstance(lap_valid, bool)
+        self._lap_validity = None
 
         return (
             LapEventCandidate(
