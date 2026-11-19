@@ -43,11 +43,14 @@ def build_lap_profile(
     result = []
     previous_distance = None
     previous_timestamp = None
-    for distance, timestamp, speed, throttle, brake, steering, gear, rpm in points:
+    distance_origin = points[0][0]
+    for source_distance, timestamp, speed, throttle, brake, steering, gear, rpm in points:
+        distance = source_distance - distance_origin
         if previous_distance is not None and (distance <= previous_distance or timestamp <= previous_timestamp):
             return ()
         result.append({
             "distance_m": distance,
+            "source_distance_m": source_distance,
             "elapsed_s": (timestamp - origin_ns) / 1_000_000_000,
             "speed_mps": speed,
             "throttle_ratio": throttle,
