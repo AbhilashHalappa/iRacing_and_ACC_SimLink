@@ -303,6 +303,7 @@ def test_invalid_lap_keeps_compact_graphics_timing_change_points_only():
               "last_time_ms": 0, "is_valid_lap": False,
               "completed_laps": 1, "current_time_ms": 31_100},
     ))
+    assembler.ingest_sample(sample("physics", 3, 130))
     result = assembler.ingest_event(event(2, 2, 130, valid=False))
     assert result.completed == ()
     compact = result.compact[0]
