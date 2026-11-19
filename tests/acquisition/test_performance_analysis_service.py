@@ -35,6 +35,7 @@ def make_trace(base_ns, slow_corner=False, y_offset=0.0):
         elapsed = [0.0, 1.0, 2.0, 3.2, 4.4]
     physics = []
     graphics = []
+    brake_values = [0.0, 0.0, 0.8, 0.1, 0.0] if slow_corner else [0.0, 0.6, 0.8, 0.1, 0.0]
     for index, (distance, position, seconds) in enumerate(zip(distances, positions, elapsed)):
         timestamp = base_ns + int(seconds * 1_000_000_000)
         physics.append({
@@ -43,7 +44,7 @@ def make_trace(base_ns, slow_corner=False, y_offset=0.0):
             "data": {
                 "speed_kph": [180, 150, 100, 90, 120][index],
                 "throttle": [0.2, 0.1, 0.0, 0.3, 0.8][index],
-                "brake": [0.0, 0.6, 0.8, 0.1, 0.0][index],
+                "brake": brake_values[index],
                 "steering_angle": [0.0, 0.1, 0.3, 0.2, 0.1][index],
                 "gear_raw": 4,
                 "rpm": 7000 + index * 100,
