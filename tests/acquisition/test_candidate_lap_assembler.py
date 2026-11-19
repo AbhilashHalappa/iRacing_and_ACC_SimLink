@@ -37,6 +37,10 @@ def test_explicit_lap_started_event_captures_first_timed_lap():
     assembler.ingest_sample(sample("graphics", 20, 115))
     assembler.ingest_sample(sample("physics", 11, 130))
     assembler.ingest_sample(sample("graphics", 21, 140))
+    # The assembler waits until both independent stream watermarks reach
+    # the completion boundary before finalizing a trace.
+    assembler.ingest_sample(sample("physics", 12, 150))
+    assembler.ingest_sample(sample("graphics", 22, 150))
 
     completed = assembler.ingest_event(event(2, 1, 150))
     assert len(completed.completed) == 1
@@ -44,8 +48,8 @@ def test_explicit_lap_started_event_captures_first_timed_lap():
     assert trace.lap_number == 1
     assert trace.start_timestamp_ns == 100
     assert trace.end_timestamp_ns == 150
-    assert [item.capture_sequence for item in trace.physics_samples] == [10, 11]
-    assert [item.capture_sequence for item in trace.graphics_samples] == [20, 21]
+    assert [item.capture_sequence for item in trace.physics_samples] == [10, 11, 12]
+    assert [item.capture_sequence for item in trace.graphics_samples] == [20, 21, 22]
 
 
 def test_delayed_lap_started_event_keeps_only_samples_after_crossing():
