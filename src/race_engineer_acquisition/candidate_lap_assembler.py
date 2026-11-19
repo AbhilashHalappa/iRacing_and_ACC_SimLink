@@ -206,7 +206,7 @@ class CandidateLapAssembler:
                 ))
             self._last_event_sequence = event_sequence
 
-        if event_type not in ("lap.completed", "lap.completion_gap"):
+        if event_type not in ("lap.started", "lap.completed", "lap.completion_gap"):
             return LapAssemblyOutput()
 
         session_id = self._get(event, "session_id")
@@ -244,6 +244,29 @@ class CandidateLapAssembler:
                 diagnostic = None
         else:
             diagnostic = None
+
+        if event_type == "lap.started":
+            lap_number = payload.get("lap_number")
+            if not self._valid_nonnegative_int(lap_number) or lap_number < 1:
+                return LapAssemblyOutput(diagnostics=tuple(
+                    item for item in (diagnostic, LapAssemblyDiagnostic(
+                        "invalid_lap_number", session_id, None,
+                        "Lap-start event has no valid lap number",
+                    )) if item is not None
+                ))
+            if self._start_timestamp_ns is not None:
+                return LapAssemblyOutput(diagnostics=tuple(
+                    item for item in (diagnostic, LapAssemblyDiagnostic(
+                        "unexpected_lap_start", session_id, lap_number,
+                        "Lap-start event arrived while another interval was active",
+                    )) if item is not None
+                ))
+            self._start_timestamp_ns = timestamp
+            self._start_lap_number = lap_number
+            self._clear_interval()
+            return LapAssemblyOutput(diagnostics=tuple(
+                [diagnostic] if diagnostic is not None else []
+            ))
 
         if event_type == "lap.completion_gap":
             self._start_timestamp_ns = timestamp
