@@ -44,16 +44,16 @@ def build_track_trajectory(
         distance = data.get("distance_traveled_m")
         timestamp = sample.get("capture_timestamp_ns")
         sequence = sample.get("capture_sequence")
-        if position is None or not isinstance(distance, (int, float)) or isinstance(distance, bool):
+        if not isinstance(distance, (int, float)) or isinstance(distance, bool):
             continue
         if not math.isfinite(float(distance)):
             continue
-        if not isinstance(timestamp, int) or isinstance(timestamp, bool):
+        if source_distance_origin is None:
+            source_distance_origin = float(distance)
+        if position is None or not isinstance(timestamp, int) or isinstance(timestamp, bool):
             continue
         if points and timestamp <= points[-1]["capture_timestamp_ns"]:
             return ()
-        if source_distance_origin is None:
-            source_distance_origin = float(distance)
         lap_distance = float(distance) - source_distance_origin
         if points and lap_distance <= points[-1]["distance_m"]:
             return ()
