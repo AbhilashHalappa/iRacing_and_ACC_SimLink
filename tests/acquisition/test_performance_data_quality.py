@@ -4,6 +4,7 @@ from race_engineer_acquisition.performance_data_quality import (
     analysis_readiness,
     channel_availability,
     check_progress_continuity,
+    check_capture_timestamp_continuity,
     summarize_alignment,
 )
 
@@ -125,3 +126,29 @@ def test_analysis_readiness_rejects_alignment_coverage_below_policy():
     )
     assert result["eligible"] is False
     assert result["reason"] == "alignment_coverage_below_policy"
+
+
+def test_physics_timestamp_continuity_detects_regression_in_source_order():
+    result = check_capture_timestamp_continuity(
+        [
+            row(100, {"speed_mps": 10.0}),
+            row(300, {"speed_mps": 20.0}),
+            row(200, {"speed_mps": 30.0}),
+        ],
+        stream="physics",
+    )
+    assert result["ok"] is False
+    assert result["issues"][0]["kind"] == "capture_timestamp_not_increasing"
+
+
+def test_analysis_readiness_rejects_physics_timestamp_regression():
+    result = analysis_readiness(
+        [row(10, {"speed_mps": 10.0}), row(20, {"speed_mps": 20.0})],
+        [row(11, {"distance_m": 10.0}), row(21, {"distance_m": 20.0})],
+        required_physics_channels=("speed_mps",),
+        required_graphics_channels=("distance_m",),
+        minimum_channel_coverage=1.0,
+        physics_timestamp_check={"ok": False},
+    )
+    assert result["eligible"] is False
+    assert result["reason"] == "physics_timestamp_continuity_failed"
