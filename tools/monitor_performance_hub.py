@@ -262,15 +262,17 @@ def write_session_evidence(
             continue
 
         session_dir.mkdir(parents=True, exist_ok=True)
+        audit = report.get("results", report)
+        database_info = report.get("database_info", {})
         session_report = {
             "session_id": session_id,
             "session_lap_count": len(session_rows),
             "laps": session_rows,
             "archive_audit": {
-                "archive_data_check": report.get("archive_data_check"),
-                "issues": report.get("issues", []),
-                "schema_version": report.get("schema_version"),
-                "integrity": report.get("integrity"),
+                "archive_data_check": audit.get("archive_data_check"),
+                "issues": audit.get("issues", []),
+                "schema_version": report.get("archive_schema_version", database_info.get("schema_version")),
+                "integrity": report.get("archive_integrity", database_info.get("integrity")),
             },
         }
         canonical_paths["report"].write_text(
@@ -475,9 +477,10 @@ def main() -> int:
         for item in session_evidence:
             print(f"  Session: {item['session_id']}")
             print(f"    Folder: {item['directory']}")
+            print(f"    Evidence: {'updated' if item['updated'] else 'unchanged'}")
             print(f"    Report: {item['report']}")
             print(f"    Laps: {item['laps']}")
-            if snapshots:
+            if snapshots and item["updated"]:
                 print(f"    Monitoring history: {item['snapshots']}")
     else:
         print("No session records found; no session evidence files were written.")
