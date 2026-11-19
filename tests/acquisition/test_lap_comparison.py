@@ -123,3 +123,14 @@ def test_profile_carries_all_available_normalized_driving_channels():
     assert profile[1]["steering_angle_rad"] == 0.2
     assert profile[1]["gear_index"] == 3
     assert profile[1]["engine_rpm"] == 8000
+
+
+def test_profile_distance_is_lap_local_even_when_source_distance_is_cumulative():
+    rows = [
+        aligned(1_000_000_000, 2400.0, 10.0),
+        aligned(2_000_000_000, 2410.0, 20.0),
+        aligned(3_000_000_000, 2420.0, 30.0),
+    ]
+    profile = build_lap_profile(rows)
+    assert [point["distance_m"] for point in profile] == [0.0, 10.0, 20.0]
+    assert [point["source_distance_m"] for point in profile] == [2400.0, 2410.0, 2420.0]
