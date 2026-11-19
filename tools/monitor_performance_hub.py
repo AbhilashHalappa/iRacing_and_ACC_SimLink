@@ -201,6 +201,38 @@ def serializable_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{k: v for k, v in row.items() if k != "trace_blob"} for row in rows]
 
 
+def write_session_csvs(rows: list[dict[str, Any]], output_dir: Path) -> list[Path]:
+    """Write one lap CSV per ACC session; never mix sessions in one file."""
+    sessions_dir = output_dir / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in serializable_rows(rows):
+        session_id = str(row.get("session_id") or "unknown-session")
+        grouped.setdefault(session_id, []).append(row)
+
+    written: list[Path] = []
+    for session_id, session_rows in sorted(grouped.items()):
+        # ACC session IDs contain ':' which is not valid in Windows filenames.
+        safe_id = "".join(
+            char if char.isalnum() or char in ("-", "_", ".") else "_"
+            for char in session_id
+        ).strip("._") or "unknown-session"
+        session_dir = sessions_dir / safe_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = session_dir / "laps.csv"
+        with csv_path.open("w", newline="", encoding="utf-8-sig") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(session_rows[0].keys()))
+            writer.writeheader()
+            for row in session_rows:
+                writer.writerow({
+                    key: json.dumps(value, separators=(",", ":"))
+                    if isinstance(value, (dict, list)) else value
+                    for key, value in row.items()
+                })
+        written.append(csv_path)
+    return written
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Read-only live monitor for the Race Engineer ACC Performance Hub archive."
@@ -349,17 +381,7 @@ def main() -> int:
 
     report_path = output_dir / "performance_hub_report.json"
     report_path.write_text(json.dumps(final_report, indent=2, default=str), encoding="utf-8")
-    laps_path = output_dir / "laps.csv"
-    csv_rows = serializable_rows(last_rows)
-    if csv_rows:
-        with laps_path.open("w", newline="", encoding="utf-8-sig") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(csv_rows[0].keys()))
-            writer.writeheader()
-            for row in csv_rows:
-                writer.writerow({
-                    key: json.dumps(value, separators=(",", ":")) if isinstance(value, (dict, list)) else value
-                    for key, value in row.items()
-                })
+    session_csv_paths = write_session_csvs(last_rows, output_dir) if last_rows else []
     snapshots_path = output_dir / "monitor_snapshots.csv"
     if snapshots:
         with snapshots_path.open("w", newline="", encoding="utf-8-sig") as handle:
@@ -368,8 +390,10 @@ def main() -> int:
             writer.writerows(snapshots)
 
     print(f"Report: {report_path}")
-    if csv_rows:
-        print(f"Lap records: {laps_path}")
+    if session_csv_paths:
+        print(f"Session lap CSV files: {len(session_csv_paths)}")
+        for session_csv in session_csv_paths:
+            print(f"  {session_csv}")
     if snapshots:
         print(f"Monitoring history: {snapshots_path}")
     result_status = final_report["results"].get("archive_data_check", "NOT VERIFIED")
