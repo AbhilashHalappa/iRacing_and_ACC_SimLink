@@ -64,6 +64,36 @@ def test_acc_invalid_lap_is_preserved_as_invalid():
     assert event.payload["validity_source"] == "ACC_Graphics.is_valid_lap"
 
 
+def test_invalid_observation_during_lap_is_not_lost_at_completion_boundary():
+    observer = CompletedLapEventObserver()
+    observer.observe(_telemetry(laps=1, valid=True))
+    # ACC reports the lap invalid while it is being driven.
+    assert observer.observe(_telemetry(laps=1, valid=False, sequence=11, timestamp=1500)) == ()
+    # At the completed_laps transition ACC has already returned validity to
+    # true for the next lap. The completed lap must remain invalid.
+    event = observer.observe(_telemetry(
+        laps=2, valid=True, sequence=12, timestamp=2000
+    ))[0]
+    assert event.payload["lap_valid"] is False
+
+
+def test_validity_tracking_resets_for_the_next_lap():
+    observer = CompletedLapEventObserver()
+    observer.observe(_telemetry(laps=1, valid=True))
+    observer.observe(_telemetry(laps=1, valid=False, sequence=11, timestamp=1500))
+    first = observer.observe(_telemetry(
+        laps=2, valid=True, sequence=12, timestamp=2000
+    ))[0]
+    assert first.payload["lap_valid"] is False
+
+    # The following lap starts with a fresh ACC true observation.
+    observer.observe(_telemetry(laps=2, valid=True, sequence=13, timestamp=2100))
+    second = observer.observe(_telemetry(
+        laps=3, valid=True, sequence=14, timestamp=3000
+    ))[0]
+    assert second.payload["lap_valid"] is True
+
+
 def test_counter_jump_emits_gap_not_fabricated_lap_records():
     observer = CompletedLapEventObserver()
     observer.observe(_telemetry(laps=1))
@@ -125,7 +155,7 @@ def test_reconciliation_rechecks_sample_age_even_if_old_view_says_fresh():
 
 def test_unknown_acc_validity_is_not_upgraded_to_valid():
     observer = CompletedLapEventObserver()
-    observer.observe(_telemetry(laps=1))
+    observer.observe(_telemetry(laps=1, valid=None))
     telemetry = _telemetry(laps=2, valid=None)
     event = observer.observe(telemetry)[0]
     assert event.payload["lap_valid"] is None
