@@ -71,6 +71,8 @@ def policy():
         "max_progress_step": 0.5,
         "minimum_turn_angle_rad": 0.4,
         "minimum_corner_length_m": 5.0,
+        "max_corner_apex_separation_m": 2.0,
+        "max_corner_apex_distance_delta_m": 5.0,
         "merge_gap_m": 15.0,
         "brake_onset_threshold": 0.1,
         "throttle_pickup_threshold": 0.5,
@@ -96,6 +98,8 @@ def test_archive_analysis_orchestrates_lap_delta_corner_line_and_coach():
     assert result["status"] == "complete"
     assert result["lap_delta"]["available"] is True
     assert result["track_model"]["available"] is True
+    assert result["comparison_track_model"]["identity_matching_available"] is True
+    assert result["comparison_track_model"]["corners"][0]["identity_status"] == "matched"
     assert result["comparison_corner_metrics"]
     assert result["racing_line"]["available"] is True
     assert result["analysis_coach_opportunities"]
