@@ -459,6 +459,13 @@ class PerformanceLapArchive:
         source_timestamps = dict(context.metadata_source_timestamps_ns or {})
         quality["metadata_source_timestamps_ns"] = source_timestamps
         quality["identity_complete"] = identity_complete
+        if compact:
+            timing_observations = tuple(
+                _get(lap, "graphics_timing_observations", ()) or ()
+            )
+            quality["graphics_timing_observations"] = _jsonable(timing_observations)
+            quality["graphics_timing_observation_count"] = len(timing_observations)
+            quality["compact_evidence_policy"] = "graphics_timing_change_points_only"
         db.execute(
             """INSERT INTO laps(
                 session_id,lap_number,car_model,track,track_configuration,

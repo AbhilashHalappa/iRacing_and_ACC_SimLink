@@ -23,6 +23,8 @@ class CompactLapMetadata:
     physics_sample_count: int
     graphics_sample_count: int
     reason: str
+    # Compact change-point evidence only; never retain full invalid/out-lap traces.
+    graphics_timing_observations: tuple[Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +360,48 @@ class CandidateLapAssembler:
             )
         return output
 
+    @classmethod
+    def _compact_graphics_timing_observations(
+        cls, samples: tuple[Any, ...]
+    ) -> tuple[Mapping[str, Any], ...]:
+        """Keep timing/classification change points for compact lap records.
+
+        This deliberately does not copy every Graphics sample. Full eligible
+        laps retain the complete high-resolution streams in the trace archive;
+        compact invalid/out-lap records retain only changes to timing, sector,
+        and validity evidence, with their original source sequence/timestamp.
+        """
+        fields = (
+            "sector", "last_sector_time_ms", "last_time_ms", "best_time_ms",
+            "split_ms", "delta_lap_time_ms", "is_valid_lap", "completed_laps",
+            "current_time_ms", "current_time_str", "last_time_str",
+            "best_time_str", "split_time_str", "delta_lap_time_str",
+        )
+        change_fields = (
+            "sector", "last_sector_time_ms", "last_time_ms", "best_time_ms",
+            "split_ms", "delta_lap_time_ms", "is_valid_lap", "completed_laps",
+        )
+        observations: list[Mapping[str, Any]] = []
+        previous: dict[str, Any] | None = None
+        for sample in samples:
+            data = cls._get(sample, "data")
+            values = {name: cls._get(data, name) for name in fields}
+            changed = [
+                name for name in change_fields
+                if values[name] is not None
+                and (previous is None or values[name] != previous.get(name))
+            ]
+            if changed:
+                observation = {
+                    "capture_sequence": cls._get(sample, "capture_sequence"),
+                    "capture_timestamp_ns": cls._get(sample, "capture_timestamp_ns"),
+                    "changed_fields": changed,
+                    "data": values,
+                }
+                observations.append(observation)
+            previous = values
+        return tuple(observations)
+
     def _drain_events(self) -> LapAssemblyOutput:
         completed: list[CompletedLapTrace] = []
         compact: list[CompactLapMetadata] = []
@@ -420,6 +464,9 @@ class CandidateLapAssembler:
                     physics_sample_count=len(physics),
                     graphics_sample_count=len(graphics),
                     reason=reason,
+                    graphics_timing_observations=(
+                        self._compact_graphics_timing_observations(graphics)
+                    ),
                 ))
             self._start_timestamp_ns = boundary
             self._start_lap_number = lap_number

@@ -282,3 +282,34 @@ def test_reported_event_mailbox_gap_discards_candidate_until_new_anchor():
     assert reseed.compact == ()
     assert assembler.waiting_for_boundary is False
 
+
+
+def test_invalid_lap_keeps_compact_graphics_timing_change_points_only():
+    assembler = CandidateLapAssembler()
+    seed(assembler)
+    assembler.ingest_sample(sample("physics", 1, 110))
+    assembler.ingest_sample(sample("graphics", 1, 110))
+    assembler.ingest_sample(sample("physics", 2, 120))
+    assembler.ingest_sample(sample("graphics", 2, 120))
+    assembler.ingest_sample(N(
+        stream="graphics", capture_sequence=21, capture_timestamp_ns=125,
+        data={"sector": 2, "last_sector_time_ms": 31_000,
+              "last_time_ms": 0, "is_valid_lap": False,
+              "completed_laps": 1, "current_time_ms": 31_000},
+    ))
+    assembler.ingest_sample(N(
+        stream="graphics", capture_sequence=22, capture_timestamp_ns=130,
+        data={"sector": 2, "last_sector_time_ms": 31_000,
+              "last_time_ms": 0, "is_valid_lap": False,
+              "completed_laps": 1, "current_time_ms": 31_100},
+    ))
+    result = assembler.ingest_event(event(2, 2, 130, valid=False))
+    assert result.completed == ()
+    compact = result.compact[0]
+    assert len(compact.graphics_timing_observations) == 1
+    observation = compact.graphics_timing_observations[0]
+    assert observation["capture_sequence"] == 21
+    assert observation["capture_timestamp_ns"] == 125
+    assert "sector" in observation["changed_fields"]
+    assert "is_valid_lap" in observation["changed_fields"]
+    assert not hasattr(compact, "graphics_samples")
