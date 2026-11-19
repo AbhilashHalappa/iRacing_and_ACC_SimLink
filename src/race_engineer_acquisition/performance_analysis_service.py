@@ -6,6 +6,7 @@ from typing import Any
 
 from .analysis_coach import rank_corner_opportunities
 from .corner_analysis import analyze_corner
+from .corner_identity import match_corner_identities
 from .lap_comparison import build_lap_profile, compare_lap_profiles
 from .performance_analysis_model import align_by_timestamp, normalize_sample
 from .performance_data_quality import analysis_readiness, check_progress_continuity
@@ -21,6 +22,8 @@ _REQUIRED_POLICY = (
     "max_progress_step",
     "minimum_turn_angle_rad",
     "minimum_corner_length_m",
+    "max_corner_apex_separation_m",
+    "max_corner_apex_distance_delta_m",
     "merge_gap_m",
     "brake_onset_threshold",
     "throttle_pickup_threshold",
@@ -143,6 +146,27 @@ def analyze_archived_laps(
         minimum_corner_length_m=policy["minimum_corner_length_m"],
         merge_gap_m=policy["merge_gap_m"],
     )
+    comparison_track_model = build_track_model(
+        comparison["trajectory"],
+        minimum_turn_angle_rad=policy["minimum_turn_angle_rad"],
+        minimum_corner_length_m=policy["minimum_corner_length_m"],
+        merge_gap_m=policy["merge_gap_m"],
+    )
+    track_identity = (
+        str(reference_metadata.get("track") or "").strip(),
+        str(reference_metadata.get("track_configuration") or "").strip(),
+    )
+    if all(track_identity):
+        for corner in track_model.get("corners", ()):
+            corner["stable_corner_id"] = (
+                f"{track_identity[0]}:{track_identity[1]}:{corner['corner_id']}"
+            )
+    comparison_track_model = match_corner_identities(
+        track_model,
+        comparison_track_model,
+        max_apex_separation_m=policy["max_corner_apex_separation_m"],
+        max_apex_distance_delta_m=policy["max_corner_apex_distance_delta_m"],
+    )
     reference_corners = []
     comparison_corners = []
     if track_model["available"]:
@@ -184,6 +208,7 @@ def analyze_archived_laps(
         },
         "lap_delta": delta,
         "track_model": track_model,
+        "comparison_track_model": comparison_track_model,
         "reference_corner_metrics": reference_corners,
         "comparison_corner_metrics": comparison_corners,
         "racing_line": racing_line,
