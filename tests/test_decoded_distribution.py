@@ -238,6 +238,77 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
 
 
 
+def test_broker_emits_lap_one_start_from_existing_initial_out_lap_crossing():
+    runtime = _Runtime()
+    broker = DecodedTelemetryBroker(runtime)
+    events = broker.subscribe_events("performance-lap-start", capacity=8)
+    broker.start()
+    try:
+        def publish_frame(sequence: int, position: float, *, in_pit: bool,
+                          speed_kph: float):
+            now = time.perf_counter_ns()
+            runtime.graphics_consumer._snapshot = SimpleNamespace(
+                lifecycle_state="running",
+                processed_count=sequence,
+                decode_error_count=0,
+                last_capture_sequence=sequence,
+                last_error=None,
+                latest=SimpleNamespace(
+                    packet_id=sequence,
+                    status=2,
+                    completed_laps=0,
+                    session_index=1,
+                    session=2,
+                    normalized_car_position=position,
+                    is_in_pit=in_pit,
+                    is_in_pit_lane=False,
+                    setup_menu_visible=False,
+                    is_valid_lap=True,
+                ),
+                latest_capture_timestamp_ns=now,
+            )
+            runtime.physics_consumer._snapshot = SimpleNamespace(
+                lifecycle_state="running",
+                processed_count=sequence,
+                decode_error_count=0,
+                last_capture_sequence=sequence,
+                last_error=None,
+                latest=SimpleNamespace(packet_id=sequence, speed_kph=speed_kph),
+                latest_capture_timestamp_ns=now,
+            )
+            runtime.graphics_consumer._notifier()
+            runtime.physics_consumer._notifier()
+
+        # Overview observer sees the car in the garage, then moving on the
+        # initial out-lap, then crossing start/finish.
+        publish_frame(1, 0.10, in_pit=True, speed_kph=0.0)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.capture_sequence == 1
+        )
+        publish_frame(2, 0.90, in_pit=False, speed_kph=80.0)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.capture_sequence == 2
+        )
+        publish_frame(3, 0.05, in_pit=False, speed_kph=90.0)
+        assert _wait_for(
+            lambda: broker.metrics["event_delivery"]["published_count"] == 1
+        )
+
+        batch = events.read_batch()
+        assert len(batch.events) == 1
+        start = batch.events[0]
+        assert start.event_type == "lap.started"
+        assert start.payload["lap_number"] == 1
+        assert start.payload["boundary_source"] == "ACCOutLapObserver"
+        assert start.source_stream == "graphics"
+        assert start.source_capture_sequence == 3
+        assert start.source_timestamp_ns is not None
+    finally:
+        broker.close()
+
+
 def test_acc_pause_and_resume_preserves_strategy_session_identity_and_lap_cursor():
     runtime = _Runtime()
     broker = DecodedTelemetryBroker(runtime)
