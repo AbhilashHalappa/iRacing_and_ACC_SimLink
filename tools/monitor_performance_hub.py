@@ -192,6 +192,24 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
             if pinned[0]["lap_time_ms"] > min(r["lap_time_ms"] for r in timed):
                 issues.append(f"pinned_pb_not_fastest_retained:{identity}")
 
+    compact_timing_observation_count = 0
+    compact_laps_with_timing_evidence = 0
+    metadata_freshness_counts: dict[str, int] = {}
+    metadata_age_known_threshold_unconfigured = 0
+    for row in compact:
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+        observation_count = quality.get("graphics_timing_observation_count", 0)
+        if isinstance(observation_count, int) and not isinstance(observation_count, bool):
+            compact_timing_observation_count += max(0, observation_count)
+            compact_laps_with_timing_evidence += int(observation_count > 0)
+        freshness = quality.get("metadata_freshness")
+        fields = freshness.get("fields", {}) if isinstance(freshness, dict) else {}
+        for metadata_name, metadata in fields.items():
+            status = metadata.get("status") if isinstance(metadata, dict) else "unavailable"
+            metadata_freshness_counts[str(status)] = metadata_freshness_counts.get(str(status), 0) + 1
+            if status == "age_known_threshold_unconfigured":
+                metadata_age_known_threshold_unconfigured += 1
+
     db_bytes = db_path.stat().st_size if db_path.exists() else 0
     wal_path = Path(str(db_path) + "-wal")
     shm_path = Path(str(db_path) + "-shm")
@@ -210,6 +228,10 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
         "compact_or_evicted_count": len(compact),
         "session_count": len({r["session_id"] for r in rows}),
         "pinned_pb_count": sum(1 for r in full if r["pinned_pb"]),
+        "compact_timing_observation_count": compact_timing_observation_count,
+        "compact_laps_with_timing_evidence": compact_laps_with_timing_evidence,
+        "metadata_freshness_counts": metadata_freshness_counts,
+        "metadata_age_known_threshold_unconfigured": metadata_age_known_threshold_unconfigured,
         "trace_bytes_accounted_by_archive": trace_bytes,
         "database_bytes": db_bytes,
         "wal_bytes": wal_bytes,
