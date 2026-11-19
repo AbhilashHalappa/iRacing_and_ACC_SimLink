@@ -251,13 +251,15 @@ class CandidateLapAssembler:
             self._start_timestamp_ns = None
             self._start_lap_number = None
             self._pending_events.clear()
-            self._clear_interval()
             if previous is not None:
+                self._clear_interval()
                 diagnostic = LapAssemblyDiagnostic(
                     "session_changed", previous, None,
                     "Previous candidate interval discarded at session transition",
                 )
             else:
+                # Preserve the bounded pre-boundary sample window until we
+                # know whether this first event is a trusted lap.started.
                 diagnostic = None
         else:
             diagnostic = None
