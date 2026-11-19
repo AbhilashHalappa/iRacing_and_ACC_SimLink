@@ -53,11 +53,7 @@ def _normalized_trace(trace: Mapping[str, Any]) -> tuple[list[dict[str, Any]], l
 
 
 def _load_eligible_trace(archive: Any, session_id: str, lap_number: int) -> tuple[dict[str, Any], dict[str, Any]]:
-    rows = archive.read_laps(limit=10000)
-    metadata = next((
-        row for row in rows
-        if row.get("session_id") == session_id and row.get("lap_number") == lap_number
-    ), None)
+    metadata = archive.read_lap_metadata(session_id, lap_number)
     if metadata is None:
         raise LookupError(f"lap not found in archive: {session_id}:{lap_number}")
     if metadata.get("lap_valid") != 1 or metadata.get("out_lap") != 0:
