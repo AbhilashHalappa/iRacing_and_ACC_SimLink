@@ -88,3 +88,13 @@ def test_trajectory_rejects_out_of_order_capture_timestamps():
         sample(200, 1, 0.0, (0.0, 0.0, 0.0)),
         sample(100, 2, 1.0, (1.0, 0.0, 0.0)),
     ]) == ()
+
+
+def test_trajectory_normalizes_cumulative_source_distance_to_lap_local():
+    points = build_track_trajectory([
+        sample(100, 1, 2400.0, (0.0, 0.0, 0.0)),
+        sample(200, 2, 2410.0, (10.0, 0.0, 0.0)),
+        sample(300, 3, 2420.0, (20.0, 0.0, 0.0)),
+    ])
+    assert [point["distance_m"] for point in points] == [0.0, 10.0, 20.0]
+    assert [point["source_distance_m"] for point in points] == [2400.0, 2410.0, 2420.0]
