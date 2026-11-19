@@ -212,35 +212,75 @@ def safe_session_name(session_id: str) -> str:
 def write_session_evidence(
     rows: list[dict[str, Any]], output_dir: Path, stamp: str,
     report: dict[str, Any], snapshots: list[dict[str, Any]],
-) -> list[dict[str, Path]]:
-    """Write all monitor evidence beneath one persistent folder per ACC session."""
+) -> list[dict[str, Any]]:
+    """Write evidence only when a session's lap data is new or has changed.
+
+    The archive is audited by the caller on every run. Evidence is session-scoped
+    and uses stable filenames, so unchanged sessions are never touched.
+    """
+    import hashlib
+
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in serializable_rows(rows):
         session_id = str(row.get("session_id") or "unknown-session")
         grouped.setdefault(session_id, []).append(row)
 
-    written: list[dict[str, Path]] = []
+    written: list[dict[str, Any]] = []
     for session_id, session_rows in sorted(grouped.items()):
         safe_id = safe_session_name(session_id)
         session_dir = output_dir / safe_id
-        session_dir.mkdir(parents=True, exist_ok=True)
-        report_path = session_dir / f"performance_hub_report_{safe_id}_{stamp}.json"
-        laps_path = session_dir / f"laps_{safe_id}_{stamp}.csv"
-        snapshots_path = session_dir / f"monitor_snapshots_{safe_id}_{stamp}.csv"
+        manifest_path = session_dir / ".session_evidence.json"
+        canonical_paths = {
+            "report": session_dir / f"performance_hub_report_{safe_id}.json",
+            "laps": session_dir / f"laps_{safe_id}.csv",
+            "snapshots": session_dir / f"monitor_snapshots_{safe_id}.csv",
+        }
 
-        session_report = dict(report)
-        session_report["session_id"] = session_id
-        session_report["laps"] = session_rows
-        session_report["session_lap_count"] = len(session_rows)
-        report_path.write_text(
+        fingerprint_payload = json.dumps(
+            session_rows, sort_keys=True, separators=(",", ":"), default=str
+        )
+        fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
+        previous_fingerprint = None
+        if manifest_path.is_file():
+            try:
+                previous_fingerprint = json.loads(
+                    manifest_path.read_text(encoding="utf-8")
+                ).get("session_data_sha256")
+            except (OSError, ValueError, json.JSONDecodeError):
+                previous_fingerprint = None
+
+        changed = (
+            not session_dir.is_dir()
+            or previous_fingerprint != fingerprint
+            or not all(path.is_file() for path in canonical_paths.values())
+        )
+        if not changed:
+            written.append({
+                "session_id": session_id, "directory": session_dir,
+                **canonical_paths, "updated": False,
+            })
+            continue
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        session_report = {
+            "session_id": session_id,
+            "session_lap_count": len(session_rows),
+            "laps": session_rows,
+            "archive_audit": {
+                "archive_data_check": report.get("archive_data_check"),
+                "issues": report.get("issues", []),
+                "schema_version": report.get("schema_version"),
+                "integrity": report.get("integrity"),
+            },
+        }
+        canonical_paths["report"].write_text(
             json.dumps(session_report, indent=2, default=str), encoding="utf-8"
         )
-        # Trace validation is attached only to retained traces, so later rows
-        # may have fields absent from the first row. Build a stable union.
+
         fieldnames = list(dict.fromkeys(
             key for row in session_rows for key in row.keys()
         ))
-        with laps_path.open("w", newline="", encoding="utf-8-sig") as handle:
+        with canonical_paths["laps"].open("w", newline="", encoding="utf-8-sig") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for row in session_rows:
@@ -249,14 +289,35 @@ def write_session_evidence(
                     if isinstance(value, (dict, list)) else value
                     for key, value in row.items()
                 })
+
         if snapshots:
-            with snapshots_path.open("w", newline="", encoding="utf-8-sig") as handle:
+            with canonical_paths["snapshots"].open(
+                "w", newline="", encoding="utf-8-sig"
+            ) as handle:
                 writer = csv.DictWriter(handle, fieldnames=list(snapshots[0].keys()))
                 writer.writeheader()
                 writer.writerows(snapshots)
+        else:
+            canonical_paths["snapshots"].write_text("", encoding="utf-8")
+
+        # Remove only legacy timestamped exports created by the previous writer.
+        legacy_patterns = (
+            f"performance_hub_report_{safe_id}_*.json",
+            f"laps_{safe_id}_*.csv",
+            f"monitor_snapshots_{safe_id}_*.csv",
+        )
+        for pattern in legacy_patterns:
+            for legacy_path in session_dir.glob(pattern):
+                if legacy_path not in canonical_paths.values() and legacy_path.is_file():
+                    legacy_path.unlink()
+
+        manifest_path.write_text(
+            json.dumps({"session_data_sha256": fingerprint}, indent=2),
+            encoding="utf-8",
+        )
         written.append({
             "session_id": session_id, "directory": session_dir,
-            "report": report_path, "laps": laps_path, "snapshots": snapshots_path,
+            **canonical_paths, "updated": True,
         })
     return written
 
