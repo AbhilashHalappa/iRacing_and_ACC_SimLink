@@ -142,7 +142,7 @@ def compare_lap_profiles(
             }
             for channel in (
                 "speed_mps", "throttle_ratio", "brake_ratio",
-                "steering_angle_rad", "engine_rpm",
+                "steering_angle_rad", "engine_rpm", "brake_pressure",
             ):
                 ref_value = _value_at_distance(
                     reference, channel, distance, max_bracket_gap_m=max_bracket_gap_m
