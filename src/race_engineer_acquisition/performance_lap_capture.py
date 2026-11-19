@@ -29,6 +29,7 @@ class PerformanceLapCaptureWorker:
         self._thread: Thread | None = None
         self._lock = Lock()
         self._last_rejected_count = 0
+        self._pre_boundary_sample_loss = False
         self._result_drop_count = 0
         self._processed_sample_count = 0
         self._processed_event_count = 0
@@ -71,9 +72,11 @@ class PerformanceLapCaptureWorker:
                 if rejected > self._last_rejected_count:
                     # The fan-out metric is aggregate across Physics and
                     # Graphics, so conservatively invalidate both streams.
-                    # Loss before the first trusted boundary cannot affect a
-                    # candidate interval and must not poison the first lap.
-                    if not self._assembler.waiting_for_boundary:
+                    # A delayed lap.started event may still place some samples
+                    # from this pre-boundary period inside Lap 1.
+                    if self._assembler.waiting_for_boundary:
+                        self._pre_boundary_sample_loss = True
+                    else:
                         for stream in CandidateLapAssembler.STREAMS:
                             self._publish(self._assembler.mark_stream_gap(stream))
                     self._last_rejected_count = rejected
@@ -87,7 +90,18 @@ class PerformanceLapCaptureWorker:
                     self._publish(self._assembler.mark_event_gap())
                     did_work = True
                 for event in batch.events:
+                    was_waiting_for_boundary = self._assembler.waiting_for_boundary
                     self._publish(self._assembler.ingest_event(event))
+                    event_type = getattr(event, "event_type", None)
+                    if event_type == "lap.started" and was_waiting_for_boundary:
+                        if self._pre_boundary_sample_loss:
+                            for stream in CandidateLapAssembler.STREAMS:
+                                self._publish(self._assembler.mark_stream_gap(stream))
+                        self._pre_boundary_sample_loss = False
+                    elif event_type == "lap.completed" and was_waiting_for_boundary:
+                        # No lap.started event was observed, so this completion
+                        # is only the conservative re-attachment anchor.
+                        self._pre_boundary_sample_loss = False
                     with self._lock:
                         self._processed_event_count += 1
                     did_work = True
