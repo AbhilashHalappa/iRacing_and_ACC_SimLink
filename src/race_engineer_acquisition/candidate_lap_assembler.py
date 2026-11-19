@@ -52,12 +52,12 @@ class LapAssemblyOutput:
 
 
 class CandidateLapAssembler:
-    """Assemble full traces only between two observed ACC completion events.
+    """Assemble full traces between trusted ACC lap-start/completion events.
 
-    The first completion event in a session is a boundary anchor, not a
-    completed trace: the assembler may have attached mid-lap and cannot prove
-    that the preceding samples form a complete lap. Later events close the
-    interval since the previous boundary.
+    The existing Overview out-lap observer can provide the start/finish
+    crossing that starts Lap 1. If that event was not observed (for example,
+    the app attached after the crossing), the first completion event remains
+    a conservative anchor and no incomplete historical lap is fabricated.
 
     An event is finalized only after both independent stream timestamp
     watermarks reach its boundary. Invalid, out-lap, and unknown-validity laps
