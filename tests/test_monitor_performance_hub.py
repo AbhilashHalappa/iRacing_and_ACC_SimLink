@@ -1,7 +1,12 @@
+from race_engineer_acquisition.storage_paths import (
+    default_monitor_reports_dir,
+    default_performance_archive_path,
+)
+from tools.monitor_performance_hub import default_db_path, write_session_evidence
+
 import csv
 import json
 
-from tools.monitor_performance_hub import write_session_evidence
 
 
 def _rows():
@@ -149,3 +154,8 @@ def test_locked_legacy_export_does_not_abort_evidence_update(tmp_path, monkeypat
         f"legacy_file_in_use:{legacy.name}"
     ]
     assert changed_session["laps"].is_file()
+
+
+def test_monitor_defaults_match_runtime_repository_relative_storage():
+    assert default_db_path() == default_performance_archive_path()
+    assert default_monitor_reports_dir().parts[-3:] == ("user_data", "PerformanceHub", "monitor_reports")
