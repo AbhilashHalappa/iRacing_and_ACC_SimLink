@@ -14,6 +14,7 @@ from .fuel_sufficiency_strategy import assess_fuel_sufficiency, fuel_sufficiency
 from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 from .performance_lap_capture import PerformanceLapCaptureWorker
+from .performance_analysis_service import analyze_archived_laps
 from .performance_lap_archive import (
     LapArchiveContext,
     PerformanceArchiveConfig,
@@ -271,6 +272,25 @@ class RaceEngineerService:
     ) -> dict[str, Any] | None:
         """Read one source-preserving retained trace for analysis consumers."""
         return self._performance_archive.read_trace(session_id, lap_number)
+
+    def analyze_performance_laps(
+        self, *, reference_session_id: str, reference_lap_number: int,
+        comparison_session_id: str, comparison_lap_number: int,
+        policy: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Run offline Performance Hub analysis against retained archive traces.
+
+        This is an explicit request-path operation. It does not run on the
+        telemetry broker, capture worker, persistence worker, or UI hot path.
+        """
+        return analyze_archived_laps(
+            self._performance_archive,
+            reference_session_id=reference_session_id,
+            reference_lap_number=reference_lap_number,
+            comparison_session_id=comparison_session_id,
+            comparison_lap_number=comparison_lap_number,
+            policy=policy,
+        )
 
     def subscribe_performance_samples(
         self, name: str, *, capacity: int
