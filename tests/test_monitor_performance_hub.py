@@ -4,8 +4,8 @@ import json
 from tools.monitor_performance_hub import write_session_evidence
 
 
-def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
-    rows = [
+def _rows():
+    return [
         {
             "session_id": "acc-run:session-one:0:0",
             "lap_number": 1,
@@ -26,10 +26,13 @@ def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
             "quality": {"ok": False},
         },
     ]
-    stamp = "20261119_170700"
+
+
+def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
+    rows = _rows()
     snapshots = [{"timestamp_utc": "2026-11-19T11:37:00+00:00", "lap_metadata_count": 3}]
 
-    evidence = write_session_evidence(rows, tmp_path, stamp, {"archive": "summary"}, snapshots)
+    evidence = write_session_evidence(rows, tmp_path, "20261119_170700", {"archive_data_check": "PASS"}, snapshots)
 
     assert len(evidence) == 2
     by_session = {item["session_id"]: item for item in evidence}
@@ -40,9 +43,10 @@ def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
     assert second["directory"] == tmp_path / "acc-run_session-two_0_0"
     for item in evidence:
         safe_id = item["directory"].name
-        assert item["report"].name == f"performance_hub_report_{safe_id}_{stamp}.json"
-        assert item["laps"].name == f"laps_{safe_id}_{stamp}.csv"
-        assert item["snapshots"].name == f"monitor_snapshots_{safe_id}_{stamp}.csv"
+        assert item["report"].name == f"performance_hub_report_{safe_id}.json"
+        assert item["laps"].name == f"laps_{safe_id}.csv"
+        assert item["snapshots"].name == f"monitor_snapshots_{safe_id}.csv"
+        assert item["updated"] is True
         assert all(path.parent == item["directory"] for path in
                    (item["report"], item["laps"], item["snapshots"]))
 
@@ -60,3 +64,48 @@ def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
     assert first_report["session_id"] == "acc-run:session-one:0:0"
     assert first_report["session_lap_count"] == 2
     assert len(first_report["laps"]) == 2
+
+
+def test_unchanged_sessions_are_not_touched_and_new_laps_update_only_their_session(tmp_path):
+    rows = _rows()
+    snapshots = [{"timestamp_utc": "first", "lap_metadata_count": 3}]
+    initial = write_session_evidence(rows, tmp_path, "first", {"archive_data_check": "PASS"}, snapshots)
+    first_by_session = {item["session_id"]: item for item in initial}
+    untouched_dir = first_by_session["acc-run:session-two:0:0"]["directory"]
+    untouched_files = {
+        path.name: (path.stat().st_mtime_ns, path.read_bytes())
+        for path in untouched_dir.iterdir()
+    }
+
+    unchanged = write_session_evidence(
+        rows, tmp_path, "second", {"archive_data_check": "PASS"},
+        [{"timestamp_utc": "second", "lap_metadata_count": 3}],
+    )
+    assert all(item["updated"] is False for item in unchanged)
+    assert {
+        path.name: (path.stat().st_mtime_ns, path.read_bytes())
+        for path in untouched_dir.iterdir()
+    } == untouched_files
+
+    rows.append({
+        "session_id": "acc-run:session-one:0:0",
+        "lap_number": 3,
+        "lap_time_ms": 118000,
+        "quality": {"ok": True},
+    })
+    updated = write_session_evidence(
+        rows, tmp_path, "third", {"archive_data_check": "PASS"}, snapshots
+    )
+    updated_by_session = {item["session_id"]: item for item in updated}
+    assert updated_by_session["acc-run:session-one:0:0"]["updated"] is True
+    assert updated_by_session["acc-run:session-two:0:0"]["updated"] is False
+    assert {
+        path.name: (path.stat().st_mtime_ns, path.read_bytes())
+        for path in untouched_dir.iterdir()
+    } == untouched_files
+
+    with updated_by_session["acc-run:session-one:0:0"]["laps"].open(
+        newline="", encoding="utf-8-sig"
+    ) as handle:
+        updated_laps = list(csv.DictReader(handle))
+    assert [row["lap_number"] for row in updated_laps] == ["1", "2", "3"]
