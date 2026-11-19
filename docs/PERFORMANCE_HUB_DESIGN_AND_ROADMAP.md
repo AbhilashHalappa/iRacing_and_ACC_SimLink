@@ -4,6 +4,9 @@
 **Branch:** `feature/performance-hub`  
 **Base branch:** `feature/fuel-strategy`
 
+**Implementation progress after Phase 1:** Analysis-layer foundations have now been added on this branch for normalized telemetry, timestamp-based Physics/Graphics alignment, channel missingness/readiness, metadata freshness reporting, raw sector evidence, distance-aligned lap profiles, geometry-based candidate turn regions, corner metrics, racing-line comparison, and evidence-ranked post-lap coaching. These are service primitives and archive evidence contracts, not yet an integrated UI workflow or ACC-session-validated feature set. Their regression tests are pending the user's combined Windows validation run. See Issue #38 for the commit-by-commit implementation record and outstanding acceptance work.
+
+
 ## 1. Objective
 
 Build a complete, Track Titan-style ACC performance analysis experience using the existing high-resolution Physics recordings, and bring the existing Live Corner Coach under Performance Hub.
