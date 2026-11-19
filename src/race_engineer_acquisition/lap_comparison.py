@@ -35,6 +35,7 @@ def build_lap_profile(
             physics_values.get("steering_angle_rad"),
             physics_values.get("gear_index"),
             physics_values.get("engine_rpm"),
+            physics_values.get("brake_pressure"),
         ))
     points.sort(key=lambda item: item[1])
     if len(points) < 2:
@@ -44,7 +45,7 @@ def build_lap_profile(
     previous_distance = None
     previous_timestamp = None
     distance_origin = points[0][0]
-    for source_distance, timestamp, speed, throttle, brake, steering, gear, rpm in points:
+    for source_distance, timestamp, speed, throttle, brake, steering, gear, rpm, brake_pressure in points:
         distance = source_distance - distance_origin
         if previous_distance is not None and (distance <= previous_distance or timestamp <= previous_timestamp):
             return ()
@@ -58,6 +59,7 @@ def build_lap_profile(
             "steering_angle_rad": steering,
             "gear_index": gear,
             "engine_rpm": rpm,
+            "brake_pressure": brake_pressure,
         })
         previous_distance = distance
         previous_timestamp = timestamp
