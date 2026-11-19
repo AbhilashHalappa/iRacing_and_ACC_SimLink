@@ -37,6 +37,7 @@ def analyze_corner(
     *,
     brake_onset_threshold: float,
     throttle_pickup_threshold: float,
+    full_throttle_threshold: float,
     steering_threshold_rad: float,
     reference_profile: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -49,6 +50,8 @@ def analyze_corner(
         raise ValueError("brake_onset_threshold must be between 0 and 1")
     if not 0 <= throttle_pickup_threshold <= 1:
         raise ValueError("throttle_pickup_threshold must be between 0 and 1")
+    if not throttle_pickup_threshold <= full_throttle_threshold <= 1:
+        raise ValueError("full_throttle_threshold must be at least throttle pickup and at most 1")
     if steering_threshold_rad <= 0:
         raise ValueError("steering_threshold_rad must be positive")
     start = corner.get("start_distance_m")
@@ -80,16 +83,31 @@ def analyze_corner(
         points, "throttle_ratio", throttle_pickup_threshold,
         after_distance_m=throttle_start,
     )
+    full_throttle = _first_at_or_above(
+        points, "throttle_ratio", full_throttle_threshold,
+        after_distance_m=throttle_start,
+    )
     turn_in = next((
         point for point in points
         if isinstance(point.get("steering_angle_rad"), (int, float))
         and abs(point["steering_angle_rad"]) >= steering_threshold_rad
     ), None)
-    peak_brake = max(
-        (point["brake_ratio"] for point in points
-         if isinstance(point.get("brake_ratio"), (int, float))),
-        default=None,
+    brake_points = [
+        point for point in points
+        if isinstance(point.get("brake_ratio"), (int, float))
+        and not isinstance(point.get("brake_ratio"), bool)
+    ]
+    peak_brake_point = max(
+        brake_points, key=lambda point: point["brake_ratio"], default=None
     )
+    peak_brake = peak_brake_point.get("brake_ratio") if peak_brake_point else None
+    brake_release = None
+    if peak_brake_point is not None:
+        brake_release = next((
+            point for point in brake_points
+            if point["distance_m"] > peak_brake_point["distance_m"]
+            and point["brake_ratio"] < brake_onset_threshold
+        ), None)
     entry_speed = points[0].get("speed_mps")
     exit_speed = points[-1].get("speed_mps")
     delta = None
@@ -108,10 +126,21 @@ def analyze_corner(
         "profile_point_count": len(points),
         "braking_point_m": braking.get("distance_m") if braking else None,
         "peak_brake_ratio": peak_brake,
+        "peak_brake_point_m": peak_brake_point.get("distance_m") if peak_brake_point else None,
+        "brake_release_point_m": brake_release.get("distance_m") if brake_release else None,
+        "trail_braking_distance_m": (
+            max(0.0, brake_release["distance_m"] - turn_in["distance_m"])
+            if brake_release is not None and turn_in is not None else None
+        ),
+        "trail_braking_active_at_turn_in": (
+            brake_release["distance_m"] > turn_in["distance_m"]
+            if brake_release is not None and turn_in is not None else None
+        ),
         "turn_in_point_m": turn_in.get("distance_m") if turn_in else None,
         "minimum_speed_mps": minimum_speed.get("speed_mps") if minimum_speed else None,
         "minimum_speed_point_m": minimum_speed.get("distance_m") if minimum_speed else None,
         "throttle_pickup_point_m": throttle_pickup.get("distance_m") if throttle_pickup else None,
+        "full_throttle_point_m": full_throttle.get("distance_m") if full_throttle else None,
         "entry_speed_mps": entry_speed,
         "exit_speed_mps": exit_speed,
         "corner_time_delta_s": delta,
@@ -121,6 +150,8 @@ def analyze_corner(
                 ("turn_in", turn_in),
                 ("minimum_speed", minimum_speed),
                 ("throttle_pickup", throttle_pickup),
+                ("full_throttle", full_throttle),
+                ("brake_release", brake_release),
                 ("entry_speed", entry_speed),
                 ("exit_speed", exit_speed),
             ) if value is None
