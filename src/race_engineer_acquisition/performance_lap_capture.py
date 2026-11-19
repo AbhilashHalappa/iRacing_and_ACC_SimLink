@@ -98,9 +98,13 @@ class PerformanceLapCaptureWorker:
                             for stream in CandidateLapAssembler.STREAMS:
                                 self._publish(self._assembler.mark_stream_gap(stream))
                         self._pre_boundary_sample_loss = False
-                    elif event_type == "lap.completed" and was_waiting_for_boundary:
+                    elif (
+                        event_type in ("lap.completed", "lap.completion_gap")
+                        and was_waiting_for_boundary
+                    ):
                         # No lap.started event was observed, so this completion
-                        # is only the conservative re-attachment anchor.
+                        # or counter-gap event is only a conservative re-attachment
+                        # anchor; earlier sample loss predates the new interval.
                         self._pre_boundary_sample_loss = False
                     with self._lock:
                         self._processed_event_count += 1
