@@ -259,6 +259,9 @@ def test_monitor_reports_sector_and_racing_line_evidence_counts(tmp_path):
                 "sector_time_assignment": "not_inferred",
             },
             "graphics_position_sample_count": 50,
+            "metadata_freshness": {
+                "fields": {"weather": {"status": "stale"}}
+            },
         },
         "trace_validation": {"ok": True},
     }
@@ -268,3 +271,4 @@ def test_monitor_reports_sector_and_racing_line_evidence_counts(tmp_path):
     assert result["sector_time_value_change_count"] == 3
     assert result["racing_line_available_lap_count"] == 1
     assert result["racing_line_position_sample_count"] == 50
+    assert result["metadata_freshness_counts"] == {"stale": 1}
