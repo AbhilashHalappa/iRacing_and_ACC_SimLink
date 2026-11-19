@@ -755,8 +755,9 @@ class PerformanceLapArchive:
         }
 
     def read_laps(
-        self, *, car_model: str | None = None, track: str | None = None,
-        track_configuration: str | None = None, limit: int = 100,
+        self, *, session_id: str | None = None, car_model: str | None = None,
+        track: str | None = None, track_configuration: str | None = None,
+        limit: int = 100,
     ) -> tuple[dict[str, Any], ...]:
         if limit < 1:
             raise ValueError("limit must be positive")
@@ -767,6 +768,7 @@ class PerformanceLapArchive:
             clauses: list[str] = []
             values: list[Any] = []
             for column, value in (
+                ("laps.session_id", session_id),
                 ("car_model", car_model), ("track", track),
                 ("track_configuration", track_configuration),
             ):
