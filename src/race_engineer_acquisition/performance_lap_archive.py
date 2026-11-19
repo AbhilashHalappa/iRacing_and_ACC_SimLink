@@ -30,6 +30,8 @@ class PerformanceArchiveConfig:
     recent_laps_per_identity: int = 30
     compression_level: int = 6
     diagnostic_limit: int = 5000
+    # None reports measured age without asserting a freshness SLA.
+    metadata_stale_after_ns: int | None = None
 
     def __post_init__(self) -> None:
         if self.max_storage_bytes < 1:
@@ -42,6 +44,8 @@ class PerformanceArchiveConfig:
             raise ValueError("compression_level must be between 0 and 9")
         if self.diagnostic_limit < 1:
             raise ValueError("diagnostic_limit must be positive")
+        if self.metadata_stale_after_ns is not None and self.metadata_stale_after_ns < 1:
+            raise ValueError("metadata_stale_after_ns must be positive when configured")
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +91,42 @@ def _jsonable(value: Any) -> Any:
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
     raise TypeError(f"Unsupported trace value: {type(value).__name__}")
+
+
+def assess_metadata_freshness(
+    source_timestamps_ns: Mapping[str, int | None] | None,
+    *,
+    reference_timestamp_ns: int | None,
+    stale_after_ns: int | None = None,
+) -> dict[str, Any]:
+    """Report source age at lap completion without inventing a freshness SLA."""
+    if stale_after_ns is not None and stale_after_ns < 1:
+        raise ValueError("stale_after_ns must be positive")
+    result: dict[str, Any] = {}
+    for name, timestamp in (source_timestamps_ns or {}).items():
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool):
+            result[str(name)] = {"status": "unavailable", "source_timestamp_ns": None, "age_ns": None}
+            continue
+        if not isinstance(reference_timestamp_ns, int) or isinstance(reference_timestamp_ns, bool):
+            result[str(name)] = {"status": "age_unavailable", "source_timestamp_ns": timestamp, "age_ns": None}
+            continue
+        age = reference_timestamp_ns - timestamp
+        if age < 0:
+            status = "future_timestamp"
+        elif stale_after_ns is None:
+            status = "age_known_threshold_unconfigured"
+        else:
+            status = "stale" if age > stale_after_ns else "fresh"
+        result[str(name)] = {
+            "status": status,
+            "source_timestamp_ns": timestamp,
+            "age_ns": age if age >= 0 else None,
+        }
+    return {
+        "reference_timestamp_ns": reference_timestamp_ns,
+        "stale_after_ns": stale_after_ns,
+        "fields": result,
+    }
 
 
 def _finite_number(value: Any) -> bool:
@@ -471,6 +511,11 @@ class PerformanceLapArchive:
         weather = dict(context.weather or {})
         source_timestamps = dict(context.metadata_source_timestamps_ns or {})
         quality["metadata_source_timestamps_ns"] = source_timestamps
+        quality["metadata_freshness"] = assess_metadata_freshness(
+            source_timestamps,
+            reference_timestamp_ns=_get(lap, "end_timestamp_ns"),
+            stale_after_ns=self.config.metadata_stale_after_ns,
+        )
         quality["identity_complete"] = identity_complete
         if compact:
             timing_observations = tuple(
