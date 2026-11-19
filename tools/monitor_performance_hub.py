@@ -234,6 +234,8 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
         if isinstance(observation_count, int) and not isinstance(observation_count, bool):
             compact_timing_observation_count += max(0, observation_count)
             compact_laps_with_timing_evidence += int(observation_count > 0)
+    for row in rows:
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
         freshness = quality.get("metadata_freshness")
         fields = freshness.get("fields", {}) if isinstance(freshness, dict) else {}
         for metadata_name, metadata in fields.items():
