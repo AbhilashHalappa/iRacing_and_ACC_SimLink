@@ -26,8 +26,10 @@ def rank_corner_opportunities(
         differences = []
         for key, label, direction in (
             ("braking_point_m", "braking point", "later"),
+            ("brake_release_point_m", "brake release", "later"),
             ("minimum_speed_mps", "minimum speed", "higher"),
             ("throttle_pickup_point_m", "throttle pickup", "later"),
+            ("full_throttle_point_m", "full-throttle point", "later"),
             ("turn_in_point_m", "steering response point", "later"),
         ):
             current_value = current.get(key)
