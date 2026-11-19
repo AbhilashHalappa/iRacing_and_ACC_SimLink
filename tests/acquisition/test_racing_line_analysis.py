@@ -118,3 +118,11 @@ def test_racing_line_comparison_rejects_unbounded_distance_grid():
         compare_racing_lines(
             reference, reference, distance_step_m=0.000001, max_bracket_gap_m=2.0
         )
+
+
+def test_trajectory_detects_distance_regression_even_when_position_is_missing():
+    assert build_track_trajectory([
+        sample(100, 1, 0.0, (0.0, 0.0, 0.0)),
+        sample(200, 2, -1.0, None),
+        sample(300, 3, 2.0, (2.0, 0.0, 0.0)),
+    ]) == ()
