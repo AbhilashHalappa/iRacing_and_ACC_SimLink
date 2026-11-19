@@ -25,6 +25,29 @@ def seed(assembler, *, session="run-A", lap=1, timestamp=100):
     return assembler.ingest_event(event(1, lap, timestamp, session=session))
 
 
+def test_explicit_lap_started_event_captures_first_timed_lap():
+    assembler = CandidateLapAssembler()
+    started = event(
+        1, 1, 100, event_type="lap.started",
+        valid=None, out_lap=False, lap_time_ms=None,
+    )
+    assert assembler.ingest_event(started).completed == ()
+
+    assembler.ingest_sample(sample("physics", 10, 110))
+    assembler.ingest_sample(sample("graphics", 20, 115))
+    assembler.ingest_sample(sample("physics", 11, 130))
+    assembler.ingest_sample(sample("graphics", 21, 140))
+
+    completed = assembler.ingest_event(event(2, 1, 150))
+    assert len(completed.completed) == 1
+    trace = completed.completed[0]
+    assert trace.lap_number == 1
+    assert trace.start_timestamp_ns == 100
+    assert trace.end_timestamp_ns == 150
+    assert [item.capture_sequence for item in trace.physics_samples] == [10, 11]
+    assert [item.capture_sequence for item in trace.graphics_samples] == [20, 21]
+
+
 def test_first_event_seeds_boundary_without_fabricating_a_lap():
     assembler = CandidateLapAssembler()
     result = seed(assembler)
