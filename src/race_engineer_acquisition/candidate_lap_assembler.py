@@ -382,24 +382,30 @@ class CandidateLapAssembler:
             "split_ms", "delta_lap_time_ms", "is_valid_lap", "completed_laps",
         )
         observations: list[Mapping[str, Any]] = []
-        previous: dict[str, Any] | None = None
+        # Keep the last observed non-null value per field. Decoded samples can
+        # legitimately contain unavailable values; a missing value must not
+        # erase the comparison baseline and create a false change point later.
+        previous: dict[str, Any] = {}
         for sample in samples:
             data = cls._get(sample, "data")
             values = {name: cls._get(data, name) for name in fields}
             changed = [
                 name for name in change_fields
                 if values[name] is not None
-                and (previous is None or values[name] != previous.get(name))
+                and (name not in previous or values[name] != previous[name])
             ]
             if changed:
-                observation = {
+                observations.append({
+                    "observation_kind": "graphics_timing_change_point",
+                    "source_stream": "graphics",
                     "capture_sequence": cls._get(sample, "capture_sequence"),
                     "capture_timestamp_ns": cls._get(sample, "capture_timestamp_ns"),
                     "changed_fields": changed,
                     "data": values,
-                }
-                observations.append(observation)
-            previous = values
+                })
+            for name, value in values.items():
+                if value is not None:
+                    previous[name] = value
         return tuple(observations)
 
     def _drain_events(self) -> LapAssemblyOutput:
