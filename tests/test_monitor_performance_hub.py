@@ -236,3 +236,35 @@ def test_monitor_exposes_compact_timing_and_metadata_freshness(tmp_path):
         "age_known_threshold_unconfigured": 1,
     }
     assert result["metadata_age_known_threshold_unconfigured"] == 1
+
+
+def test_monitor_reports_sector_and_racing_line_evidence_counts(tmp_path):
+    row = {
+        "session_id": "run-evidence",
+        "lap_number": 1,
+        "trace_status": "retained",
+        "lap_valid": 1,
+        "out_lap": 0,
+        "car_model": "car",
+        "track": "track",
+        "track_configuration": "config",
+        "pinned_pb": True,
+        "lap_time_ms": 90_000,
+        "trace_bytes": 100,
+        "quality": {
+            "sector_evidence": {
+                "observation_count": 4,
+                "sector_value_change_count": 2,
+                "last_sector_time_value_change_count": 3,
+                "sector_time_assignment": "not_inferred",
+            },
+            "graphics_position_sample_count": 50,
+        },
+        "trace_validation": {"ok": True},
+    }
+    result = evaluate([row], tmp_path / "archive.sqlite3")
+    assert result["sector_observation_count"] == 4
+    assert result["sector_value_change_count"] == 2
+    assert result["sector_time_value_change_count"] == 3
+    assert result["racing_line_available_lap_count"] == 1
+    assert result["racing_line_position_sample_count"] == 50
