@@ -801,6 +801,37 @@ class PerformanceLapArchive:
             result.append(item)
         return tuple(result)
 
+    def read_lap_metadata(self, session_id: str, lap_number: int) -> dict[str, Any] | None:
+        """Read one lap's metadata by its stable session/lap key."""
+        if not self.path.exists():
+            return None
+        uri = self.path.resolve().as_uri() + "?mode=ro"
+        with sqlite3.connect(uri, uri=True, timeout=5.0) as db:
+            row = db.execute(
+                """SELECT laps.session_id,lap_number,car_model,track,track_configuration,
+                   completed_at_utc,lap_time_ms,lap_valid,out_lap,start_timestamp_ns,
+                   end_timestamp_ns,physics_sample_count,graphics_sample_count,
+                   weather_json,quality_json,trace_status,reason,
+                   pinned_pb,trace_bytes,sessions.first_seen_utc
+                   FROM laps JOIN sessions ON sessions.session_id=laps.session_id
+                   WHERE laps.session_id=? AND lap_number=?""",
+                (session_id, lap_number),
+            ).fetchone()
+        if row is None:
+            return None
+        keys = (
+            "session_id","lap_number","car_model","track","track_configuration",
+            "completed_at_utc","lap_time_ms","lap_valid","out_lap",
+            "start_timestamp_ns","end_timestamp_ns","physics_sample_count",
+            "graphics_sample_count","weather_json","quality_json","trace_status",
+            "reason","pinned_pb","trace_bytes","session_first_seen_utc",
+        )
+        item = dict(zip(keys, row))
+        item["weather"] = json.loads(item.pop("weather_json"))
+        item["quality"] = json.loads(item.pop("quality_json"))
+        item["pinned_pb"] = bool(item["pinned_pb"])
+        return item
+
     def read_trace(self, session_id: str, lap_number: int) -> dict[str, Any] | None:
         if not self.path.exists():
             return None
