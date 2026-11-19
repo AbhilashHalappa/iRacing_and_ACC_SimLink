@@ -17,6 +17,7 @@ def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
             "lap_number": 2,
             "lap_time_ms": 119000,
             "quality": {"ok": True},
+            "trace_validation": {"ok": True},
         },
         {
             "session_id": "acc-run:session-two:0:0",
@@ -52,6 +53,8 @@ def test_write_session_evidence_keeps_all_files_under_session_folders(tmp_path):
     assert [row["lap_number"] for row in first_laps] == ["1", "2"]
     assert [row["lap_number"] for row in second_laps] == ["1"]
     assert first_laps[0]["quality"] == '{"ok":true}'
+    assert first_laps[1]["trace_validation"] == '{"ok":true}'
+    assert "trace_validation" in first_laps[0]
 
     first_report = json.loads(first["report"].read_text(encoding="utf-8"))
     assert first_report["session_id"] == "acc-run:session-one:0:0"
