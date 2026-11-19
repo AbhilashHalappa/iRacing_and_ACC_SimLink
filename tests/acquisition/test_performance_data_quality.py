@@ -80,3 +80,17 @@ def test_quality_policy_rejects_invalid_thresholds():
         analysis_readiness([], [], required_physics_channels=(),
                            required_graphics_channels=(),
                            minimum_channel_coverage=1.1)
+
+
+def test_progress_quality_does_not_sort_away_capture_timestamp_regression():
+    rows = [
+        row(100, {"track_progress_ratio": 0.1}),
+        row(300, {"track_progress_ratio": 0.2}),
+        row(200, {"track_progress_ratio": 0.3}),
+    ]
+    result = check_progress_continuity(rows, max_progress_step=0.5)
+    assert result["ok"] is False
+    assert any(
+        issue["kind"] == "capture_timestamp_not_increasing"
+        for issue in result["issues"]
+    )
