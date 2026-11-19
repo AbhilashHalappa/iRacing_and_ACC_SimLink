@@ -235,8 +235,13 @@ def write_session_evidence(
         report_path.write_text(
             json.dumps(session_report, indent=2, default=str), encoding="utf-8"
         )
+        # Trace validation is attached only to retained traces, so later rows
+        # may have fields absent from the first row. Build a stable union.
+        fieldnames = list(dict.fromkeys(
+            key for row in session_rows for key in row.keys()
+        ))
         with laps_path.open("w", newline="", encoding="utf-8-sig") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(session_rows[0].keys()))
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for row in session_rows:
                 writer.writerow({
