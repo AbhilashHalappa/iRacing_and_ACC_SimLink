@@ -28,7 +28,14 @@ def build_lap_profile(
             continue
         if not isinstance(speed, (int, float)) or isinstance(speed, bool):
             continue
-        points.append((float(distance), timestamp, float(speed)))
+        points.append((
+            float(distance), timestamp, float(speed),
+            physics_values.get("throttle_ratio"),
+            physics_values.get("brake_ratio"),
+            physics_values.get("steering_angle_rad"),
+            physics_values.get("gear_index"),
+            physics_values.get("engine_rpm"),
+        ))
     points.sort(key=lambda item: item[1])
     if len(points) < 2:
         return ()
@@ -36,13 +43,18 @@ def build_lap_profile(
     result = []
     previous_distance = None
     previous_timestamp = None
-    for distance, timestamp, speed in points:
+    for distance, timestamp, speed, throttle, brake, steering, gear, rpm in points:
         if previous_distance is not None and (distance <= previous_distance or timestamp <= previous_timestamp):
             return ()
         result.append({
             "distance_m": distance,
             "elapsed_s": (timestamp - origin_ns) / 1_000_000_000,
             "speed_mps": speed,
+            "throttle_ratio": throttle,
+            "brake_ratio": brake,
+            "steering_angle_rad": steering,
+            "gear_index": gear,
+            "engine_rpm": rpm,
         })
         previous_distance = distance
         previous_timestamp = timestamp
