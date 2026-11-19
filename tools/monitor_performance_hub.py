@@ -303,6 +303,8 @@ def write_session_evidence(
             canonical_paths["snapshots"].write_text("", encoding="utf-8")
 
         # Remove only legacy timestamped exports created by the previous writer.
+        # Windows may refuse deletion when a CSV is open in Excel or another viewer.
+        cleanup_warnings: list[str] = []
         legacy_patterns = (
             f"performance_hub_report_{safe_id}_*.json",
             f"laps_{safe_id}_*.csv",
@@ -311,7 +313,12 @@ def write_session_evidence(
         for pattern in legacy_patterns:
             for legacy_path in session_dir.glob(pattern):
                 if legacy_path not in canonical_paths.values() and legacy_path.is_file():
-                    legacy_path.unlink()
+                    try:
+                        legacy_path.unlink()
+                    except PermissionError:
+                        cleanup_warnings.append(
+                            f"legacy_file_in_use:{legacy_path.name}"
+                        )
 
         manifest_path.write_text(
             json.dumps({"session_data_sha256": fingerprint}, indent=2),
@@ -320,6 +327,7 @@ def write_session_evidence(
         written.append({
             "session_id": session_id, "directory": session_dir,
             **canonical_paths, "updated": True,
+            "cleanup_warnings": cleanup_warnings,
         })
     return written
 
@@ -482,6 +490,8 @@ def main() -> int:
             print(f"    Laps: {item['laps']}")
             if snapshots and item["updated"]:
                 print(f"    Monitoring history: {item['snapshots']}")
+            for warning in item.get("cleanup_warnings", []):
+                print(f"    CLEANUP SKIPPED (file is open): {warning}")
     else:
         print("No session records found; no session evidence files were written.")
     result_status = final_report["results"].get("archive_data_check", "NOT VERIFIED")
