@@ -28,6 +28,7 @@ def test_corner_analysis_measures_braking_turn_in_min_speed_and_throttle_pickup(
         {"corner_id": "turn-01", "start_distance_m": 100, "end_distance_m": 150},
         brake_onset_threshold=0.1,
         throttle_pickup_threshold=0.5,
+        full_throttle_threshold=0.98,
         steering_threshold_rad=0.2,
     )
     assert result["available"] is True
