@@ -11,6 +11,7 @@ def point(distance, elapsed, speed, brake, throttle, steering):
         "brake_ratio": brake,
         "throttle_ratio": throttle,
         "steering_angle_rad": steering,
+        "brake_pressure": 1000.0 + distance,
     }
 
 
@@ -25,7 +26,10 @@ def test_corner_analysis_measures_braking_turn_in_min_speed_and_throttle_pickup(
     ]
     result = analyze_corner(
         profile,
-        {"corner_id": "turn-01", "start_distance_m": 100, "end_distance_m": 150},
+        {
+            "corner_id": "turn-01", "start_distance_m": 100, "end_distance_m": 150,
+            "apex_distance_m": 120, "apex_position_xyz_m": (1.0, 2.0, 3.0),
+        },
         brake_onset_threshold=0.1,
         throttle_pickup_threshold=0.5,
         full_throttle_threshold=0.98,
@@ -43,6 +47,10 @@ def test_corner_analysis_measures_braking_turn_in_min_speed_and_throttle_pickup(
     assert result["minimum_speed_point_m"] == 130
     assert result["throttle_pickup_point_m"] == 150
     assert result["full_throttle_point_m"] == 150
+    assert result["geometry_apex_candidate_m"] == 120
+    assert result["geometry_apex_position_xyz_m"] == (1.0, 2.0, 3.0)
+    assert result["apex_candidate_metrics"]["speed_mps"] == 30
+    assert result["apex_candidate_metrics"]["brake_pressure"] == 1120.0
 
 
 def test_corner_analysis_calculates_time_delta_only_when_both_profiles_bracket_corner():
