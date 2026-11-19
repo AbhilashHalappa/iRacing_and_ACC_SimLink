@@ -87,6 +87,35 @@ def check_progress_continuity(
     }
 
 
+def check_capture_timestamp_continuity(
+    rows: Sequence[Mapping[str, Any]], *, stream: str,
+) -> dict[str, Any]:
+    """Check source-order timestamp monotonicity for either decoded stream."""
+    if stream not in ("physics", "graphics"):
+        raise ValueError("stream must be 'physics' or 'graphics'")
+    timestamps = [row.get("capture_timestamp_ns") for row in rows]
+    issues = []
+    for index, (left, right) in enumerate(zip(timestamps, timestamps[1:])):
+        if (
+            not isinstance(left, int) or isinstance(left, bool)
+            or not isinstance(right, int) or isinstance(right, bool)
+        ):
+            issues.append({"index": index, "kind": "capture_timestamp_unavailable"})
+        elif right <= left:
+            issues.append({
+                "index": index,
+                "kind": "capture_timestamp_not_increasing",
+                "delta_ns": right - left,
+            })
+    return {
+        "stream": stream,
+        "sample_count": len(rows),
+        "checked_transitions": max(0, len(rows) - 1),
+        "issues": issues,
+        "ok": not issues,
+    }
+
+
 def summarize_alignment(
     aligned_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
@@ -130,6 +159,7 @@ def analysis_readiness(
     progress_check: Mapping[str, Any] | None = None,
     alignment_check: Mapping[str, Any] | None = None,
     minimum_alignment_coverage: float | None = None,
+    physics_timestamp_check: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate analysis eligibility independently of ACC lap validity.
 
@@ -156,6 +186,9 @@ def analysis_readiness(
                     "coverage_ratio": coverage,
                 })
     progress_ok = progress_check is None or bool(progress_check.get("ok"))
+    physics_timestamps_ok = (
+        physics_timestamp_check is None or bool(physics_timestamp_check.get("ok"))
+    )
     alignment_coverage = (
         alignment_check.get("coverage_ratio")
         if isinstance(alignment_check, Mapping) else None
@@ -167,7 +200,10 @@ def analysis_readiness(
             and alignment_coverage >= minimum_alignment_coverage
         )
     )
-    eligible = bool(physics_rows and graphics_rows) and not missing and progress_ok and alignment_ok
+    eligible = (
+        bool(physics_rows and graphics_rows) and not missing and progress_ok
+        and physics_timestamps_ok and alignment_ok
+    )
     return {
         "eligible": eligible,
         "acc_lap_validity": "not_evaluated",
@@ -178,9 +214,11 @@ def analysis_readiness(
         "progress_check": dict(progress_check) if progress_check is not None else None,
         "alignment_check": dict(alignment_check) if alignment_check is not None else None,
         "minimum_alignment_coverage": minimum_alignment_coverage,
+        "physics_timestamp_check": dict(physics_timestamp_check) if physics_timestamp_check is not None else None,
         "reason": None if eligible else (
             "required_channels_unavailable_or_below_coverage"
             if missing else "alignment_coverage_below_policy"
-            if not alignment_ok else "progress_continuity_failed_or_stream_empty"
+            if not alignment_ok else "physics_timestamp_continuity_failed"
+            if not physics_timestamps_ok else "progress_continuity_failed_or_stream_empty"
         ),
     }
