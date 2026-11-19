@@ -73,6 +73,32 @@ def test_delayed_lap_started_event_keeps_only_samples_after_crossing():
     assert trace.start_timestamp_ns == 100
 
 
+def test_new_session_lap_start_keeps_new_session_samples_already_delivered():
+    assembler = CandidateLapAssembler()
+    seed(assembler, session="run-A", timestamp=50)
+    assembler.ingest_sample(sample("physics", 1, 60))
+    assembler.ingest_sample(sample("graphics", 1, 65))
+
+    # New-session samples can arrive before its first trusted lap.started event.
+    assembler.ingest_sample(sample("physics", 2, 110))
+    assembler.ingest_sample(sample("graphics", 2, 115))
+    started = event(
+        2, 1, 100, session="run-B", event_type="lap.started",
+        valid=None, out_lap=False, lap_time_ms=None,
+    )
+    result = assembler.ingest_event(started)
+    assert any(item.kind == "session_changed" for item in result.diagnostics)
+
+    assembler.ingest_sample(sample("physics", 3, 150))
+    assembler.ingest_sample(sample("graphics", 3, 150))
+    completed = assembler.ingest_event(event(3, 1, 150, session="run-B"))
+    assert len(completed.completed) == 1
+    trace = completed.completed[0]
+    assert trace.session_id == "run-B"
+    assert [item.capture_sequence for item in trace.physics_samples] == [2, 3]
+    assert [item.capture_sequence for item in trace.graphics_samples] == [2, 3]
+
+
 def test_first_event_seeds_boundary_without_fabricating_a_lap():
     assembler = CandidateLapAssembler()
     result = seed(assembler)
