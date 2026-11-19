@@ -196,15 +196,6 @@ def analyze_archived_laps(
         minimum_corner_length_m=policy["minimum_corner_length_m"],
         merge_gap_m=policy["merge_gap_m"],
     )
-    track_identity = (
-        str(reference_metadata.get("track") or "").strip(),
-        str(reference_metadata.get("track_configuration") or "").strip(),
-    )
-    if all(track_identity):
-        for corner in track_model.get("corners", ()):
-            corner["stable_corner_id"] = (
-                f"{track_identity[0]}:{track_identity[1]}:{corner['corner_id']}"
-            )
     comparison_track_model = match_corner_identities(
         track_model,
         comparison_track_model,
