@@ -11,7 +11,8 @@ from .corner_identity import match_corner_identities
 from .lap_comparison import build_lap_profile, compare_lap_profiles
 from .performance_analysis_model import align_by_timestamp, normalize_sample
 from .performance_data_quality import (
-    analysis_readiness, check_progress_continuity, summarize_alignment,
+    analysis_readiness, check_progress_continuity,
+    check_capture_timestamp_continuity, summarize_alignment,
 )
 from .racing_line_analysis import build_track_trajectory, compare_racing_lines
 from .track_model import build_track_model
@@ -90,6 +91,9 @@ def _analyse_one_lap(
     progress = check_progress_continuity(
         graphics, max_progress_step=policy["max_progress_step"]
     )
+    physics_timestamp_quality = check_capture_timestamp_continuity(
+        physics, stream="physics"
+    )
     alignment_quality = summarize_alignment(aligned)
     readiness = analysis_readiness(
         physics, graphics,
@@ -99,6 +103,7 @@ def _analyse_one_lap(
         progress_check=progress,
         alignment_check=alignment_quality,
         minimum_alignment_coverage=policy["minimum_alignment_coverage"],
+        physics_timestamp_check=physics_timestamp_quality,
     )
     return {
         "metadata": dict(metadata),
@@ -108,6 +113,7 @@ def _analyse_one_lap(
         "profile": profile,
         "trajectory": trajectory,
         "progress_quality": progress,
+        "physics_timestamp_quality": physics_timestamp_quality,
         "alignment_quality": alignment_quality,
         "readiness": readiness,
     }
@@ -235,6 +241,7 @@ def analyze_archived_laps(
             "lap_time_ms": reference_metadata.get("lap_time_ms"),
             "readiness": reference["readiness"],
             "progress_quality": reference["progress_quality"],
+            "physics_timestamp_quality": reference["physics_timestamp_quality"],
             "alignment_quality": reference["alignment_quality"],
         },
         "comparison": {
@@ -243,6 +250,7 @@ def analyze_archived_laps(
             "lap_time_ms": comparison_metadata.get("lap_time_ms"),
             "readiness": comparison["readiness"],
             "progress_quality": comparison["progress_quality"],
+            "physics_timestamp_quality": comparison["physics_timestamp_quality"],
             "alignment_quality": comparison["alignment_quality"],
         },
         "lap_delta": delta,
