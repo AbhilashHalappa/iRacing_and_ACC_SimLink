@@ -48,6 +48,30 @@ def test_explicit_lap_started_event_captures_first_timed_lap():
     assert [item.capture_sequence for item in trace.graphics_samples] == [20, 21]
 
 
+def test_delayed_lap_started_event_keeps_only_samples_after_crossing():
+    assembler = CandidateLapAssembler()
+    # The sample worker can process some frames before the broker publishes
+    # the crossing event. Retain them temporarily, then trim the out-lap.
+    assembler.ingest_sample(sample("physics", 1, 80))
+    assembler.ingest_sample(sample("physics", 2, 90))
+    assembler.ingest_sample(sample("physics", 3, 110))
+    assembler.ingest_sample(sample("graphics", 1, 85))
+    assembler.ingest_sample(sample("graphics", 2, 115))
+
+    started = event(
+        1, 1, 100, event_type="lap.started",
+        valid=None, out_lap=False, lap_time_ms=None,
+    )
+    assembler.ingest_event(started)
+    assembler.ingest_sample(sample("physics", 4, 150))
+    pending = assembler.ingest_event(event(2, 1, 150))
+    assert len(pending.completed) == 1
+    trace = pending.completed[0]
+    assert [item.capture_sequence for item in trace.physics_samples] == [3, 4]
+    assert [item.capture_sequence for item in trace.graphics_samples] == [2]
+    assert trace.start_timestamp_ns == 100
+
+
 def test_first_event_seeds_boundary_without_fabricating_a_lap():
     assembler = CandidateLapAssembler()
     result = seed(assembler)
