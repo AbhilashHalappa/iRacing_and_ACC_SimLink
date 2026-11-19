@@ -81,3 +81,10 @@ def test_compare_lines_does_not_bridge_large_missing_position_gaps():
 def test_trajectory_policy_must_be_nonnegative():
     with pytest.raises(ValueError):
         build_track_trajectory([], minimum_point_spacing_m=-1)
+
+
+def test_trajectory_rejects_out_of_order_capture_timestamps():
+    assert build_track_trajectory([
+        sample(200, 1, 0.0, (0.0, 0.0, 0.0)),
+        sample(100, 2, 1.0, (1.0, 0.0, 0.0)),
+    ]) == ()
