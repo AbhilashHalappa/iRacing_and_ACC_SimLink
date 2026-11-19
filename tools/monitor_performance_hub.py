@@ -30,6 +30,7 @@ from race_engineer_acquisition.storage_paths import (
 )
 from race_engineer_acquisition.performance_lap_archive import (
     GRAPHICS_ARCHIVE_FIELDS,
+    PHYSICS_ARCHIVE_FIELDS,
 )
 
 GIB = 1024 ** 3
@@ -80,6 +81,32 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
     if len(graphics) != expected_graphics:
         problems.append(f"graphics_count:{len(graphics)}!={expected_graphics}")
 
+    physics_data = [s.get("data") if isinstance(s.get("data"), dict) else {} for s in physics]
+    physics_field_presence = {
+        name: all(name in sample for sample in physics_data)
+        for name in PHYSICS_ARCHIVE_FIELDS
+    }
+    missing_physics_fields = sorted(
+        name for name, present in physics_field_presence.items() if not present
+    )
+    if missing_physics_fields:
+        problems.append("physics_missing_archive_fields:" + ",".join(missing_physics_fields))
+
+    physics_channel_missingness = {
+        name: {
+            "present_samples": sum(1 for sample in physics_data if sample.get(name) is not None),
+            "missing_samples": sum(1 for sample in physics_data if sample.get(name) is None),
+        }
+        for name in PHYSICS_ARCHIVE_FIELDS
+    }
+    graphics_channel_missingness = {
+        name: {
+            "present_samples": sum(1 for sample in graphics if sample.get(name) is not None),
+            "missing_samples": sum(1 for sample in graphics if sample.get(name) is None),
+        }
+        for name in GRAPHICS_ARCHIVE_FIELDS
+    }
+
     graphics_field_presence = {
         name: all(name in sample for sample in graphics)
         for name in GRAPHICS_ARCHIVE_FIELDS
@@ -115,6 +142,11 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
         "physics_last_sequence": physics[-1].get("capture_sequence"),
         "graphics_first_sequence": graphics[0].get("capture_sequence"),
         "graphics_last_sequence": graphics[-1].get("capture_sequence"),
+        "physics_field_contract_count": len(PHYSICS_ARCHIVE_FIELDS),
+        "physics_field_coverage_count": len(PHYSICS_ARCHIVE_FIELDS) - len(missing_physics_fields),
+        "physics_missing_archive_fields": missing_physics_fields,
+        "physics_channel_missingness": physics_channel_missingness,
+        "graphics_channel_missingness": graphics_channel_missingness,
         "graphics_field_contract_count": len(GRAPHICS_ARCHIVE_FIELDS),
         "graphics_field_coverage_count": len(GRAPHICS_ARCHIVE_FIELDS) - len(missing_graphics_fields),
         "graphics_missing_archive_fields": missing_graphics_fields,
