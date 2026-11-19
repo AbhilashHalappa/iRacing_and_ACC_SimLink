@@ -451,3 +451,19 @@ def test_archive_persists_raw_sector_evidence_for_compact_lap(tmp_path):
         assert len(row["quality"]["sector_observations"]) == 2
     finally:
         archive.close()
+
+
+def test_read_lap_metadata_looks_up_stable_session_lap_key(tmp_path):
+    archive = PerformanceLapArchive(tmp_path / "direct-lookup.sqlite3")
+    try:
+        archive.write_output(
+            LapAssemblyOutput(completed=(_trace("direct-lookup", 7),)), _context()
+        )
+        row = archive.read_lap_metadata("direct-lookup", 7)
+        assert row is not None
+        assert row["session_id"] == "direct-lookup"
+        assert row["lap_number"] == 7
+        assert row["quality"]["physics_sample_count"] > 0
+        assert archive.read_lap_metadata("missing-session", 7) is None
+    finally:
+        archive.close()
