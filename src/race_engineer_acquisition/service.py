@@ -15,6 +15,7 @@ from .race_progress_strategy import assess_race_progress, race_progress_payload
 from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 from .performance_lap_capture import PerformanceLapCaptureWorker
 from .performance_analysis_service import analyze_archived_laps
+from .session_analysis import build_session_summary
 from .performance_lap_archive import (
     LapArchiveContext,
     PerformanceArchiveConfig,
@@ -267,6 +268,11 @@ class RaceEngineerService:
             session_id=session_id, car_model=car_model, track=track,
             track_configuration=track_configuration, limit=limit,
         )
+
+    def performance_session_summary(self, session_id: str) -> dict[str, Any]:
+        """Return a compact session summary and lap history from the archive."""
+        rows = self._performance_archive.read_laps(session_id=session_id, limit=5000)
+        return build_session_summary(rows)
 
     def read_performance_lap_trace(
         self, session_id: str, lap_number: int
