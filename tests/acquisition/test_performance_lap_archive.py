@@ -18,9 +18,11 @@ from race_engineer_acquisition.performance_lap_archive import (
     PerformanceLapPersistenceWorker,
     GRAPHICS_ARCHIVE_FIELDS,
     GRAPHICS_EXCLUDED_FIELDS,
+    PHYSICS_ARCHIVE_FIELDS,
     assess_metadata_freshness,
 )
 from race_engineer_acquisition.graphics_decoder import DecodedGraphics
+from race_engineer_acquisition.physics_decoder import DecodedPhysics
 
 
 def _trace(session: str, lap: int, lap_time_ms: int = 90_000) -> CompletedLapTrace:
@@ -380,3 +382,9 @@ def test_metadata_freshness_distinguishes_fresh_stale_and_future():
     assert result["fields"]["weather"]["status"] == "fresh"
     assert result["fields"]["track"]["status"] == "stale"
     assert result["fields"]["future"]["status"] == "future_timestamp"
+
+
+
+def test_every_decoded_physics_field_is_in_full_payload_archive_contract():
+    decoder_fields = set(DecodedPhysics.__dataclass_fields__)
+    assert decoder_fields == set(PHYSICS_ARCHIVE_FIELDS)
