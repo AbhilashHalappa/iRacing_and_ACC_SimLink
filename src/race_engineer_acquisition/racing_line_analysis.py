@@ -49,6 +49,10 @@ def build_track_trajectory(
             continue
         if not isinstance(timestamp, int) or isinstance(timestamp, bool):
             continue
+        if points and timestamp <= points[-1]["capture_timestamp_ns"]:
+            return ()
+        if points and float(distance) <= points[-1]["distance_m"]:
+            return ()
         if last_position is not None:
             spacing = math.dist(last_position, position)
             if spacing < minimum_point_spacing_m:
@@ -60,7 +64,6 @@ def build_track_trajectory(
             "capture_sequence": sequence,
         })
         last_position = position
-    points.sort(key=lambda point: point["capture_timestamp_ns"])
     if len(points) < 2:
         return ()
     if any(
