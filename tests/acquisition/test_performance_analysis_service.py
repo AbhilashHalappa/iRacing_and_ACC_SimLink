@@ -69,6 +69,7 @@ def policy():
         "max_bracket_gap_m": 10.0,
         "minimum_point_spacing_m": 0.25,
         "minimum_channel_coverage": 0.8,
+        "minimum_alignment_coverage": 0.8,
         "max_progress_step": 0.5,
         "minimum_turn_angle_rad": 0.4,
         "minimum_corner_length_m": 5.0,
