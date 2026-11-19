@@ -64,11 +64,12 @@ def test_delayed_lap_started_event_keeps_only_samples_after_crossing():
     )
     assembler.ingest_event(started)
     assembler.ingest_sample(sample("physics", 4, 150))
+    assembler.ingest_sample(sample("graphics", 3, 150))
     pending = assembler.ingest_event(event(2, 1, 150))
     assert len(pending.completed) == 1
     trace = pending.completed[0]
     assert [item.capture_sequence for item in trace.physics_samples] == [3, 4]
-    assert [item.capture_sequence for item in trace.graphics_samples] == [2]
+    assert [item.capture_sequence for item in trace.graphics_samples] == [2, 3]
     assert trace.start_timestamp_ns == 100
 
 
