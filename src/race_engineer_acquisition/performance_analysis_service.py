@@ -29,6 +29,7 @@ _REQUIRED_POLICY = (
     "merge_gap_m",
     "brake_onset_threshold",
     "throttle_pickup_threshold",
+    "full_throttle_threshold",
     "steering_threshold_rad",
     "required_physics_channels",
     "required_graphics_channels",
@@ -129,7 +130,7 @@ def analyze_archived_laps(
         "max_progress_step", "minimum_turn_angle_rad",
         "minimum_corner_length_m", "merge_gap_m",
         "max_corner_apex_separation_m", "max_corner_apex_distance_delta_m",
-        "brake_onset_threshold", "throttle_pickup_threshold",
+        "brake_onset_threshold", "throttle_pickup_threshold", "full_throttle_threshold",
         "steering_threshold_rad",
     )
     if any(
@@ -155,8 +156,10 @@ def analyze_archived_laps(
         raise ValueError("corner geometry policy is invalid")
     if policy["max_corner_apex_separation_m"] <= 0 or policy["max_corner_apex_distance_delta_m"] <= 0:
         raise ValueError("corner identity tolerances must be positive")
-    if not 0 <= policy["brake_onset_threshold"] <= 1 or not 0 <= policy["throttle_pickup_threshold"] <= 1:
+    if not 0 <= policy["brake_onset_threshold"] <= 1 or not 0 <= policy["throttle_pickup_threshold"] <= 1 or not 0 <= policy["full_throttle_threshold"] <= 1:
         raise ValueError("pedal event thresholds must be between 0 and 1")
+    if policy["full_throttle_threshold"] < policy["throttle_pickup_threshold"]:
+        raise ValueError("full_throttle_threshold must not be below throttle_pickup_threshold")
     if policy["steering_threshold_rad"] <= 0:
         raise ValueError("steering_threshold_rad must be positive")
 
@@ -209,12 +212,14 @@ def analyze_archived_laps(
                 reference["profile"], corner,
                 brake_onset_threshold=policy["brake_onset_threshold"],
                 throttle_pickup_threshold=policy["throttle_pickup_threshold"],
+                full_throttle_threshold=policy["full_throttle_threshold"],
                 steering_threshold_rad=policy["steering_threshold_rad"],
             ))
             comparison_corners.append(analyze_corner(
                 comparison["profile"], corner,
                 brake_onset_threshold=policy["brake_onset_threshold"],
                 throttle_pickup_threshold=policy["throttle_pickup_threshold"],
+                full_throttle_threshold=policy["full_throttle_threshold"],
                 steering_threshold_rad=policy["steering_threshold_rad"],
                 reference_profile=reference["profile"],
             ))
