@@ -21,7 +21,9 @@ PHYSICS_CHANNELS = {
     "steering_angle_rad": ("steering_angle", 1.0, "rad"),
     "fuel_kg": ("fuel_kg", 1.0, "kg"),
     "engine_rpm": ("rpm", 1.0, "rpm"),
-    "brake_bias_ratio": ("brake_bias", 1.0, "ratio"),
+    "gear_raw": ("gear_raw", 1.0, "acc_gear_enum"),
+    "gear_index": ("gear_raw", 1.0, "gear_index"),
+    "brake_bias_percent": ("brake_bias", 1.0, "percent"),
     "brake_pressure": ("brake_pressure", 1.0, "decoder_unit"),
     "tyre_pressure_psi": ("tyre_pressure_psi", 1.0, "psi"),
     "tyre_temperature_c": ("tyre_temp_c", 1.0, "degC"),
@@ -54,6 +56,18 @@ def _finite(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and value not in (float("inf"), float("-inf"))
 
 
+def _normalize_value(value: Any, scale: float) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value * scale if _finite(value) else None
+    if isinstance(value, (tuple, list)):
+        return tuple(_normalize_value(item, scale) for item in value)
+    return value
+
+
 def normalize_sample(sample: Any) -> dict[str, Any]:
     """Normalize known channels while preserving raw values and capture provenance."""
     stream = _get(sample, "stream")
@@ -67,12 +81,10 @@ def normalize_sample(sample: Any) -> dict[str, Any]:
     for canonical, (source, scale, unit) in channels.items():
         value = _get(data, source)
         raw[source] = value
-        if value is not None and scale != 1.0 and _finite(value):
-            normalized[canonical] = value * scale
-        elif value is not None and scale == 1.0:
-            normalized[canonical] = value
+        if canonical == "gear_index" and isinstance(value, int) and not isinstance(value, bool):
+            normalized[canonical] = value - 1
         else:
-            normalized[canonical] = None
+            normalized[canonical] = _normalize_value(value, scale)
         units[canonical] = unit
     return {
         "normalization_version": NORMALIZATION_VERSION,
@@ -100,14 +112,14 @@ def align_by_timestamp(
     if max_delta_ns < 0:
         raise ValueError("max_delta_ns must be non-negative")
     physics = sorted(
-        (row for row in physics_rows if isinstance(row.get("capture_timestamp_ns"), int)),
+        (row for row in physics_rows if isinstance(row.get("capture_timestamp_ns"), int) and not isinstance(row.get("capture_timestamp_ns"), bool)),
         key=lambda row: row["capture_timestamp_ns"],
     )
     timestamps = [row["capture_timestamp_ns"] for row in physics]
     output = []
     for graphics in graphics_rows:
         timestamp = graphics.get("capture_timestamp_ns")
-        if not isinstance(timestamp, int) or not timestamps:
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or not timestamps:
             output.append({"graphics": graphics, "physics": None, "alignment_delta_ns": None, "aligned": False})
             continue
         index = bisect_left(timestamps, timestamp)
