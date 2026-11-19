@@ -80,3 +80,13 @@ def test_compare_profiles_does_not_extrapolate_or_bridge_large_gaps():
 def test_compare_profiles_rejects_nonpositive_grid_policy():
     with pytest.raises(ValueError):
         compare_lap_profiles([], [], distance_step_m=0, max_bracket_gap_m=10)
+
+
+
+def test_build_profile_rejects_non_monotonic_distance_instead_of_sorting_it_away():
+    rows = [
+        aligned(1_000_000_000, 0.0, 10.0),
+        aligned(2_000_000_000, 20.0, 20.0),
+        aligned(3_000_000_000, 15.0, 30.0),
+    ]
+    assert build_lap_profile(rows) == ()
