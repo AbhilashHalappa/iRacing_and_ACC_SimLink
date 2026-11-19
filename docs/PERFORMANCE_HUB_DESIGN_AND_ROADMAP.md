@@ -4,7 +4,7 @@
 **Branch:** `feature/performance-hub`  
 **Base branch:** `feature/fuel-strategy`
 
-**Implementation progress after Phase 1:** Analysis-layer foundations have now been added on this branch for normalized telemetry, timestamp-based Physics/Graphics alignment, channel missingness/readiness, metadata freshness reporting, raw sector evidence, distance-aligned lap profiles, geometry-based candidate turn regions, corner metrics, racing-line comparison, and evidence-ranked post-lap coaching. These are service primitives and archive evidence contracts, not yet an integrated UI workflow or ACC-session-validated feature set. Their regression tests are pending the user's combined Windows validation run. See Issue #38 for the commit-by-commit implementation record and outstanding acceptance work.
+**Implementation progress after Phase 1:** Analysis-layer foundations have now been added on this branch for normalized telemetry, timestamp-based Physics/Graphics alignment and coverage gates, channel missingness/readiness, metadata freshness reporting, raw sector evidence, lap comparison across time/speed/controls/gear/RPM/brake pressure, geometry-based candidate turn regions, apex candidate metrics, brake-release/trail-braking metrics, racing-line comparison, evidence-ranked post-lap coaching, archive-backed lap-analysis orchestration, and session summary/lap history. These are backend service primitives and archive evidence contracts, not yet an integrated UI workflow or ACC-session-validated feature set. Their regression tests are pending the user's combined Windows validation run. See Issue #38 for the commit-by-commit implementation record and outstanding acceptance work.
 
 
 ## 1. Objective
