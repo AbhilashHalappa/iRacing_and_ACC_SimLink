@@ -4,6 +4,7 @@ from race_engineer_acquisition.performance_data_quality import (
     analysis_readiness,
     channel_availability,
     check_progress_continuity,
+    summarize_alignment,
 )
 
 
@@ -94,3 +95,33 @@ def test_progress_quality_does_not_sort_away_capture_timestamp_regression():
         issue["kind"] == "capture_timestamp_not_increasing"
         for issue in result["issues"]
     )
+
+
+def test_alignment_summary_reports_coverage_and_error_distribution():
+    result = summarize_alignment([
+        {"aligned": True, "alignment_delta_ns": 10},
+        {"aligned": True, "alignment_delta_ns": 20},
+        {"aligned": False, "alignment_delta_ns": 50},
+    ])
+    assert result["sample_count"] == 3
+    assert result["aligned_sample_count"] == 2
+    assert result["unaligned_sample_count"] == 1
+    assert result["coverage_ratio"] == pytest.approx(2 / 3)
+    assert result["median_alignment_delta_ns"] == 15
+    assert result["max_alignment_delta_ns"] == 20
+    assert result["status"] == "partial"
+
+
+def test_analysis_readiness_rejects_alignment_coverage_below_policy():
+    physics = [row(10, {"speed_mps": 10.0})]
+    graphics = [row(11, {"distance_m": 10.0})]
+    result = analysis_readiness(
+        physics, graphics,
+        required_physics_channels=("speed_mps",),
+        required_graphics_channels=("distance_m",),
+        minimum_channel_coverage=1.0,
+        alignment_check={"coverage_ratio": 0.5},
+        minimum_alignment_coverage=0.9,
+    )
+    assert result["eligible"] is False
+    assert result["reason"] == "alignment_coverage_below_policy"
