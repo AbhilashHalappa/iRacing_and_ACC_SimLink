@@ -11,13 +11,23 @@ import csv
 from contextlib import closing
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import sqlite3
 import sys
 import time
 import zlib
 from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from race_engineer_acquisition.storage_paths import (
+    default_monitor_reports_dir,
+    default_performance_archive_path,
+    migrate_legacy_performance_hub_data,
+)
 
 GIB = 1024 ** 3
 LAP_COLUMNS = (
@@ -30,11 +40,8 @@ LAP_COLUMNS = (
 
 
 def default_db_path() -> Path:
-    if os.name == "nt":
-        root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData/Local"))
-        return root / "RaceEngineerACC" / "PerformanceHub" / "lap_archive.sqlite3"
-    root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
-    return root / "race-engineer-acc" / "performance_hub" / "lap_archive.sqlite3"
+    """Return the same repository-relative archive path used by the runtime."""
+    return default_performance_archive_path()
 
 
 def utc_now() -> str:
@@ -332,6 +339,12 @@ def write_session_evidence(
     return written
 
 def main() -> int:
+    migration = migrate_legacy_performance_hub_data()
+    if migration["archive_copied"] or migration["reports_copied"]:
+        print(
+            "Migrated legacy Performance Hub data into the repository user_data folder: "
+            f"archive={migration['archive_copied']} reports={migration['reports_copied']}"
+        )
     parser = argparse.ArgumentParser(
         description="Read-only live monitor for the Race Engineer ACC Performance Hub archive."
     )
@@ -340,7 +353,7 @@ def main() -> int:
     parser.add_argument("--interval", type=float, default=2.0,
                         help="Polling interval in seconds (default: 2).")
     parser.add_argument("--output", type=Path, default=None,
-                        help="Persistent output root (default: LOCALAPPDATA/.../monitor_reports).")
+                        help="Persistent output root (default: repository user_data/PerformanceHub/monitor_reports).")
     parser.add_argument("--once", action="store_true",
                         help="Validate the archive once and exit (use after closing the game/app).")
     args = parser.parse_args()
@@ -349,11 +362,7 @@ def main() -> int:
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.output is None:
-        if os.name == "nt":
-            root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData/Local"))
-        else:
-            root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
-        output_dir = root / "RaceEngineerACC" / "PerformanceHub" / "monitor_reports"
+        output_dir = default_monitor_reports_dir()
     else:
         output_dir = args.output
     output_dir.mkdir(parents=True, exist_ok=True)
