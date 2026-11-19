@@ -18,6 +18,7 @@ from race_engineer_acquisition.performance_lap_archive import (
     PerformanceLapPersistenceWorker,
     GRAPHICS_ARCHIVE_FIELDS,
     GRAPHICS_EXCLUDED_FIELDS,
+    assess_metadata_freshness,
 )
 from race_engineer_acquisition.graphics_decoder import DecodedGraphics
 
@@ -357,3 +358,25 @@ def test_every_decoded_graphics_field_is_archived_or_explicitly_excluded():
     assert archived_fields.isdisjoint(excluded_fields)
     assert decoder_fields == archived_fields | excluded_fields
     assert all(GRAPHICS_EXCLUDED_FIELDS.values())
+
+
+
+def test_metadata_freshness_reports_age_without_inventing_threshold():
+    result = assess_metadata_freshness(
+        {"weather": 80, "car_identity": None},
+        reference_timestamp_ns=100,
+    )
+    assert result["fields"]["weather"]["status"] == "age_known_threshold_unconfigured"
+    assert result["fields"]["weather"]["age_ns"] == 20
+    assert result["fields"]["car_identity"]["status"] == "unavailable"
+
+
+def test_metadata_freshness_distinguishes_fresh_stale_and_future():
+    result = assess_metadata_freshness(
+        {"weather": 95, "track": 50, "future": 101},
+        reference_timestamp_ns=100,
+        stale_after_ns=20,
+    )
+    assert result["fields"]["weather"]["status"] == "fresh"
+    assert result["fields"]["track"]["status"] == "stale"
+    assert result["fields"]["future"]["status"] == "future_timestamp"
