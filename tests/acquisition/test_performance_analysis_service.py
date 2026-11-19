@@ -142,3 +142,20 @@ def test_archive_analysis_requires_explicit_cadence_and_feature_policy():
         assert "missing analysis policy values" in str(exc)
     else:
         raise AssertionError("analysis without policy should be rejected")
+
+
+def test_archive_analysis_rejects_nonfinite_or_invalid_policy_values():
+    invalid = policy()
+    invalid["distance_step_m"] = float("nan")
+    archive = FakeArchive({})
+    try:
+        analyze_archived_laps(
+            archive,
+            reference_session_id="s", reference_lap_number=1,
+            comparison_session_id="s", comparison_lap_number=2,
+            policy=invalid,
+        )
+    except ValueError as exc:
+        assert "finite numbers" in str(exc)
+    else:
+        raise AssertionError("non-finite analysis policy should be rejected")
