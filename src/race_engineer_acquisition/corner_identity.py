@@ -72,7 +72,7 @@ def match_corner_identities(
         if candidate_key in used_candidates or reference_key in used_references:
             continue
         matches[candidate_key] = {
-            "stable_corner_id": reference.get("stable_corner_id") or reference_key,
+            "stable_corner_id": reference.get("stable_corner_id"),
             "matched_reference_corner_id": reference_key,
             "apex_separation_m": separation,
             "apex_distance_delta_m": distance_delta,
