@@ -10,7 +10,9 @@ from .corner_analysis import analyze_corner
 from .corner_identity import match_corner_identities
 from .lap_comparison import build_lap_profile, compare_lap_profiles
 from .performance_analysis_model import align_by_timestamp, normalize_sample
-from .performance_data_quality import analysis_readiness, check_progress_continuity
+from .performance_data_quality import (
+    analysis_readiness, check_progress_continuity, summarize_alignment,
+)
 from .racing_line_analysis import build_track_trajectory, compare_racing_lines
 from .track_model import build_track_model
 
@@ -21,6 +23,7 @@ _REQUIRED_POLICY = (
     "max_bracket_gap_m",
     "minimum_point_spacing_m",
     "minimum_channel_coverage",
+    "minimum_alignment_coverage",
     "max_progress_step",
     "minimum_turn_angle_rad",
     "minimum_corner_length_m",
@@ -87,12 +90,15 @@ def _analyse_one_lap(
     progress = check_progress_continuity(
         graphics, max_progress_step=policy["max_progress_step"]
     )
+    alignment_quality = summarize_alignment(aligned)
     readiness = analysis_readiness(
         physics, graphics,
         required_physics_channels=policy["required_physics_channels"],
         required_graphics_channels=policy["required_graphics_channels"],
         minimum_channel_coverage=policy["minimum_channel_coverage"],
         progress_check=progress,
+        alignment_check=alignment_quality,
+        minimum_alignment_coverage=policy["minimum_alignment_coverage"],
     )
     return {
         "metadata": dict(metadata),
@@ -102,6 +108,7 @@ def _analyse_one_lap(
         "profile": profile,
         "trajectory": trajectory,
         "progress_quality": progress,
+        "alignment_quality": alignment_quality,
         "readiness": readiness,
     }
 
@@ -126,7 +133,7 @@ def analyze_archived_laps(
         raise ValueError("missing analysis policy values: " + ", ".join(missing_policy))
     numeric_policy = (
         "max_alignment_delta_ns", "distance_step_m", "max_bracket_gap_m",
-        "minimum_point_spacing_m", "minimum_channel_coverage",
+        "minimum_point_spacing_m", "minimum_channel_coverage", "minimum_alignment_coverage",
         "max_progress_step", "minimum_turn_angle_rad",
         "minimum_corner_length_m", "merge_gap_m",
         "max_corner_apex_separation_m", "max_corner_apex_distance_delta_m",
@@ -237,6 +244,7 @@ def analyze_archived_laps(
             "lap_time_ms": reference_metadata.get("lap_time_ms"),
             "readiness": reference["readiness"],
             "progress_quality": reference["progress_quality"],
+            "alignment_quality": reference["alignment_quality"],
         },
         "comparison": {
             "session_id": comparison_session_id,
@@ -244,6 +252,7 @@ def analyze_archived_laps(
             "lap_time_ms": comparison_metadata.get("lap_time_ms"),
             "readiness": comparison["readiness"],
             "progress_quality": comparison["progress_quality"],
+            "alignment_quality": comparison["alignment_quality"],
         },
         "lap_delta": delta,
         "track_model": track_model,
