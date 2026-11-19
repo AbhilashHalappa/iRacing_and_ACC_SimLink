@@ -79,6 +79,30 @@ def _time_at_distance(
     return None
 
 
+def _value_at_distance(
+    profile: Sequence[Mapping[str, Any]], key: str, distance: float, *,
+    max_bracket_gap_m: float, discrete: bool = False,
+) -> Any:
+    for left, right in zip(profile, profile[1:]):
+        x0, x1 = left["distance_m"], right["distance_m"]
+        if x0 <= distance <= x1:
+            gap = x1 - x0
+            if gap <= 0 or gap > max_bracket_gap_m:
+                return None
+            a, b = left.get(key), right.get(key)
+            if a is None or b is None:
+                return None
+            ratio = (distance - x0) / gap
+            if discrete:
+                return a if ratio <= 0.5 else b
+            if not isinstance(a, (int, float)) or isinstance(a, bool):
+                return None
+            if not isinstance(b, (int, float)) or isinstance(b, bool):
+                return None
+            return float(a) + ratio * (float(b) - float(a))
+    return None
+
+
 def compare_lap_profiles(
     reference: Sequence[Mapping[str, float]],
     comparison: Sequence[Mapping[str, float]],
@@ -106,12 +130,43 @@ def compare_lap_profiles(
         reference_time = _time_at_distance(reference, distance, max_bracket_gap_m=max_bracket_gap_m)
         comparison_time = _time_at_distance(comparison, distance, max_bracket_gap_m=max_bracket_gap_m)
         if reference_time is not None and comparison_time is not None:
-            samples.append({
+            sample = {
                 "distance_m": distance,
                 "reference_elapsed_s": reference_time,
                 "comparison_elapsed_s": comparison_time,
                 "delta_s": comparison_time - reference_time,
-            })
+            }
+            for channel in (
+                "speed_mps", "throttle_ratio", "brake_ratio",
+                "steering_angle_rad", "engine_rpm",
+            ):
+                ref_value = _value_at_distance(
+                    reference, channel, distance, max_bracket_gap_m=max_bracket_gap_m
+                )
+                cmp_value = _value_at_distance(
+                    comparison, channel, distance, max_bracket_gap_m=max_bracket_gap_m
+                )
+                sample[f"reference_{channel}"] = ref_value
+                sample[f"comparison_{channel}"] = cmp_value
+                sample[f"{channel}_delta"] = (
+                    cmp_value - ref_value
+                    if ref_value is not None and cmp_value is not None else None
+                )
+            ref_gear = _value_at_distance(
+                reference, "gear_index", distance,
+                max_bracket_gap_m=max_bracket_gap_m, discrete=True,
+            )
+            cmp_gear = _value_at_distance(
+                comparison, "gear_index", distance,
+                max_bracket_gap_m=max_bracket_gap_m, discrete=True,
+            )
+            sample["reference_gear_index"] = ref_gear
+            sample["comparison_gear_index"] = cmp_gear
+            sample["gear_changed"] = (
+                cmp_gear != ref_gear
+                if ref_gear is not None and cmp_gear is not None else None
+            )
+            samples.append(sample)
         distance += distance_step_m
     return {
         "available": bool(samples),
