@@ -64,6 +64,7 @@ def build_session_summary(
     return {
         "lap_count": len(ordered),
         "eligible_valid_lap_count": len(eligible),
+        "valid_classified_lap_count": valid_count,
         "invalid_lap_count": invalid_count,
         "out_lap_count": out_lap_count,
         "classification_unknown_count": unknown_count,
