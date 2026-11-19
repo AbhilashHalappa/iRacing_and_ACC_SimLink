@@ -109,3 +109,43 @@ def test_unchanged_sessions_are_not_touched_and_new_laps_update_only_their_sessi
     ) as handle:
         updated_laps = list(csv.DictReader(handle))
     assert [row["lap_number"] for row in updated_laps] == ["1", "2", "3"]
+
+
+
+def test_locked_legacy_export_does_not_abort_evidence_update(tmp_path, monkeypatch):
+    rows = _rows()
+    initial = write_session_evidence(
+        rows, tmp_path, "first", {"archive_data_check": "PASS"}, []
+    )
+    session = next(item for item in initial if item["session_id"] == "acc-run:session-one:0:0")
+    legacy = session["directory"] / "laps_acc-run_session-one_0_0_20261119_194308.csv"
+    legacy.write_text("legacy", encoding="utf-8")
+
+    rows.append({
+        "session_id": "acc-run:session-one:0:0",
+        "lap_number": 3,
+        "lap_time_ms": 118000,
+        "quality": {"ok": True},
+    })
+
+    original_unlink = type(legacy).unlink
+
+    def unlink_with_lock(path, *args, **kwargs):
+        if path == legacy:
+            raise PermissionError("file is open")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(type(legacy), "unlink", unlink_with_lock)
+    updated = write_session_evidence(
+        rows, tmp_path, "second", {"archive_data_check": "PASS"}, []
+    )
+    changed_session = next(
+        item for item in updated if item["session_id"] == "acc-run:session-one:0:0"
+    )
+
+    assert changed_session["updated"] is True
+    assert legacy.exists()
+    assert changed_session["cleanup_warnings"] == [
+        f"legacy_file_in_use:{legacy.name}"
+    ]
+    assert changed_session["laps"].is_file()
