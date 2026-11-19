@@ -140,18 +140,18 @@ def test_compare_profiles_returns_available_channel_deltas_and_discrete_gear():
     reference = [
         {"distance_m": 0.0, "elapsed_s": 0.0, "speed_mps": 10.0,
          "throttle_ratio": 0.2, "brake_ratio": 0.8, "steering_angle_rad": 0.0,
-         "gear_index": 2, "engine_rpm": 6000},
+         "gear_index": 2, "engine_rpm": 6000, "brake_pressure": 100.0},
         {"distance_m": 10.0, "elapsed_s": 1.0, "speed_mps": 20.0,
          "throttle_ratio": 0.8, "brake_ratio": 0.0, "steering_angle_rad": 0.2,
-         "gear_index": 3, "engine_rpm": 7000},
+         "gear_index": 3, "engine_rpm": 7000, "brake_pressure": 0.0},
     ]
     comparison = [
         {"distance_m": 0.0, "elapsed_s": 0.1, "speed_mps": 12.0,
          "throttle_ratio": 0.3, "brake_ratio": 0.7, "steering_angle_rad": 0.1,
-         "gear_index": 2, "engine_rpm": 6200},
+         "gear_index": 2, "engine_rpm": 6200, "brake_pressure": 90.0},
         {"distance_m": 10.0, "elapsed_s": 1.2, "speed_mps": 18.0,
          "throttle_ratio": 0.9, "brake_ratio": 0.1, "steering_angle_rad": 0.3,
-         "gear_index": 4, "engine_rpm": 7200},
+         "gear_index": 4, "engine_rpm": 7200, "brake_pressure": 10.0},
     ]
     result = compare_lap_profiles(
         reference, comparison, distance_step_m=10.0, max_bracket_gap_m=10.0
@@ -162,6 +162,7 @@ def test_compare_profiles_returns_available_channel_deltas_and_discrete_gear():
     assert midpoint["brake_ratio_delta"] == pytest.approx(0.1)
     assert midpoint["steering_angle_rad_delta"] == pytest.approx(0.1)
     assert midpoint["engine_rpm_delta"] == pytest.approx(200.0)
+    assert midpoint["brake_pressure_delta"] == pytest.approx(10.0)
     assert midpoint["reference_gear_index"] == 3
     assert midpoint["comparison_gear_index"] == 4
     assert midpoint["gear_changed"] is True
