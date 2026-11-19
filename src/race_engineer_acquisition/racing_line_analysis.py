@@ -114,6 +114,9 @@ def compare_racing_lines(
     end = min(reference[-1]["distance_m"], comparison[-1]["distance_m"])
     if end <= start:
         return {"available": False, "reason": "no_common_distance_range", "samples": []}
+    sample_count = int((end - start) / distance_step_m) + 1
+    if sample_count > 100_000:
+        raise ValueError("racing-line distance grid exceeds the 100000-sample safety limit")
     output = []
     distance = start
     while distance <= end + 1e-9:
