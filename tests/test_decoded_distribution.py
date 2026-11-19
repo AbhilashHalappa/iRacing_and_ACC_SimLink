@@ -218,7 +218,15 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
         assert first_event.source_stream == "graphics"
         assert first_event.source_capture_sequence == 2
 
-        publish_graphics(2, 3, valid=True)
+        # The observer classifies a lap from validity observed during
+        # that lap. Supply an in-lap ACC observation before its completion
+        # boundary; a true value only on the boundary cannot classify it.
+        publish_graphics(1, 3, valid=True)
+        assert _wait_for(
+            lambda: broker.latest is not None
+            and broker.latest.telemetry.graphics.capture_sequence == 3
+        )
+        publish_graphics(2, 4, valid=True)
         assert _wait_for(
             lambda: broker.metrics["event_delivery"]["published_count"] >= 2
         )
@@ -229,7 +237,7 @@ def test_broker_emits_completed_lap_event_from_fresh_decoded_graphics():
         assert event.payload["lap_number"] == 2
         assert event.payload["lap_valid"] is True
         assert event.source_stream == "graphics"
-        assert event.source_capture_sequence == 3
+        assert event.source_capture_sequence == 4
         reconciliation = broker.reconcile_lap_progress()
         assert reconciliation is not None
         assert reconciliation.completed_laps == 2
