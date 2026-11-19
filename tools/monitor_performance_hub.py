@@ -242,6 +242,23 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
             if status == "age_known_threshold_unconfigured":
                 metadata_age_known_threshold_unconfigured += 1
 
+    sector_observation_count = 0
+    sector_value_change_count = 0
+    sector_time_value_change_count = 0
+    racing_line_available_lap_count = 0
+    racing_line_position_sample_count = 0
+    for row in rows:
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
+        sector = quality.get("sector_evidence")
+        if isinstance(sector, dict):
+            sector_observation_count += int(sector.get("observation_count", 0) or 0)
+            sector_value_change_count += int(sector.get("sector_value_change_count", 0) or 0)
+            sector_time_value_change_count += int(sector.get("last_sector_time_value_change_count", 0) or 0)
+        position_count = quality.get("graphics_position_sample_count", 0)
+        if isinstance(position_count, int) and not isinstance(position_count, bool):
+            racing_line_position_sample_count += max(0, position_count)
+            racing_line_available_lap_count += int(position_count > 0)
+
     db_bytes = db_path.stat().st_size if db_path.exists() else 0
     wal_path = Path(str(db_path) + "-wal")
     shm_path = Path(str(db_path) + "-shm")
@@ -264,6 +281,11 @@ def evaluate(rows: list[dict[str, Any]], db_path: Path) -> dict[str, Any]:
         "compact_laps_with_timing_evidence": compact_laps_with_timing_evidence,
         "metadata_freshness_counts": metadata_freshness_counts,
         "metadata_age_known_threshold_unconfigured": metadata_age_known_threshold_unconfigured,
+        "sector_observation_count": sector_observation_count,
+        "sector_value_change_count": sector_value_change_count,
+        "sector_time_value_change_count": sector_time_value_change_count,
+        "racing_line_available_lap_count": racing_line_available_lap_count,
+        "racing_line_position_sample_count": racing_line_position_sample_count,
         "trace_bytes_accounted_by_archive": trace_bytes,
         "database_bytes": db_bytes,
         "wal_bytes": wal_bytes,
