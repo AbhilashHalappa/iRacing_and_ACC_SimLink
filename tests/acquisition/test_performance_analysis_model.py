@@ -85,3 +85,18 @@ def test_alignment_requires_explicit_nonnegative_tolerance():
 def test_normalizer_rejects_unknown_stream():
     with pytest.raises(ValueError):
         normalize_sample(N(stream="telemetry", data={}))
+
+
+def test_normalization_marks_nonfinite_values_missing_and_keeps_gear_semantics_raw():
+    sample = N(
+        stream="physics", capture_sequence=1, capture_timestamp_ns=2,
+        data=N(speed_kph=float("nan"), throttle=0.5, gear_raw=0,
+               velocity=(1.0, float("inf"), 3.0), brake_bias=54.0),
+    )
+    row = normalize_sample(sample)
+    assert row["source_values"]["speed_kph"] != row["source_values"]["speed_kph"]
+    assert row["values"]["speed_mps"] is None
+    assert row["values"]["world_velocity_mps"] == (1.0, None, 3.0)
+    assert row["values"]["gear_raw"] == 0
+    assert row["values"]["gear_index"] == -1
+    assert row["units"]["brake_bias_percent"] == "percent"
