@@ -29,21 +29,23 @@ def build_lap_profile(
         if not isinstance(speed, (int, float)) or isinstance(speed, bool):
             continue
         points.append((float(distance), timestamp, float(speed)))
-    points.sort(key=lambda item: item[0])
+    points.sort(key=lambda item: item[1])
     if len(points) < 2:
         return ()
-    origin_ns = min(item[1] for item in points)
+    origin_ns = points[0][1]
     result = []
     previous_distance = None
+    previous_timestamp = None
     for distance, timestamp, speed in points:
-        if previous_distance is not None and distance <= previous_distance:
-            continue
+        if previous_distance is not None and (distance <= previous_distance or timestamp <= previous_timestamp):
+            return ()
         result.append({
             "distance_m": distance,
             "elapsed_s": (timestamp - origin_ns) / 1_000_000_000,
             "speed_mps": speed,
         })
         previous_distance = distance
+        previous_timestamp = timestamp
     return tuple(result) if len(result) >= 2 else ()
 
 
