@@ -71,6 +71,52 @@ def test_worker_assembles_trace_from_independent_feeds():
         worker.close()
 
 
+def test_worker_marks_pre_boundary_sample_loss_when_lap_one_start_arrives():
+    samples = DecodedSampleSubscription("samples", capacity=1)
+    sample_type = type("Sample", (), {})
+    accepted = sample_type()
+    accepted.stream = "physics"
+    accepted.capture_sequence = 1
+    accepted.capture_timestamp_ns = 110
+    accepted.data = {"sample": 1}
+    rejected = sample_type()
+    rejected.stream = "physics"
+    rejected.capture_sequence = 2
+    rejected.capture_timestamp_ns = 120
+    rejected.data = {"sample": 2}
+    assert samples._offer(accepted) is True
+    assert samples._offer(rejected) is False
+
+    publisher = DecodedEventPublisher()
+    events = publisher.subscribe("events", capacity=8)
+    publisher.publish(
+        "lap.started",
+        session_id="run-A",
+        source_stream="graphics",
+        source_capture_sequence=5,
+        source_timestamp_ns=100,
+        payload={"lap_number": 1},
+    )
+    worker = PerformanceLapCaptureWorker(samples, events, poll_interval_s=0.002)
+    worker.start()
+    try:
+        assert _wait_for(lambda: worker.metrics["diagnostic_count"] >= 2)
+        outputs = []
+        while True:
+            output = worker.read_result()
+            if output is None:
+                break
+            outputs.append(output)
+        diagnostics = [
+            diagnostic
+            for output in outputs
+            for diagnostic in output.diagnostics
+        ]
+        assert sum(item.kind == "sample_gap" for item in diagnostics) == 2
+    finally:
+        worker.close()
+
+
 def test_worker_reports_event_mailbox_gap_and_shuts_down():
     samples = DecodedSampleSubscription("samples", capacity=8)
     publisher = DecodedEventPublisher()
