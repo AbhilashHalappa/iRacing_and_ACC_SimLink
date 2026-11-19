@@ -275,13 +275,22 @@ class DecodedTelemetryBroker:
                 f"{getattr(graphics_data, 'session_index', None)}:"
                 f"{getattr(graphics_data, 'session', None)}"
             )
+        initial_out_lap_crossing = False
         if out_lap_fresh and graphics_data is not None and physics_view.data is not None:
             session_key = (
                 getattr(graphics_data, "session_index", None),
                 getattr(graphics_data, "session", None),
             )
+            was_out_lap_active = self._out_lap_observer.active
+            was_out_lap_completed = self._out_lap_observer.out_lap_completed
             active = self._out_lap_observer.observe(
                 graphics_data, getattr(physics_view.data, "speed_kph", None), session_key
+            )
+            initial_out_lap_crossing = (
+                was_out_lap_active
+                and not was_out_lap_completed
+                and self._out_lap_observer.out_lap_completed
+                and not active
             )
             completed_lap_out_lap = self._out_lap_observer.last_completed_lap_out_lap
         else:
@@ -291,6 +300,27 @@ class DecodedTelemetryBroker:
             self._out_lap_fresh = out_lap_fresh
             if completed_lap_out_lap is not None:
                 self._last_completed_lap_out_lap = completed_lap_out_lap
+        if (
+            initial_out_lap_crossing
+            and self._strategy_session_id is not None
+            and graphics_view.capture_sequence is not None
+            and graphics_view.capture_timestamp_ns is not None
+        ):
+            # Reuse the Overview observer's exact initial out-lap crossing as
+            # the trusted start of ACC Lap 1. No second position/lap detector.
+            self._events.publish(
+                "lap.started",
+                session_id=self._strategy_session_id,
+                source_stream="graphics",
+                source_capture_sequence=graphics_view.capture_sequence,
+                source_timestamp_ns=graphics_view.capture_timestamp_ns,
+                payload={
+                    "lap_number": 1,
+                    "start_reason": "initial_out_lap_start_finish_crossing",
+                    "boundary_source": "ACCOutLapObserver",
+                },
+            )
+
         lap_events = self._lap_event_observer.observe(
             telemetry, completed_lap_out_lap=completed_lap_out_lap
         )
