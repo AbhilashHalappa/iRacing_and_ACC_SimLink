@@ -107,6 +107,13 @@ class CompletedLapEventObserver:
                 self._lap_validity = True
             return ()
 
+        # Overview applies a false ACC validity observation before handling
+        # the completion transition. A true value on this boundary frame does
+        # not initialize an otherwise unknown lap classification.
+        boundary_validity = getattr(graphics, "is_valid_lap", None)
+        if boundary_validity is False:
+            self._lap_validity = False
+
         self._completed_laps = completed
         delta = completed - previous
         source_sequence = graphics_view.capture_sequence
