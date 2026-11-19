@@ -37,6 +37,7 @@ def build_track_trajectory(
         raise ValueError("minimum_point_spacing_m must be non-negative")
     points = []
     last_position = None
+    source_distance_origin = None
     for sample in graphics_samples:
         data = _sample_data(sample)
         position = _xyz(data.get("player_world_position"))
@@ -51,14 +52,18 @@ def build_track_trajectory(
             continue
         if points and timestamp <= points[-1]["capture_timestamp_ns"]:
             return ()
-        if points and float(distance) <= points[-1]["distance_m"]:
+        if source_distance_origin is None:
+            source_distance_origin = float(distance)
+        lap_distance = float(distance) - source_distance_origin
+        if points and lap_distance <= points[-1]["distance_m"]:
             return ()
         if last_position is not None:
             spacing = math.dist(last_position, position)
             if spacing < minimum_point_spacing_m:
                 continue
         points.append({
-            "distance_m": float(distance),
+            "distance_m": lap_distance,
+            "source_distance_m": float(distance),
             "position_xyz_m": position,
             "capture_timestamp_ns": timestamp,
             "capture_sequence": sequence,
