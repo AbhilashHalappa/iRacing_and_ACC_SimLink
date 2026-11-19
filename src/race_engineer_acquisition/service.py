@@ -19,7 +19,6 @@ from .performance_lap_archive import (
     PerformanceArchiveConfig,
     PerformanceLapArchive,
     PerformanceLapPersistenceWorker,
-    default_performance_archive_path,
 )
 
 
@@ -133,7 +132,7 @@ class RaceEngineerService:
             sample_capacity=100_000, result_capacity=4,
         )
         self._performance_archive = PerformanceLapArchive(
-            performance_archive_path or default_performance_archive_path(),
+            performance_archive_path,
             config=performance_archive_config,
         )
         self._performance_persistence = PerformanceLapPersistenceWorker(
