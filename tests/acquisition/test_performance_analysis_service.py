@@ -77,6 +77,7 @@ def policy():
         "merge_gap_m": 15.0,
         "brake_onset_threshold": 0.1,
         "throttle_pickup_threshold": 0.5,
+        "full_throttle_threshold": 0.98,
         "steering_threshold_rad": 0.2,
         "required_physics_channels": ("speed_mps", "throttle_ratio", "brake_ratio"),
         "required_graphics_channels": ("distance_m", "track_progress_ratio"),
