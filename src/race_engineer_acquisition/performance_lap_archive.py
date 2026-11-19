@@ -138,6 +138,60 @@ def _finite_number(value: Any) -> bool:
     )
 
 
+# Explicit archive contract for the current decoded Physics schema. Physics
+# payloads remain serialized in full, including future fields not yet listed here.
+PHYSICS_ARCHIVE_FIELDS = (
+    "packet_id",
+    "throttle",
+    "brake",
+    "fuel_kg",
+    "gear_raw",
+    "rpm",
+    "steering_angle",
+    "speed_kph",
+    "velocity",
+    "acc_g",
+    "wheel_slip",
+    "wheel_load",
+    "tyre_pressure_psi",
+    "wheel_angular_speed",
+    "tyre_core_temp_c",
+    "suspension_travel",
+    "tc_level",
+    "heading",
+    "pitch",
+    "roll",
+    "car_damage",
+    "pit_limiter_on",
+    "abs_level",
+    "autoshifter_on",
+    "turbo_boost",
+    "air_temp_c",
+    "road_temp_c",
+    "local_angular_velocity",
+    "brake_temp_c",
+    "clutch",
+    "is_ai_controlled",
+    "brake_bias",
+    "local_velocity",
+    "current_max_rpm",
+    "slip_ratio",
+    "slip_angle",
+    "tc_in_action",
+    "abs_in_action",
+    "suspension_damage",
+    "tyre_temp_c",
+    "water_temp_c",
+    "brake_pressure",
+    "front_brake_compound",
+    "rear_brake_compound",
+    "pad_life",
+    "disc_life",
+    "ignition_on",
+    "starter_engine_on",
+    "engine_running",
+)
+
 # Explicit archive contract for decoded Graphics fields used by Performance Hub.
 # Keep this list covered by archive round-trip tests; opponent-wide arrays are
 # intentionally excluded because they are not player-lap telemetry.
