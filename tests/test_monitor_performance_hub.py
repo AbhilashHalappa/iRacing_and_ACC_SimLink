@@ -1,5 +1,5 @@
 from tools.monitor_performance_hub import (
-    default_db_path, write_session_evidence, check_trace,
+    default_db_path, write_session_evidence, check_trace, evaluate,
 )
 from race_engineer_acquisition.performance_lap_archive import GRAPHICS_ARCHIVE_FIELDS
 from race_engineer_acquisition.storage_paths import (
@@ -193,3 +193,41 @@ def test_monitor_checks_complete_graphics_archive_field_contract():
     assert result["ok"] is False
     assert "last_sector_time_ms" in result["graphics_missing_archive_fields"]
     assert "graphics_missing_archive_fields:last_sector_time_ms" in result["reason"]
+
+
+
+def test_monitor_exposes_compact_timing_and_metadata_freshness(tmp_path):
+    rows = [{
+        "session_id": "run-compact",
+        "lap_number": 3,
+        "trace_status": "compact_metadata",
+        "lap_valid": 0,
+        "out_lap": 0,
+        "car_model": "car",
+        "track": "track",
+        "track_configuration": "config",
+        "pinned_pb": False,
+        "lap_time_ms": None,
+        "trace_bytes": 0,
+        "quality": {
+            "graphics_timing_observation_count": 4,
+            "metadata_freshness": {
+                "fields": {
+                    "weather": {"status": "stale"},
+                    "car": {"status": "unavailable"},
+                    "track": {"status": "age_known_threshold_unconfigured"},
+                }
+            },
+        },
+    }]
+
+    result = evaluate(rows, tmp_path / "archive.sqlite3")
+
+    assert result["compact_timing_observation_count"] == 4
+    assert result["compact_laps_with_timing_evidence"] == 1
+    assert result["metadata_freshness_counts"] == {
+        "stale": 1,
+        "unavailable": 1,
+        "age_known_threshold_unconfigured": 1,
+    }
+    assert result["metadata_age_known_threshold_unconfigured"] == 1
