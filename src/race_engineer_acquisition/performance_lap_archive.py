@@ -311,14 +311,49 @@ class PerformanceLapArchive:
                 position_count += 1
             if _finite_number(progress):
                 progress_count += 1
-            graphics_payload.append({
+            # Explicit scalar allowlist from DecodedGraphics. Preserve the
+            # source observation at its original Graphics sequence/timestamp.
+            # Opponent arrays (car_ids/car_coordinates) are intentionally
+            # excluded: they are high-cardinality and are not player-lap data.
+            graphics_fields = (
+                "packet_id", "status", "session", "current_time_str",
+                "last_time_str", "best_time_str", "split_time_str",
+                "completed_laps", "position", "current_time_ms",
+                "last_time_ms", "best_time_ms", "session_time_left_ms",
+                "distance_traveled_m", "is_in_pit", "sector",
+                "last_sector_time_ms", "number_of_laps", "tyre_compound",
+                "normalized_car_position", "player_car_id",
+                "player_world_position", "penalty_time_s", "flag",
+                "penalty", "ideal_line_on", "is_in_pit_lane", "surface_grip",
+                "mandatory_pit_done", "wind_speed", "wind_direction",
+                "setup_menu_visible", "main_display_index",
+                "secondary_display_index", "tc_level", "tc_cut",
+                "engine_map", "abs_level", "fuel_per_lap_l", "rain_lights",
+                "flashing_lights", "lights_stage", "exhaust_temp_c",
+                "wiper_level", "driver_stint_total_ms", "driver_stint_left_ms",
+                "rain_tyres", "session_index", "used_fuel_l",
+                "delta_lap_time_str", "delta_lap_time_ms",
+                "estimated_lap_time_str", "estimated_lap_time_ms",
+                "delta_positive", "split_ms", "is_valid_lap",
+                "fuel_estimated_laps", "track_status",
+                "missing_mandatory_pits", "clock_s", "direction_left",
+                "direction_right", "global_yellow", "global_yellow_1",
+                "global_yellow_2", "global_yellow_3", "global_white",
+                "global_green", "global_chequered", "global_red",
+                "mfd_tyre_set", "mfd_fuel_to_add", "mfd_tyre_pressures",
+                "track_grip_status", "rain_intensity", "rain_10min",
+                "rain_30min", "current_tyre_set", "strategy_tyre_set",
+                "gap_ahead_ms", "gap_behind_ms",
+            )
+            observation = {
+                name: _jsonable(_get(data, name))
+                for name in graphics_fields
+            }
+            observation.update({
                 "capture_sequence": _get(sample, "capture_sequence"),
                 "capture_timestamp_ns": _get(sample, "capture_timestamp_ns"),
-                "normalized_car_position": progress,
-                "distance_traveled_m": distance,
-                "player_world_position": _jsonable(world),
-                "packet_id": _get(data, "packet_id"),
             })
+            graphics_payload.append(observation)
 
         payload = {
             "schema_version": self.SCHEMA_VERSION,
