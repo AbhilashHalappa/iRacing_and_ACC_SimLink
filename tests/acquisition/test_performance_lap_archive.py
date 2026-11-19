@@ -388,3 +388,66 @@ def test_metadata_freshness_distinguishes_fresh_stale_and_future():
 def test_every_decoded_physics_field_is_in_full_payload_archive_contract():
     decoder_fields = set(DecodedPhysics.__dataclass_fields__)
     assert decoder_fields == set(PHYSICS_ARCHIVE_FIELDS)
+
+
+
+def test_archive_persists_raw_sector_evidence_for_valid_trace(tmp_path):
+    trace = _trace("run-sector", 1)
+    archive = PerformanceLapArchive(tmp_path / "sector.sqlite3")
+    try:
+        archive.write_output(LapAssemblyOutput(completed=(trace,)), _context())
+        row = archive.read_laps(track="spa", limit=10)[0]
+        quality = row["quality"]
+        assert quality["sector_evidence"]["sector_time_assignment"] == "not_inferred"
+        assert quality["sector_evidence"]["observation_count"] >= 0
+    finally:
+        archive.close()
+
+
+def test_archive_persists_raw_sector_evidence_for_compact_lap(tmp_path):
+    compact = CompactLapMetadata(
+        session_id="run-compact-sector",
+        lap_number=2,
+        lap_time_ms=None,
+        lap_valid=False,
+        out_lap=False,
+        start_timestamp_ns=100,
+        end_timestamp_ns=300,
+        physics_sample_count=0,
+        graphics_sample_count=2,
+        reason="invalid_lap",
+        graphics_timing_observations=(
+            {
+                "observation_kind": "graphics_timing_change_point",
+                "source_stream": "graphics",
+                "capture_sequence": 10,
+                "capture_timestamp_ns": 150,
+                "changed_fields": ["sector", "last_sector_time_ms"],
+                "data": {
+                    "sector": 1,
+                    "last_sector_time_ms": 28_000,
+                },
+            },
+            {
+                "observation_kind": "graphics_timing_change_point",
+                "source_stream": "graphics",
+                "capture_sequence": 20,
+                "capture_timestamp_ns": 250,
+                "changed_fields": ["sector", "last_sector_time_ms"],
+                "data": {
+                    "sector": 2,
+                    "last_sector_time_ms": 31_000,
+                },
+            },
+        ),
+    )
+    archive = PerformanceLapArchive(tmp_path / "compact-sector.sqlite3")
+    try:
+        archive.write_output(LapAssemblyOutput(compact=(compact,)), _context())
+        row = archive.read_laps(track="spa", limit=10)[0]
+        evidence = row["quality"]["sector_evidence"]
+        assert evidence["raw_sector_values"] == [1, 2]
+        assert evidence["sector_time_assignment"] == "not_inferred"
+        assert len(row["quality"]["sector_observations"]) == 2
+    finally:
+        archive.close()
