@@ -467,3 +467,19 @@ def test_read_lap_metadata_looks_up_stable_session_lap_key(tmp_path):
         assert archive.read_lap_metadata("missing-session", 7) is None
     finally:
         archive.close()
+
+
+def test_archive_lap_query_can_filter_by_session_id(tmp_path):
+    archive = PerformanceLapArchive(tmp_path / "session-filter.sqlite3")
+    try:
+        archive.write_output(
+            LapAssemblyOutput(completed=(_trace("session-a", 1),)), _context()
+        )
+        archive.write_output(
+            LapAssemblyOutput(completed=(_trace("session-b", 1),)), _context()
+        )
+        rows = archive.read_laps(session_id="session-a", limit=10)
+        assert len(rows) == 1
+        assert rows[0]["session_id"] == "session-a"
+    finally:
+        archive.close()
