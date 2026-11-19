@@ -16,6 +16,7 @@ from race_engineer_acquisition.performance_lap_archive import (
     PerformanceArchiveConfig,
     PerformanceLapArchive,
     PerformanceLapPersistenceWorker,
+    GRAPHICS_ARCHIVE_FIELDS,
 )
 
 
@@ -295,4 +296,51 @@ def test_persistence_worker_drains_capture_results_off_thread(tmp_path):
         assert archive.read_trace("run-1", 1) is not None
     finally:
         worker.close()
+        archive.close()
+
+
+
+def test_archive_round_trip_preserves_entire_graphics_field_contract_and_physics_payload(tmp_path):
+    """Every declared Graphics field and the complete Physics mapping survive storage."""
+    graphics_data = {
+        name: f"preserved:{name}" for name in GRAPHICS_ARCHIVE_FIELDS
+    }
+    physics_data = {
+        "speed_kph": 123.4,
+        "future_decoder_field": {"nested": [1, 2, 3]},
+    }
+    trace = CompletedLapTrace(
+        session_id="run-field-contract",
+        lap_number=1,
+        lap_time_ms=90_000,
+        start_timestamp_ns=100,
+        end_timestamp_ns=200,
+        physics_samples=(
+            DecodedSample("physics", 41, 110, physics_data),
+        ),
+        graphics_samples=(
+            DecodedSample("graphics", 73, 120, graphics_data),
+        ),
+    )
+    archive = PerformanceLapArchive(tmp_path / "field-contract.sqlite3")
+    try:
+        result = archive.write_output(
+            LapAssemblyOutput(completed=(trace,)),
+            _context(),
+        )
+        assert result.completed_stored == 1
+        stored = archive.read_trace("run-field-contract", 1)
+        assert stored is not None
+
+        graphics = stored["graphics"][0]
+        assert graphics["capture_sequence"] == 73
+        assert graphics["capture_timestamp_ns"] == 120
+        for name in GRAPHICS_ARCHIVE_FIELDS:
+            assert graphics[name] == graphics_data[name], name
+
+        physics = stored["physics"][0]
+        assert physics["capture_sequence"] == 41
+        assert physics["capture_timestamp_ns"] == 110
+        assert physics["data"] == physics_data
+    finally:
         archive.close()
