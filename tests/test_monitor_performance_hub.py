@@ -1,7 +1,9 @@
 from tools.monitor_performance_hub import (
     default_db_path, write_session_evidence, check_trace, evaluate,
 )
-from race_engineer_acquisition.performance_lap_archive import GRAPHICS_ARCHIVE_FIELDS
+from race_engineer_acquisition.performance_lap_archive import (
+    GRAPHICS_ARCHIVE_FIELDS, PHYSICS_ARCHIVE_FIELDS,
+)
 from race_engineer_acquisition.storage_paths import (
     default_monitor_reports_dir,
     default_performance_archive_path,
@@ -171,7 +173,7 @@ def test_monitor_checks_complete_graphics_archive_field_contract():
         "physics": [{
             "capture_sequence": 10,
             "capture_timestamp_ns": 100,
-            "data": {"speed_kph": 120.0},
+            "data": {name: None for name in PHYSICS_ARCHIVE_FIELDS},
         }],
         "graphics": [{
             "capture_sequence": 20,
@@ -183,6 +185,9 @@ def test_monitor_checks_complete_graphics_archive_field_contract():
     result = check_trace(blob, expected_physics=1, expected_graphics=1)
 
     assert result["ok"] is True
+    assert result["physics_field_contract_count"] == len(PHYSICS_ARCHIVE_FIELDS)
+    assert result["physics_field_coverage_count"] == len(PHYSICS_ARCHIVE_FIELDS)
+    assert result["physics_missing_archive_fields"] == []
     assert result["graphics_field_contract_count"] == len(GRAPHICS_ARCHIVE_FIELDS)
     assert result["graphics_field_coverage_count"] == len(GRAPHICS_ARCHIVE_FIELDS)
     assert result["graphics_missing_archive_fields"] == []
