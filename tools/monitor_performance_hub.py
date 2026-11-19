@@ -28,6 +28,9 @@ from race_engineer_acquisition.storage_paths import (
     default_performance_archive_path,
     migrate_legacy_performance_hub_data,
 )
+from race_engineer_acquisition.performance_lap_archive import (
+    GRAPHICS_ARCHIVE_FIELDS,
+)
 
 GIB = 1024 ** 3
 LAP_COLUMNS = (
@@ -77,6 +80,18 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
     if len(graphics) != expected_graphics:
         problems.append(f"graphics_count:{len(graphics)}!={expected_graphics}")
 
+    graphics_field_presence = {
+        name: all(name in sample for sample in graphics)
+        for name in GRAPHICS_ARCHIVE_FIELDS
+    }
+    missing_graphics_fields = sorted(
+        name for name, present in graphics_field_presence.items() if not present
+    )
+    if missing_graphics_fields:
+        problems.append(
+            "graphics_missing_archive_fields:" + ",".join(missing_graphics_fields)
+        )
+
     for stream_name, samples in (("physics", physics), ("graphics", graphics)):
         sequences = [s.get("capture_sequence") for s in samples]
         timestamps = [s.get("capture_timestamp_ns") for s in samples]
@@ -100,6 +115,9 @@ def check_trace(blob: bytes | None, expected_physics: int, expected_graphics: in
         "physics_last_sequence": physics[-1].get("capture_sequence"),
         "graphics_first_sequence": graphics[0].get("capture_sequence"),
         "graphics_last_sequence": graphics[-1].get("capture_sequence"),
+        "graphics_field_contract_count": len(GRAPHICS_ARCHIVE_FIELDS),
+        "graphics_field_coverage_count": len(GRAPHICS_ARCHIVE_FIELDS) - len(missing_graphics_fields),
+        "graphics_missing_archive_fields": missing_graphics_fields,
     }
 
 
