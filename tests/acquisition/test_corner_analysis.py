@@ -51,7 +51,7 @@ def test_corner_analysis_calculates_time_delta_only_when_both_profiles_bracket_c
     ]
     result = analyze_corner(
         comparison, {"corner_id": "turn-1", "start_distance_m": 100, "end_distance_m": 150},
-        brake_onset_threshold=0.1, throttle_pickup_threshold=0.5,
+        brake_onset_threshold=0.1, throttle_pickup_threshold=0.5, full_throttle_threshold=0.98,
         steering_threshold_rad=0.2, reference_profile=reference,
     )
     assert result["corner_time_delta_s"] == pytest.approx(0.5)
@@ -64,7 +64,7 @@ def test_corner_analysis_keeps_missing_channels_unavailable():
     ]
     result = analyze_corner(
         profile, {"corner_id": "turn-1", "start_distance_m": 1, "end_distance_m": 2},
-        brake_onset_threshold=0.1, throttle_pickup_threshold=0.5,
+        brake_onset_threshold=0.1, throttle_pickup_threshold=0.5, full_throttle_threshold=0.98,
         steering_threshold_rad=0.2,
     )
     assert result["braking_point_m"] is None
@@ -76,9 +76,9 @@ def test_corner_analysis_keeps_missing_channels_unavailable():
 def test_corner_analysis_rejects_invalid_thresholds_and_region():
     with pytest.raises(ValueError):
         analyze_corner([], {"start_distance_m": 1, "end_distance_m": 2},
-                       brake_onset_threshold=1.1, throttle_pickup_threshold=0.5,
+                       brake_onset_threshold=1.1, throttle_pickup_threshold=0.5, full_throttle_threshold=0.98,
                        steering_threshold_rad=0.2)
     with pytest.raises(ValueError):
         analyze_corner([], {"start_distance_m": 2, "end_distance_m": 1},
-                       brake_onset_threshold=0.1, throttle_pickup_threshold=0.5,
+                       brake_onset_threshold=0.1, throttle_pickup_threshold=0.5, full_throttle_threshold=0.98,
                        steering_threshold_rad=0.2)
