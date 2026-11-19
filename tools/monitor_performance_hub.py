@@ -339,12 +339,6 @@ def write_session_evidence(
     return written
 
 def main() -> int:
-    migration = migrate_legacy_performance_hub_data()
-    if migration["archive_copied"] or migration["reports_copied"]:
-        print(
-            "Migrated legacy Performance Hub data into the repository user_data folder: "
-            f"archive={migration['archive_copied']} reports={migration['reports_copied']}"
-        )
     parser = argparse.ArgumentParser(
         description="Read-only live monitor for the Race Engineer ACC Performance Hub archive."
     )
@@ -357,6 +351,13 @@ def main() -> int:
     parser.add_argument("--once", action="store_true",
                         help="Validate the archive once and exit (use after closing the game/app).")
     args = parser.parse_args()
+    if args.db == default_db_path():
+        migration = migrate_legacy_performance_hub_data()
+        if migration["archive_copied"] or migration["reports_copied"]:
+            print(
+                "Migrated legacy Performance Hub data into the repository user_data folder: "
+                f"archive={migration['archive_copied']} reports={migration['reports_copied']}"
+            )
     if args.interval < 0.5:
         parser.error("--interval must be at least 0.5 seconds")
 
