@@ -85,6 +85,11 @@ class CandidateLapAssembler:
         }
         self._overflow_streams: set[str] = set()
         self._quality_reasons: set[str] = set()
+        # Samples may reach the worker before the asynchronous broker emits
+        # the trusted Lap 1 start event. Keep a bounded pre-boundary window.
+        self._pre_boundary_dropped_through: dict[str, int | None] = {
+            stream: None for stream in self.STREAMS
+        }
         self._pending_events: deque[Any] = deque()
         self._last_event_sequence: int | None = None
 
@@ -111,6 +116,8 @@ class CandidateLapAssembler:
             self._last_sequence[stream] = None
         self._overflow_streams.clear()
         self._quality_reasons.clear()
+        for stream in self.STREAMS:
+            self._pre_boundary_dropped_through[stream] = None
 
     @staticmethod
     def _get(value: Any, key: str, default: Any = None) -> Any:
@@ -136,9 +143,6 @@ class CandidateLapAssembler:
                 LapAssemblyDiagnostic("invalid_sample_metadata", self._session_id, None,
                                       f"{stream} sample has invalid sequence/timestamp"),
             ))
-        if self._start_timestamp_ns is None:
-            return LapAssemblyOutput()
-
         previous_sequence = self._last_sequence[stream]
         previous_timestamp = self._watermarks[stream]
         if previous_sequence is not None and sequence <= previous_sequence:
@@ -153,8 +157,21 @@ class CandidateLapAssembler:
 
         self._last_sequence[stream] = sequence
         self._watermarks[stream] = timestamp
-        if timestamp > self._start_timestamp_ns:
-            buffer = self._buffers[stream]
+        buffer = self._buffers[stream]
+        if self._start_timestamp_ns is None:
+            # A bounded rolling pre-boundary window lets a delayed lap.started
+            # event retain samples captured just after the actual crossing.
+            if len(buffer) >= self._capacity:
+                dropped = buffer.popleft()
+                dropped_timestamp = self._get(dropped, "capture_timestamp_ns")
+                previous_dropped = self._pre_boundary_dropped_through[stream]
+                if isinstance(dropped_timestamp, int):
+                    self._pre_boundary_dropped_through[stream] = (
+                        dropped_timestamp if previous_dropped is None
+                        else max(previous_dropped, dropped_timestamp)
+                    )
+            buffer.append(sample)
+        elif timestamp > self._start_timestamp_ns:
             if len(buffer) < self._capacity:
                 buffer.append(sample)
             else:
@@ -263,7 +280,16 @@ class CandidateLapAssembler:
                 ))
             self._start_timestamp_ns = timestamp
             self._start_lap_number = lap_number
-            self._clear_interval()
+            for stream in self.STREAMS:
+                buffer = self._buffers[stream]
+                self._buffers[stream] = deque(
+                    sample for sample in buffer
+                    if self._get(sample, "capture_timestamp_ns") > timestamp
+                )
+                dropped_through = self._pre_boundary_dropped_through[stream]
+                if dropped_through is not None and dropped_through > timestamp:
+                    self._overflow_streams.add(stream)
+                self._pre_boundary_dropped_through[stream] = None
             return LapAssemblyOutput(diagnostics=tuple(
                 [diagnostic] if diagnostic is not None else []
             ))
@@ -290,6 +316,9 @@ class CandidateLapAssembler:
             ))
 
         if self._start_timestamp_ns is None:
+            # No trusted lap.started event was observed; preserve the existing
+            # conservative behavior and use this completion only as an anchor.
+            self._clear_interval()
             self._start_timestamp_ns = timestamp
             self._start_lap_number = lap_number
             return LapAssemblyOutput(diagnostics=tuple(
