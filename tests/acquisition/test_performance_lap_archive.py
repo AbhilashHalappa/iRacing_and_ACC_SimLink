@@ -31,7 +31,9 @@ def _trace(session: str, lap: int, lap_time_ms: int = 90_000) -> CompletedLapTra
     graphics = (
         DecodedSample("graphics", 200 + lap * 10, 1_000 + lap * 100,
                       {"normalized_car_position": 0.1, "distance_traveled_m": 100.0,
-                       "player_world_position": (1.0, 2.0, 3.0), "packet_id": 501}),
+                       "player_world_position": (1.0, 2.0, 3.0), "packet_id": 501,
+                       "sector": 1, "current_time_ms": 30_000,
+                       "last_sector_time_ms": 29_500, "is_valid_lap": True}),
         DecodedSample("graphics", 201 + lap * 10, 1_010 + lap * 100,
                       {"normalized_car_position": 0.2, "distance_traveled_m": 110.0,
                        "player_world_position": (1.5, 2.1, 3.5), "packet_id": 502}),
@@ -97,6 +99,10 @@ def test_valid_lap_round_trip_preserves_source_sequences_timestamps_and_context(
         assert trace["physics"][0]["data"]["speed_kph"] == 123.4
         assert trace["graphics"][0]["player_world_position"] == [1.0, 2.0, 3.0]
         assert trace["graphics"][0]["normalized_car_position"] == 0.1
+        assert trace["graphics"][0]["sector"] == 1
+        assert trace["graphics"][0]["current_time_ms"] == 30_000
+        assert trace["graphics"][0]["last_sector_time_ms"] == 29_500
+        assert trace["graphics"][0]["is_valid_lap"] is True
         assert archive.metrics["retained_trace_count"] == 1
     finally:
         archive.close()
@@ -126,6 +132,11 @@ def test_invalid_and_out_laps_are_compact_metadata_only(tmp_path):
         lap_valid=False, out_lap=False, start_timestamp_ns=100,
         end_timestamp_ns=200, physics_sample_count=10,
         graphics_sample_count=2, reason="invalid_lap",
+        graphics_timing_observations=({
+            "capture_sequence": 221, "capture_timestamp_ns": 1200,
+            "changed_fields": ["sector", "is_valid_lap"],
+            "data": {"sector": 2, "is_valid_lap": False},
+        },),
     )
     out_lap = CompactLapMetadata(
         session_id="run-2", lap_number=3, lap_time_ms=None,
@@ -143,6 +154,11 @@ def test_invalid_and_out_laps_are_compact_metadata_only(tmp_path):
         rows = archive.read_laps(track="spa")
         assert {row["trace_status"] for row in rows} == {"compact_metadata"}
         assert {row["reason"] for row in rows} == {"invalid_lap", "out_lap"}
+        invalid_row = next(row for row in rows if row["lap_number"] == 2)
+        assert invalid_row["quality"]["graphics_timing_observation_count"] == 1
+        assert invalid_row["quality"]["graphics_timing_observations"][0]["data"]["sector"] == 2
+        out_lap_row = next(row for row in rows if row["lap_number"] == 3)
+        assert out_lap_row["quality"]["graphics_timing_observation_count"] == 0
         assert archive.metrics["retained_trace_count"] == 0
     finally:
         archive.close()
