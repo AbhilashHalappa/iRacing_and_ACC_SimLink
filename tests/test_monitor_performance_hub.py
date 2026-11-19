@@ -1,4 +1,7 @@
-from tools.monitor_performance_hub import default_db_path, write_session_evidence
+from tools.monitor_performance_hub import (
+    default_db_path, write_session_evidence, check_trace,
+)
+from race_engineer_acquisition.performance_lap_archive import GRAPHICS_ARCHIVE_FIELDS
 from race_engineer_acquisition.storage_paths import (
     default_monitor_reports_dir,
     default_performance_archive_path,
@@ -6,6 +9,7 @@ from race_engineer_acquisition.storage_paths import (
 
 import csv
 import json
+import zlib
 
 
 
@@ -159,3 +163,33 @@ def test_locked_legacy_export_does_not_abort_evidence_update(tmp_path, monkeypat
 def test_monitor_defaults_match_runtime_repository_relative_storage():
     assert default_db_path() == default_performance_archive_path()
     assert default_monitor_reports_dir().parts[-3:] == ("user_data", "PerformanceHub", "monitor_reports")
+
+
+
+def test_monitor_checks_complete_graphics_archive_field_contract():
+    payload = {
+        "physics": [{
+            "capture_sequence": 10,
+            "capture_timestamp_ns": 100,
+            "data": {"speed_kph": 120.0},
+        }],
+        "graphics": [{
+            "capture_sequence": 20,
+            "capture_timestamp_ns": 105,
+            **{name: None for name in GRAPHICS_ARCHIVE_FIELDS},
+        }],
+    }
+    blob = zlib.compress(json.dumps(payload).encode("utf-8"))
+    result = check_trace(blob, expected_physics=1, expected_graphics=1)
+
+    assert result["ok"] is True
+    assert result["graphics_field_contract_count"] == len(GRAPHICS_ARCHIVE_FIELDS)
+    assert result["graphics_field_coverage_count"] == len(GRAPHICS_ARCHIVE_FIELDS)
+    assert result["graphics_missing_archive_fields"] == []
+
+    del payload["graphics"][0]["last_sector_time_ms"]
+    incomplete = zlib.compress(json.dumps(payload).encode("utf-8"))
+    result = check_trace(incomplete, expected_physics=1, expected_graphics=1)
+    assert result["ok"] is False
+    assert "last_sector_time_ms" in result["graphics_missing_archive_fields"]
+    assert "graphics_missing_archive_fields:last_sector_time_ms" in result["reason"]
