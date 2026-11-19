@@ -107,3 +107,14 @@ def test_trajectory_keeps_lap_origin_when_first_position_sample_is_missing():
         sample(300, 3, 2420.0, (10.0, 0.0, 0.0)),
     ])
     assert [point["distance_m"] for point in points] == [10.0, 20.0]
+
+
+def test_racing_line_comparison_rejects_unbounded_distance_grid():
+    reference = build_track_trajectory([
+        sample(100, 1, 0.0, (0.0, 0.0, 0.0)),
+        sample(200, 2, 2.0, (2.0, 0.0, 0.0)),
+    ])
+    with pytest.raises(ValueError, match="100000-sample"):
+        compare_racing_lines(
+            reference, reference, distance_step_m=0.000001, max_bracket_gap_m=2.0
+        )
