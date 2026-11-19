@@ -34,6 +34,10 @@ def test_corner_analysis_measures_braking_turn_in_min_speed_and_throttle_pickup(
     assert result["available"] is True
     assert result["braking_point_m"] == 110
     assert result["peak_brake_ratio"] == pytest.approx(0.8)
+    assert result["peak_brake_point_m"] == 120
+    assert result["brake_release_point_m"] == 140
+    assert result["trail_braking_distance_m"] == 20
+    assert result["trail_braking_active_at_turn_in"] is True
     assert result["turn_in_point_m"] == 120
     assert result["minimum_speed_mps"] == 25
     assert result["minimum_speed_point_m"] == 130
