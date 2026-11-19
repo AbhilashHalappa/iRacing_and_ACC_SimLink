@@ -132,6 +132,15 @@ GRAPHICS_ARCHIVE_FIELDS = (
         "gap_ahead_ms", "gap_behind_ms",
 )
 
+# Decoded Graphics fields intentionally omitted from per-player lap traces.
+# Keep every decoder field classified; these are not used by roadmap analysis.
+GRAPHICS_EXCLUDED_FIELDS = {
+    "active_cars": "Session-wide opponent count is not required by current roadmap analysis.",
+    "car_ids": "Opponent-wide identity array is not player-lap telemetry.",
+    "car_coordinates": "Opponent-wide coordinates are high-cardinality and not required for player-lap analysis.",
+}
+
+
 
 class PerformanceLapArchive:
     """Single-owner SQLite archive with atomic trace finalization and retention."""
@@ -346,10 +355,8 @@ class PerformanceLapArchive:
                 position_count += 1
             if _finite_number(progress):
                 progress_count += 1
-            # Explicit scalar allowlist from DecodedGraphics. Preserve the
-            # source observation at its original Graphics sequence/timestamp.
-            # Opponent arrays (car_ids/car_coordinates) are intentionally
-            # excluded: they are high-cardinality and are not player-lap data.
+            # Preserve all required decoded Graphics fields at their original
+            # source sequence/timestamp. Exclusions are documented above.
             graphics_fields = GRAPHICS_ARCHIVE_FIELDS
             observation = {
                 name: _jsonable(_get(data, name))
