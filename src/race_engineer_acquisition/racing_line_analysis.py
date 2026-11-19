@@ -38,6 +38,8 @@ def build_track_trajectory(
     points = []
     last_position = None
     source_distance_origin = None
+    last_source_distance = None
+    last_source_timestamp = None
     for sample in graphics_samples:
         data = _sample_data(sample)
         position = _xyz(data.get("player_world_position"))
@@ -50,6 +52,13 @@ def build_track_trajectory(
             continue
         if source_distance_origin is None:
             source_distance_origin = float(distance)
+        if last_source_distance is not None and float(distance) <= last_source_distance:
+            return ()
+        last_source_distance = float(distance)
+        if isinstance(timestamp, int) and not isinstance(timestamp, bool):
+            if last_source_timestamp is not None and timestamp <= last_source_timestamp:
+                return ()
+            last_source_timestamp = timestamp
         if position is None or not isinstance(timestamp, int) or isinstance(timestamp, bool):
             continue
         if points and timestamp <= points[-1]["capture_timestamp_ns"]:
