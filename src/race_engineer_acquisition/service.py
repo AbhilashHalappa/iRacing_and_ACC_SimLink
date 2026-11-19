@@ -132,7 +132,7 @@ class RaceEngineerService:
             sample_capacity=100_000, result_capacity=4,
         )
         self._performance_archive = PerformanceLapArchive(
-            performance_archive_path,
+            performance_archive_path or None,
             config=performance_archive_config,
         )
         self._performance_persistence = PerformanceLapPersistenceWorker(
