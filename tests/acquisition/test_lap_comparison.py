@@ -165,3 +165,14 @@ def test_compare_profiles_returns_available_channel_deltas_and_discrete_gear():
     assert midpoint["reference_gear_index"] == 3
     assert midpoint["comparison_gear_index"] == 4
     assert midpoint["gear_changed"] is True
+
+
+def test_comparison_rejects_unbounded_distance_grid():
+    profile = [
+        {"distance_m": 0.0, "elapsed_s": 0.0},
+        {"distance_m": 2.0, "elapsed_s": 1.0},
+    ]
+    with pytest.raises(ValueError, match="100000-sample"):
+        compare_lap_profiles(
+            profile, profile, distance_step_m=0.000001, max_bracket_gap_m=2.0
+        )
