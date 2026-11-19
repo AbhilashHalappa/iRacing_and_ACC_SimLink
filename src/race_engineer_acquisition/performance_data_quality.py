@@ -49,16 +49,25 @@ def check_progress_continuity(
     """
     if max_progress_step <= 0:
         raise ValueError("max_progress_step must be positive")
-    rows = sorted(
-        (row for row in graphics_rows if isinstance(row.get("capture_timestamp_ns"), int)),
-        key=lambda row: row["capture_timestamp_ns"],
-    )
+    rows = list(graphics_rows)
     values = [
         (row.get("values") or {}).get("track_progress_ratio")
         for row in rows
     ]
     issues = []
+    timestamps = [row.get("capture_timestamp_ns") for row in rows]
     for index, (before, after) in enumerate(zip(values, values[1:])):
+        left_timestamp, right_timestamp = timestamps[index:index + 2]
+        if (
+            not isinstance(left_timestamp, int) or isinstance(left_timestamp, bool)
+            or not isinstance(right_timestamp, int) or isinstance(right_timestamp, bool)
+        ):
+            issues.append({"index": index, "kind": "capture_timestamp_unavailable"})
+        elif right_timestamp <= left_timestamp:
+            issues.append({
+                "index": index, "kind": "capture_timestamp_not_increasing",
+                "delta_ns": right_timestamp - left_timestamp,
+            })
         if before is None or after is None:
             continue
         if not isinstance(before, (int, float)) or not isinstance(after, (int, float)):
