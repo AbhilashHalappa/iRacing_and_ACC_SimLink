@@ -87,6 +87,39 @@ def check_progress_continuity(
     }
 
 
+def summarize_alignment(
+    aligned_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Summarize timestamp-pair coverage and observed alignment error."""
+    total = len(aligned_rows)
+    matched = [
+        row for row in aligned_rows
+        if row.get("aligned") is True
+        and isinstance(row.get("alignment_delta_ns"), int)
+        and not isinstance(row.get("alignment_delta_ns"), bool)
+    ]
+    deltas = sorted(row["alignment_delta_ns"] for row in matched)
+    coverage = len(matched) / total if total else None
+    median = None
+    if deltas:
+        middle = len(deltas) // 2
+        median = (
+            deltas[middle] if len(deltas) % 2
+            else (deltas[middle - 1] + deltas[middle]) / 2
+        )
+    return {
+        "sample_count": total,
+        "aligned_sample_count": len(matched),
+        "unaligned_sample_count": total - len(matched),
+        "coverage_ratio": coverage,
+        "median_alignment_delta_ns": median,
+        "max_alignment_delta_ns": max(deltas) if deltas else None,
+        "status": "unavailable" if total == 0 or not matched else (
+            "complete" if len(matched) == total else "partial"
+        ),
+    }
+
+
 def analysis_readiness(
     physics_rows: Sequence[Mapping[str, Any]],
     graphics_rows: Sequence[Mapping[str, Any]],
@@ -95,6 +128,8 @@ def analysis_readiness(
     required_graphics_channels: Sequence[str],
     minimum_channel_coverage: float,
     progress_check: Mapping[str, Any] | None = None,
+    alignment_check: Mapping[str, Any] | None = None,
+    minimum_alignment_coverage: float | None = None,
 ) -> dict[str, Any]:
     """Evaluate analysis eligibility independently of ACC lap validity.
 
@@ -103,6 +138,8 @@ def analysis_readiness(
     """
     if not 0.0 <= minimum_channel_coverage <= 1.0:
         raise ValueError("minimum_channel_coverage must be between 0 and 1")
+    if minimum_alignment_coverage is not None and not 0.0 <= minimum_alignment_coverage <= 1.0:
+        raise ValueError("minimum_alignment_coverage must be between 0 and 1")
     physics = channel_availability(physics_rows, stream="physics")
     graphics = channel_availability(graphics_rows, stream="graphics")
     missing = []
@@ -119,7 +156,18 @@ def analysis_readiness(
                     "coverage_ratio": coverage,
                 })
     progress_ok = progress_check is None or bool(progress_check.get("ok"))
-    eligible = bool(physics_rows and graphics_rows) and not missing and progress_ok
+    alignment_coverage = (
+        alignment_check.get("coverage_ratio")
+        if isinstance(alignment_check, Mapping) else None
+    )
+    alignment_ok = (
+        minimum_alignment_coverage is None
+        or (
+            isinstance(alignment_coverage, (int, float))
+            and alignment_coverage >= minimum_alignment_coverage
+        )
+    )
+    eligible = bool(physics_rows and graphics_rows) and not missing and progress_ok and alignment_ok
     return {
         "eligible": eligible,
         "acc_lap_validity": "not_evaluated",
@@ -128,8 +176,11 @@ def analysis_readiness(
         "graphics": graphics,
         "required_channel_failures": missing,
         "progress_check": dict(progress_check) if progress_check is not None else None,
+        "alignment_check": dict(alignment_check) if alignment_check is not None else None,
+        "minimum_alignment_coverage": minimum_alignment_coverage,
         "reason": None if eligible else (
             "required_channels_unavailable_or_below_coverage"
-            if missing else "progress_continuity_failed_or_stream_empty"
+            if missing else "alignment_coverage_below_policy"
+            if not alignment_ok else "progress_continuity_failed_or_stream_empty"
         ),
     }
