@@ -123,9 +123,11 @@ def compare_lap_profiles(
     end = min(reference[-1]["distance_m"], comparison[-1]["distance_m"])
     if end <= start:
         return {"available": False, "reason": "no_common_distance_range", "samples": []}
+    sample_count = int((end - start) / distance_step_m) + 1
+    if sample_count > 100_000:
+        raise ValueError("distance grid exceeds the 100000-sample safety limit")
     samples = []
     distance = start
-    # Avoid unbounded grids if a caller supplies a very small step.
     while distance <= end + 1e-9:
         reference_time = _time_at_distance(reference, distance, max_bracket_gap_m=max_bracket_gap_m)
         comparison_time = _time_at_distance(comparison, distance, max_bracket_gap_m=max_bracket_gap_m)
