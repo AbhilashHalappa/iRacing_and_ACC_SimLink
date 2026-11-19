@@ -201,26 +201,41 @@ def serializable_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{k: v for k, v in row.items() if k != "trace_blob"} for row in rows]
 
 
-def write_session_csvs(rows: list[dict[str, Any]], output_dir: Path) -> list[Path]:
-    """Write one lap CSV per ACC session; never mix sessions in one file."""
-    sessions_dir = output_dir / "sessions"
-    sessions_dir.mkdir(parents=True, exist_ok=True)
+def safe_session_name(session_id: str) -> str:
+    """Make an ACC session ID safe for Windows folder and file names."""
+    return "".join(
+        char if char.isalnum() or char in ("-", "_", ".") else "_"
+        for char in session_id
+    ).strip("._") or "unknown-session"
+
+
+def write_session_evidence(
+    rows: list[dict[str, Any]], output_dir: Path, stamp: str,
+    report: dict[str, Any], snapshots: list[dict[str, Any]],
+) -> list[dict[str, Path]]:
+    """Write all monitor evidence beneath one persistent folder per ACC session."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in serializable_rows(rows):
         session_id = str(row.get("session_id") or "unknown-session")
         grouped.setdefault(session_id, []).append(row)
 
-    written: list[Path] = []
+    written: list[dict[str, Path]] = []
     for session_id, session_rows in sorted(grouped.items()):
-        # ACC session IDs contain ':' which is not valid in Windows filenames.
-        safe_id = "".join(
-            char if char.isalnum() or char in ("-", "_", ".") else "_"
-            for char in session_id
-        ).strip("._") or "unknown-session"
-        session_dir = sessions_dir / safe_id
+        safe_id = safe_session_name(session_id)
+        session_dir = output_dir / safe_id
         session_dir.mkdir(parents=True, exist_ok=True)
-        csv_path = session_dir / "laps.csv"
-        with csv_path.open("w", newline="", encoding="utf-8-sig") as handle:
+        report_path = session_dir / f"performance_hub_report_{safe_id}_{stamp}.json"
+        laps_path = session_dir / f"laps_{safe_id}_{stamp}.csv"
+        snapshots_path = session_dir / f"monitor_snapshots_{safe_id}_{stamp}.csv"
+
+        session_report = dict(report)
+        session_report["session_id"] = session_id
+        session_report["laps"] = session_rows
+        session_report["session_lap_count"] = len(session_rows)
+        report_path.write_text(
+            json.dumps(session_report, indent=2, default=str), encoding="utf-8"
+        )
+        with laps_path.open("w", newline="", encoding="utf-8-sig") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(session_rows[0].keys()))
             writer.writeheader()
             for row in session_rows:
@@ -229,9 +244,16 @@ def write_session_csvs(rows: list[dict[str, Any]], output_dir: Path) -> list[Pat
                     if isinstance(value, (dict, list)) else value
                     for key, value in row.items()
                 })
-        written.append(csv_path)
+        if snapshots:
+            with snapshots_path.open("w", newline="", encoding="utf-8-sig") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(snapshots[0].keys()))
+                writer.writeheader()
+                writer.writerows(snapshots)
+        written.append({
+            "session_id": session_id, "directory": session_dir,
+            "report": report_path, "laps": laps_path, "snapshots": snapshots_path,
+        })
     return written
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -242,7 +264,7 @@ def main() -> int:
     parser.add_argument("--interval", type=float, default=2.0,
                         help="Polling interval in seconds (default: 2).")
     parser.add_argument("--output", type=Path, default=None,
-                        help="Output directory (default: LOCALAPPDATA/.../monitor_reports/<timestamp>).")
+                        help="Persistent output root (default: LOCALAPPDATA/.../monitor_reports).")
     parser.add_argument("--once", action="store_true",
                         help="Validate the archive once and exit (use after closing the game/app).")
     args = parser.parse_args()
@@ -255,7 +277,7 @@ def main() -> int:
             root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData/Local"))
         else:
             root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local/share"))
-        output_dir = root / "RaceEngineerACC" / "PerformanceHub" / "monitor_reports" / stamp
+        output_dir = root / "RaceEngineerACC" / "PerformanceHub" / "monitor_reports"
     else:
         output_dir = args.output
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -379,23 +401,20 @@ def main() -> int:
         }
     final_report["snapshots"] = snapshots
 
-    report_path = output_dir / "performance_hub_report.json"
-    report_path.write_text(json.dumps(final_report, indent=2, default=str), encoding="utf-8")
-    session_csv_paths = write_session_csvs(last_rows, output_dir) if last_rows else []
-    snapshots_path = output_dir / "monitor_snapshots.csv"
-    if snapshots:
-        with snapshots_path.open("w", newline="", encoding="utf-8-sig") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(snapshots[0].keys()))
-            writer.writeheader()
-            writer.writerows(snapshots)
-
-    print(f"Report: {report_path}")
-    if session_csv_paths:
-        print(f"Session lap CSV files: {len(session_csv_paths)}")
-        for session_csv in session_csv_paths:
-            print(f"  {session_csv}")
-    if snapshots:
-        print(f"Monitoring history: {snapshots_path}")
+    session_evidence = write_session_evidence(
+        last_rows, output_dir, stamp, final_report, snapshots
+    ) if last_rows else []
+    if session_evidence:
+        print(f"Session evidence folders: {len(session_evidence)}")
+        for item in session_evidence:
+            print(f"  Session: {item['session_id']}")
+            print(f"    Folder: {item['directory']}")
+            print(f"    Report: {item['report']}")
+            print(f"    Laps: {item['laps']}")
+            if snapshots:
+                print(f"    Monitoring history: {item['snapshots']}")
+    else:
+        print("No session records found; no session evidence files were written.")
     result_status = final_report["results"].get("archive_data_check", "NOT VERIFIED")
     print(f"Final archive-data result: {result_status}")
     return 0 if result_status == "PASS" else 1
