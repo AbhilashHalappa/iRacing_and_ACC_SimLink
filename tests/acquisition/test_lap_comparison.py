@@ -90,3 +90,36 @@ def test_build_profile_rejects_non_monotonic_distance_instead_of_sorting_it_away
         aligned(3_000_000_000, 15.0, 30.0),
     ]
     assert build_lap_profile(rows) == ()
+
+
+def test_profile_carries_all_available_normalized_driving_channels():
+    rows = [
+        {
+            "aligned": True,
+            "physics": {
+                "capture_timestamp_ns": 100,
+                "values": {
+                    "speed_mps": 10.0, "throttle_ratio": 0.2, "brake_ratio": 0.8,
+                    "steering_angle_rad": -0.1, "gear_index": 2, "engine_rpm": 7000,
+                },
+            },
+            "graphics": {"values": {"distance_m": 0.0}},
+        },
+        {
+            "aligned": True,
+            "physics": {
+                "capture_timestamp_ns": 200,
+                "values": {
+                    "speed_mps": 20.0, "throttle_ratio": 0.9, "brake_ratio": 0.0,
+                    "steering_angle_rad": 0.2, "gear_index": 3, "engine_rpm": 8000,
+                },
+            },
+            "graphics": {"values": {"distance_m": 10.0}},
+        },
+    ]
+    profile = build_lap_profile(rows)
+    assert profile[0]["throttle_ratio"] == 0.2
+    assert profile[0]["brake_ratio"] == 0.8
+    assert profile[1]["steering_angle_rad"] == 0.2
+    assert profile[1]["gear_index"] == 3
+    assert profile[1]["engine_rpm"] == 8000
