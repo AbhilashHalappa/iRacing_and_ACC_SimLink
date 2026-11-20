@@ -33,6 +33,36 @@ def test_bridge_serializes_nested_acquisition_health_dataclass() -> None:
             bridge.stop()
 
 
+
+def test_bridge_serializes_capture_pipeline_diagnostics() -> None:
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        (root / "index.html").write_text("<html>ACC UI</html>", encoding="utf-8")
+        bridge = TelemetryBridge(root)
+        url = bridge.start()
+        try:
+            bridge.publish({
+                "capture_pipeline": {
+                    "physics": {
+                        "ring_buffer": {
+                            "total_rejection_count": 2,
+                            "first_lost_sequence": 100,
+                            "last_lost_sequence": 101,
+                        },
+                        "decoder": {"decode_error_count": 1},
+                    }
+                }
+            })
+            with urlopen(url + "api/snapshot", timeout=2) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            physics = payload["capture_pipeline"]["physics"]
+            assert physics["ring_buffer"]["total_rejection_count"] == 2
+            assert physics["ring_buffer"]["first_lost_sequence"] == 100
+            assert physics["decoder"]["decode_error_count"] == 1
+        finally:
+            bridge.stop()
+
+
 def test_bridge_serves_frontend_and_latest_snapshot_and_sse() -> None:
     with TemporaryDirectory() as directory:
         root = Path(directory)
