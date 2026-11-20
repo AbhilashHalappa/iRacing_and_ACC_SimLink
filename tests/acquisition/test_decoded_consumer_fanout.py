@@ -94,6 +94,7 @@ class DecodedConsumerFanOutIntegrationTests(unittest.TestCase):
 
         self.assertEqual(consumer.snapshot.processed_count, 1)
         self.assertEqual(consumer.snapshot.decode_error_count, 0)
+        self.assertEqual(consumer.sample_publish_error_count, 1)
 
     def test_publisher_failure_does_not_stop_graphics_decoding(self) -> None:
         ring = AcquisitionRingBuffer(4)
@@ -114,6 +115,7 @@ class DecodedConsumerFanOutIntegrationTests(unittest.TestCase):
 
         self.assertEqual(consumer.snapshot.processed_count, 1)
         self.assertEqual(consumer.snapshot.decode_error_count, 0)
+        self.assertEqual(consumer.sample_publish_error_count, 1)
 
 
 if __name__ == "__main__":
