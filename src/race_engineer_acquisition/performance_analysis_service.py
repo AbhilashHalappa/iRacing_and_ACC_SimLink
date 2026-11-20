@@ -226,6 +226,7 @@ def analyze_archived_laps(
                 throttle_pickup_threshold=policy["throttle_pickup_threshold"],
                 full_throttle_threshold=policy["full_throttle_threshold"],
                 steering_threshold_rad=policy["steering_threshold_rad"],
+                max_bracket_gap_m=policy["max_bracket_gap_m"],
                 reference_profile=reference["profile"],
             ))
 
