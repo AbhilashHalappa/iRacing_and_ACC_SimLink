@@ -16,6 +16,9 @@ from .strategy_lap_history import StrategyLapHistory, StrategyLapRecord
 from .performance_lap_capture import PerformanceLapCaptureWorker
 from .performance_analysis_service import analyze_archived_laps
 from .session_analysis import build_session_summary
+from .racing_line_analysis import build_track_trajectory
+from .track_model import build_track_model
+from .track_model_archive import CanonicalTrackModelStore
 from .performance_lap_archive import (
     LapArchiveContext,
     PerformanceArchiveConfig,
@@ -137,6 +140,7 @@ class RaceEngineerService:
             performance_archive_path or None,
             config=performance_archive_config,
         )
+        self._canonical_track_models = CanonicalTrackModelStore()
         self._performance_persistence = PerformanceLapPersistenceWorker(
             self._performance_capture,
             self._performance_archive,
@@ -297,7 +301,60 @@ class RaceEngineerService:
             comparison_session_id=comparison_session_id,
             comparison_lap_number=comparison_lap_number,
             policy=policy,
+            canonical_track_model_store=self._canonical_track_models,
         )
+
+    def save_canonical_track_model(
+        self, *, session_id: str, lap_number: int, geometry_policy: dict[str, Any],
+        replace_existing: bool = False,
+    ) -> dict[str, Any]:
+        """Explicitly promote one retained valid lap to the track reference model."""
+        required = (
+            "minimum_point_spacing_m", "minimum_turn_angle_rad",
+            "minimum_corner_length_m", "merge_gap_m",
+        )
+        missing = [key for key in required if key not in geometry_policy]
+        if missing:
+            raise ValueError("missing geometry policy values: " + ", ".join(missing))
+        metadata = self._performance_archive.read_lap_metadata(session_id, lap_number)
+        if metadata is None:
+            raise LookupError(f"lap not found in archive: {session_id}:{lap_number}")
+        if metadata.get("lap_valid") != 1 or metadata.get("out_lap") != 0:
+            raise ValueError("only a valid non-out lap can be selected as canonical reference")
+        if metadata.get("trace_status") not in ("retained", "identity_incomplete"):
+            raise ValueError("selected reference lap has no retained full trace")
+        track = metadata.get("track")
+        track_configuration = metadata.get("track_configuration")
+        if not isinstance(track, str) or not track.strip():
+            raise ValueError("selected lap has no track identity")
+        if not isinstance(track_configuration, str) or not track_configuration.strip():
+            raise ValueError("selected lap has no track configuration identity")
+        trace = self._performance_archive.read_trace(session_id, lap_number)
+        if not isinstance(trace, dict) or not isinstance(trace.get("graphics"), list):
+            raise ValueError("selected reference lap trace is unavailable or corrupt")
+        trajectory = build_track_trajectory(
+            trace["graphics"],
+            minimum_point_spacing_m=geometry_policy["minimum_point_spacing_m"],
+        )
+        model = build_track_model(
+            trajectory,
+            minimum_turn_angle_rad=geometry_policy["minimum_turn_angle_rad"],
+            minimum_corner_length_m=geometry_policy["minimum_corner_length_m"],
+            merge_gap_m=geometry_policy["merge_gap_m"],
+        )
+        if not model.get("available"):
+            raise ValueError("selected lap cannot produce a canonical track model: " + str(model.get("reason")))
+        return self._canonical_track_models.save_reference_model(
+            track, track_configuration, model,
+            reference_session_id=session_id,
+            reference_lap_number=lap_number,
+            reference_lap_time_ms=metadata.get("lap_time_ms"),
+            replace_existing=replace_existing,
+        )
+
+    def list_canonical_track_models(self) -> tuple[dict[str, Any], ...]:
+        """List explicitly saved canonical track models."""
+        return self._canonical_track_models.list_models()
 
     def subscribe_performance_samples(
         self, name: str, *, capacity: int
