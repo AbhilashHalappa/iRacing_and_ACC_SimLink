@@ -1,4 +1,5 @@
 from race_engineer_acquisition.performance_analysis_service import analyze_archived_laps
+from race_engineer_acquisition.track_model_archive import CanonicalTrackModelStore
 
 
 class FakeArchive:
@@ -15,6 +16,8 @@ class FakeArchive:
             "out_lap": 0,
             "trace_status": "retained",
             "lap_time_ms": 90_000,
+            "track": "Test Track",
+            "track_configuration": "GP",
         }
 
     def read_trace(self, session_id, lap_number):
@@ -161,3 +164,43 @@ def test_archive_analysis_rejects_nonfinite_or_invalid_policy_values():
         assert "finite numbers" in str(exc)
     else:
         raise AssertionError("non-finite analysis policy should be rejected")
+
+
+
+def test_archive_analysis_uses_persisted_canonical_corner_ids_across_sessions(tmp_path):
+    archive = FakeArchive({
+        ("reference-session", 3): make_trace(1_000_000_000),
+        ("comparison-session", 9): make_trace(
+            10_000_000_000, slow_corner=True, y_offset=0.5
+        ),
+    })
+    store = CanonicalTrackModelStore(tmp_path)
+    baseline = analyze_archived_laps(
+        archive,
+        reference_session_id="reference-session",
+        reference_lap_number=3,
+        comparison_session_id="reference-session",
+        comparison_lap_number=3,
+        policy=policy(),
+    )
+    saved = store.save_reference_model(
+        "Test Track", "GP", baseline["track_model"],
+        reference_session_id="reference-session",
+        reference_lap_number=3,
+        reference_lap_time_ms=90_000,
+    )
+    stable_id = saved["model"]["corners"][0]["stable_corner_id"]
+
+    result = analyze_archived_laps(
+        archive,
+        reference_session_id="reference-session",
+        reference_lap_number=3,
+        comparison_session_id="comparison-session",
+        comparison_lap_number=9,
+        policy=policy(),
+        canonical_track_model_store=store,
+    )
+
+    assert result["corner_identity_scope"] == "persisted_track_configuration"
+    assert result["track_model"]["corners"][0]["stable_corner_id"] == stable_id
+    assert result["comparison_track_model"]["corners"][0]["stable_corner_id"] == stable_id
