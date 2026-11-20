@@ -26,6 +26,7 @@ class PhysicsConsumerSnapshot:
     last_error: str | None
     latest: DecodedPhysics | None
     latest_capture_timestamp_ns: int | None
+    last_decode_error: str | None
 
     def to_payload(self) -> dict[str, Any]:
         """Return JSON-compatible latest data and consumer health."""
@@ -42,6 +43,7 @@ class PhysicsConsumerSnapshot:
             "decode_error_count": self.decode_error_count,
             "last_capture_sequence": self.last_capture_sequence,
             "last_error": self.last_error,
+            "last_decode_error": self.last_decode_error,
             "capture_timestamp_ns": self.latest_capture_timestamp_ns,
             "data": latest_payload,
         }
@@ -66,6 +68,7 @@ class PhysicsDecodeConsumer:
         self._decode_error_count = 0
         self._last_capture_sequence: int | None = None
         self._last_error: str | None = None
+        self._last_decode_error: str | None = None
         self._latest: DecodedPhysics | None = None
         self._latest_capture_timestamp_ns: int | None = None
         self._update_notifier: Callable[[], None] | None = None
@@ -128,6 +131,7 @@ class PhysicsDecodeConsumer:
                 last_error=self._last_error,
                 latest=self._latest,
                 latest_capture_timestamp_ns=self._latest_capture_timestamp_ns,
+                last_decode_error=self._last_decode_error,
             )
 
     def process_pending(self, *, max_items: int | None = None) -> int:
@@ -151,6 +155,7 @@ class PhysicsDecodeConsumer:
                     self._decode_error_count += 1
                     self._last_capture_sequence = raw.capture_sequence
                     self._last_error = f"{type(exc).__name__}: {exc}"
+                    self._last_decode_error = self._last_error
             else:
                 with self._lock:
                     self._processed_count += 1
