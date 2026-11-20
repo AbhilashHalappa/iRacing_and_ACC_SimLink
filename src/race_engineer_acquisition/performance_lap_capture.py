@@ -8,6 +8,9 @@ from __future__ import annotations
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
 from typing import Any
+import time
+
+from .current_lap_trace import CurrentLapTraceSnapshot
 
 from .candidate_lap_assembler import CandidateLapAssembler, LapAssemblyOutput
 
@@ -36,6 +39,7 @@ class PerformanceLapCaptureWorker:
         self._diagnostic_count = 0
         self._last_error: str | None = None
         self._started = False
+        self._latest_current_lap_snapshot = self._assembler.current_lap_snapshot()
 
     def start(self) -> None:
         with self._lock:
@@ -118,8 +122,17 @@ class PerformanceLapCaptureWorker:
             except Exception as exc:
                 with self._lock:
                     self._last_error = f"{type(exc).__name__}: {exc}"
+            snapshot = self._assembler.current_lap_snapshot(snapshot_timestamp_ns=time.perf_counter_ns())
+            with self._lock:
+                self._latest_current_lap_snapshot = snapshot
             if not did_work:
                 self._stop.wait(self._poll_interval_s)
+
+    @property
+    def current_lap_snapshot(self) -> CurrentLapTraceSnapshot:
+        """Return the latest detached active-lap snapshot without queue access."""
+        with self._lock:
+            return self._latest_current_lap_snapshot
 
     def read_result(self) -> LapAssemblyOutput | None:
         try:
