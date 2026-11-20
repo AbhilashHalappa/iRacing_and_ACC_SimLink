@@ -154,6 +154,7 @@ class ACCDesktopWindow(QMainWindow):
                     "decode_error_count": consumer_snapshot.decode_error_count,
                     "last_capture_sequence": consumer_snapshot.last_capture_sequence,
                     "last_error": consumer_snapshot.last_error,
+                    "last_decode_error": consumer_snapshot.last_decode_error,
                     "sample_publish_error_count": stream_consumer.sample_publish_error_count,
                 },
             }
