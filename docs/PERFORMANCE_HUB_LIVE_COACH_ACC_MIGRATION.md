@@ -93,3 +93,23 @@ The source payload includes unresolved contract identifiers so consumers cannot 
 - Overview, Race Strategy, Stage 1, acquisition, and existing archive behaviour remain unchanged.
 - Unit and integration tests pass, followed by local ACC-session validation of actual spoken coaching.
 
+
+
+## Bounded current-lap trace provider (implemented; local validation pending)
+
+The existing Performance Lap Capture Worker now publishes a detached snapshot of
+its active CandidateLapAssembler interval. It uses the worker's existing Stage 2
+Physics/Graphics sample subscription and lap-event subscription; it creates no
+additional reader, recorder, subscription, or acquisition queue.
+
+The snapshot retains Physics and Graphics as independent ordered sample tuples,
+including their original capture sequences and timestamps. It reports per-stream
+sample counts and source ranges, bounded capacity, active/waiting/degraded status,
+quality reasons, overflow streams, and an explicit coaching-usability gate.
+It does not align samples by array index or infer lap-local distance, lap clock,
+or session-clock semantics. An active snapshot is never marked complete.
+
+The RaceEngineerService snapshot payload exposes this contract as
+`current_lap_trace`. This completes the current-lap trace-provider foundation;
+ACC-session semantic validation and the Corner Coach runtime/voice migration
+remain outstanding.
