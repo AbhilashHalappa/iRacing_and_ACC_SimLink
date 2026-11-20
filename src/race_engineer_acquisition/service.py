@@ -261,9 +261,11 @@ class RaceEngineerService:
 
     @property
     def performance_archive_metrics(self) -> dict[str, Any]:
-        """Expose durable archive and asynchronous writer health."""
+        """Expose durable archive, capture, and asynchronous writer health."""
         return {
             "capture": self._performance_capture.metrics,
+            "sample_delivery": self._broker.metrics.get("sample_delivery", {}),
+            "event_delivery": self._broker.metrics.get("event_delivery", {}),
             "persistence": self._performance_persistence.metrics,
             "archive": self._performance_archive.metrics,
         }
