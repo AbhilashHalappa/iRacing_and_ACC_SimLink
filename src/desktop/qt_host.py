@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import asdict
 import json
 import sqlite3
 import time
@@ -73,6 +74,7 @@ class ACCDesktopWindow(QMainWindow):
         self._track_configuration: str | None = None
         self._last_race_progress_log_signature: tuple[object, ...] | None = None
         self._last_static_metadata_log_signature: tuple[object, ...] | None = None
+        self._last_capture_diagnostics_log_signature: tuple[object, ...] | None = None
         try:
             self._runtime.supervisor.start()
             self._race_engineer_service.start()
@@ -124,6 +126,73 @@ class ACCDesktopWindow(QMainWindow):
             else None
         )
         acquisition = self._runtime.supervisor.status
+        capture_pipeline: dict[str, object] = {}
+        for stream_name, stream_consumer in (
+            ("physics", self._runtime.physics_consumer),
+            ("graphics", self._runtime.graphics_consumer),
+        ):
+            ring = self._runtime.buffers[stream_name]
+            acquirer_metrics = asdict(self._runtime.acquirers[stream_name].metrics)
+            acquirer_metrics.pop("_previous_poll_start_ns", None)
+            consumer_snapshot = stream_consumer.snapshot
+            capture_pipeline[stream_name] = {
+                "acquirer": acquirer_metrics,
+                "ring_buffer": {
+                    "capacity": ring.capacity,
+                    "queued_count": ring.size,
+                    "high_water_mark": ring.high_water_mark,
+                    "overflow_count": ring.overflow_count,
+                    "full_buffer_rejection_count": ring.full_buffer_rejection_count,
+                    "lock_contention_count": ring.lock_contention_count,
+                    "total_rejection_count": ring.total_rejection_count,
+                    "first_lost_sequence": ring.first_lost_sequence,
+                    "last_lost_sequence": ring.last_lost_sequence,
+                },
+                "decoder": {
+                    "lifecycle_state": consumer_snapshot.lifecycle_state,
+                    "processed_count": consumer_snapshot.processed_count,
+                    "decode_error_count": consumer_snapshot.decode_error_count,
+                    "last_capture_sequence": consumer_snapshot.last_capture_sequence,
+                    "last_error": consumer_snapshot.last_error,
+                    "sample_publish_error_count": stream_consumer.sample_publish_error_count,
+                },
+            }
+        performance_diagnostics = self._race_engineer_service.performance_archive_metrics
+        sample_delivery = performance_diagnostics.get("sample_delivery", {})
+        sample_subscribers = sample_delivery.get("subscribers", {})
+        sample_rejections = tuple(sorted(
+            (
+                name,
+                metrics.rejected_count,
+                tuple(sorted(metrics.rejected_by_stream.items())),
+            )
+            for name, metrics in sample_subscribers.items()
+        ))
+        capture_signature = (
+            *(
+                (
+                    name,
+                    values["ring_buffer"]["total_rejection_count"],
+                    values["ring_buffer"]["first_lost_sequence"],
+                    values["ring_buffer"]["last_lost_sequence"],
+                    values["acquirer"].get("buffer_rejection_count", 0),
+                    values["decoder"]["decode_error_count"],
+                    values["decoder"]["sample_publish_error_count"],
+                )
+                for name, values in sorted(capture_pipeline.items())
+            ),
+            sample_rejections,
+            performance_diagnostics["capture"].get("result_drop_count", 0),
+        )
+        if capture_signature != self._last_capture_diagnostics_log_signature:
+            self._last_capture_diagnostics_log_signature = capture_signature
+            print(
+                "[Capture Pipeline Diagnostics] " + json.dumps({
+                    "streams": capture_pipeline,
+                    "performance_hub": performance_diagnostics,
+                }, sort_keys=True, default=lambda value: asdict(value)),
+                flush=True,
+            )
         static_health = self._runtime.acquirers["static"].health.snapshot
         now_ns = time.perf_counter_ns()
         streams = build_stream_freshness(
@@ -225,6 +294,8 @@ class ACCDesktopWindow(QMainWindow):
                 "track_configuration": self._track_configuration,
             },
             "acquisition": acquisition,
+            "capture_pipeline": capture_pipeline,
+            "performance_archive_metrics": performance_diagnostics,
             **engineer_snapshot,
         }
         self._bridge.publish(snapshot)
