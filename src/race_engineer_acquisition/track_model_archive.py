@@ -10,7 +10,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import tempfile
@@ -70,9 +69,9 @@ class CanonicalTrackModelStore:
         """Persist a selected reference model and assign durable corner IDs.
 
         Existing canonical models are not replaced unless the caller explicitly
-        requests a rebaseline. Rebaselining preserves IDs only for corners that
-        can be matched to the old canonical model under the supplied matching
-        tolerances; this method deliberately does not perform implicit matching.
+        requests a rebaseline. An explicit rebaseline starts a new stable-corner
+        identity set; callers must not treat the new IDs as continuations of the
+        previous canonical model.
         """
         if not isinstance(reference_session_id, str) or not reference_session_id.strip():
             raise ValueError("reference_session_id must be a non-empty string")
