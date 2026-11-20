@@ -31,8 +31,8 @@ class PerformanceLapCaptureWorker:
         self._stop = Event()
         self._thread: Thread | None = None
         self._lock = Lock()
-        self._last_rejected_count = 0
-        self._pre_boundary_sample_loss = False
+        self._last_rejected_by_stream: dict[str, int] = {}
+        self._pre_boundary_sample_loss_streams: set[str] = set()
         self._result_drop_count = 0
         self._processed_sample_count = 0
         self._processed_event_count = 0
@@ -72,18 +72,20 @@ class PerformanceLapCaptureWorker:
             did_work = False
             try:
                 metrics = self._samples.metrics
-                rejected = metrics.rejected_count
-                if rejected > self._last_rejected_count:
-                    # The fan-out metric is aggregate across Physics and
-                    # Graphics, so conservatively invalidate both streams.
-                    # A delayed lap.started event may still place some samples
-                    # from this pre-boundary period inside Lap 1.
+                rejected_by_stream = getattr(metrics, "rejected_by_stream", {})
+                for stream in CandidateLapAssembler.STREAMS:
+                    rejected = int(rejected_by_stream.get(stream, 0))
+                    previous = self._last_rejected_by_stream.get(stream, 0)
+                    if rejected <= previous:
+                        continue
+                    # Attribute mailbox loss only to the source stream that
+                    # actually overflowed. A delayed lap.started event may
+                    # still place pre-boundary samples inside Lap 1.
                     if self._assembler.waiting_for_boundary:
-                        self._pre_boundary_sample_loss = True
+                        self._pre_boundary_sample_loss_streams.add(stream)
                     else:
-                        for stream in CandidateLapAssembler.STREAMS:
-                            self._publish(self._assembler.mark_stream_gap(stream))
-                    self._last_rejected_count = rejected
+                        self._publish(self._assembler.mark_stream_gap(stream))
+                    self._last_rejected_by_stream[stream] = rejected
                     did_work = True
 
                 # Establish lap boundaries before draining samples in this
@@ -98,10 +100,9 @@ class PerformanceLapCaptureWorker:
                     self._publish(self._assembler.ingest_event(event))
                     event_type = getattr(event, "event_type", None)
                     if event_type == "lap.started" and was_waiting_for_boundary:
-                        if self._pre_boundary_sample_loss:
-                            for stream in CandidateLapAssembler.STREAMS:
-                                self._publish(self._assembler.mark_stream_gap(stream))
-                        self._pre_boundary_sample_loss = False
+                        for stream in sorted(self._pre_boundary_sample_loss_streams):
+                            self._publish(self._assembler.mark_stream_gap(stream))
+                        self._pre_boundary_sample_loss_streams.clear()
                     elif (
                         event_type in ("lap.completed", "lap.completion_gap")
                         and was_waiting_for_boundary
@@ -152,7 +153,8 @@ class PerformanceLapCaptureWorker:
                 "result_drop_count": self._result_drop_count,
                 "diagnostic_count": self._diagnostic_count,
                 "last_error": self._last_error,
-                "sample_rejected_count": self._last_rejected_count,
+                "sample_rejected_count": sum(self._last_rejected_by_stream.values()),
+                "sample_rejected_by_stream": dict(self._last_rejected_by_stream),
             }
 
     def close(self, *, timeout: float = 2.0) -> bool:
