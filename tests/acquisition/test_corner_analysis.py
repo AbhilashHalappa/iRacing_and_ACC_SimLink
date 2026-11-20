@@ -90,8 +90,8 @@ def test_corner_analysis_rejects_invalid_thresholds_and_region():
     with pytest.raises(ValueError):
         analyze_corner([], {"start_distance_m": 1, "end_distance_m": 2},
                        brake_onset_threshold=1.1, throttle_pickup_threshold=0.5, full_throttle_threshold=0.98,
-                       steering_threshold_rad=0.2)
+                       steering_threshold_rad=0.2, max_bracket_gap_m=10.0)
     with pytest.raises(ValueError):
         analyze_corner([], {"start_distance_m": 2, "end_distance_m": 1},
                        brake_onset_threshold=0.1, throttle_pickup_threshold=0.5, full_throttle_threshold=0.98,
-                       steering_threshold_rad=0.2)
+                       steering_threshold_rad=0.2, max_bracket_gap_m=10.0)
