@@ -331,6 +331,8 @@ Requirements:
 
 Create evidence-based recommendations from analysis outputs.
 
+**Implementation status:** Analysis Coach backend primitives exist. The first ACC Live Coach migration slice is implemented in `src/race_engineer_acquisition/live_coach_adapter.py` and exposed through the Race Engineer service as `live_coach_source`. This is a provenance-preserving ACC source contract only; it is not yet an executable Corner Coach or voice integration. The verified F1-to-ACC migration contract and remaining slices are documented in `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`.
+
 **Analysis Coach**
 - Rank the most important improvement opportunities.
 - Explain the measured difference and likely driving implication.
@@ -428,4 +430,4 @@ Performance Hub is complete when a user can:
 
 ## 11. Immediate next step
 
-Phase 0 is recorded in `docs/PERFORMANCE_HUB_PHASE_0_SOURCE_AUDIT.md`; the retention policy is in `docs/decisions/PERFORMANCE_HUB_BOUNDED_LAP_RETENTION.md`. Phase 1 capture and persistence are implemented on this branch. Next: run the archive and acquisition regression tests locally, then benchmark representative lap size, sustained sample throughput, storage growth, and shutdown/restart recovery before an endurance test.
+Continue Phase 8 from the ACC-native Live Coach source contract. First validate ACC lap-local distance, lap-clock, session-clock, and reference-lap semantics; then implement explicit archived-reference selection and the bounded current-lap trace provider before porting the preserved Corner Coach and asynchronous voice worker. Follow `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`. Do not begin UI integration until the coaching and voice service contracts are stable.
