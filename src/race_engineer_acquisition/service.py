@@ -20,6 +20,7 @@ from .session_analysis import build_session_summary
 from .racing_line_analysis import build_track_trajectory
 from .track_model import build_track_model
 from .track_model_archive import CanonicalTrackModelStore
+from .live_coach_adapter import build_acc_live_coach_source
 from .performance_lap_archive import (
     LapArchiveContext,
     PerformanceArchiveConfig,
@@ -694,7 +695,13 @@ class RaceEngineerService:
         fuel_payload = asdict(fuel)
         fuel_payload["session_fuel_used_l"] = session_fuel_used_l
         fuel_payload["session_fuel_used_scope"] = "since_race_engineer_connected"
+        live_coach_source = build_acc_live_coach_source(
+            telemetry,
+            session_id=self._broker.strategy_session_id,
+            out_lap_status=self._broker.out_lap_status,
+        )
         return {
+            "live_coach_source": live_coach_source.to_payload(),
             "fuel_engineer": fuel_payload,
             "race_progress": race_progress_payload_value,
             "fuel_sufficiency_strategy": fuel_sufficiency_payload_value,
