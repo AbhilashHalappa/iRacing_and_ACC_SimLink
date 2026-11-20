@@ -115,3 +115,43 @@ embedded in the high-frequency live `snapshot()` payload, avoiding repeated
 serialization of the growing trace on the live UI hot path. This completes the current-lap trace-provider foundation;
 ACC-session semantic validation and the Corner Coach runtime/voice migration
 remain outstanding.
+
+## ACC semantics evidence exporter (implemented; awaiting real-session capture)
+
+New read-only tool: `tools/export_acc_semantics_diagnostic.py`
+
+The exporter reads existing retained Performance Hub traces only. It does not
+attach to ACC shared memory, change the recorder, or align Physics and Graphics
+by array index. It writes two session-scoped CSV files:
+
+- `acc_semantics_samples_<session>.csv`: long-form raw observations with
+  stream name, field, original capture sequence, original capture timestamp,
+  archive lap classification, and value.
+- `acc_semantics_summary_<session>.csv`: per-lap/per-stream field coverage,
+  observed numeric range, increase/decrease counts, value-transition counts,
+  and original source sequence/timestamp ranges.
+
+Graphics evidence includes `distance_traveled_m`,
+`normalized_car_position`, `current_time_ms`, `last_time_ms`,
+`session_time_left_ms`, `clock_s`, `completed_laps`, sector, pit flags,
+validity, status, and session index. Physics evidence includes speed, throttle,
+brake, steering angle, gear, and RPM. These are observations only; the report
+does not label any field as a lap clock, lap-local distance, or monotonic
+session clock.
+
+Run after completing and saving at least one valid timed lap in ACC:
+
+```powershell
+$env:PYTHONPATH = "src"
+python tools/export_acc_semantics_diagnostic.py
+```
+
+The default output is under
+`user_data/PerformanceHub/monitor_reports/<session-id>/`. The user should
+capture a session containing pit exit/out-lap, a complete timed lap, and (if
+practical) pit entry/exit during a lap. Full-resolution samples are retained
+only for eligible valid non-out laps under the existing archive policy;
+compact invalid/out-lap records intentionally do not contain full traces.
+Therefore the archive classification records out-lap status, while detailed
+field-transition analysis comes from retained eligible traces. Local unit
+tests and actual ACC capture are still required before assigning semantics.
