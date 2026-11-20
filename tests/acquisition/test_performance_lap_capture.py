@@ -112,7 +112,9 @@ def test_worker_marks_pre_boundary_sample_loss_when_lap_one_start_arrives():
             for output in outputs
             for diagnostic in output.diagnostics
         ]
-        assert sum(item.kind == "sample_gap" for item in diagnostics) == 2
+        sample_gaps = [item for item in diagnostics if item.kind == "sample_gap"]
+        assert len(sample_gaps) == 1
+        assert "physics sample subscription reported loss" in sample_gaps[0].detail
     finally:
         worker.close()
 
