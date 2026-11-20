@@ -95,7 +95,7 @@ The source payload includes unresolved contract identifiers so consumers cannot 
 
 
 
-## Bounded current-lap trace provider (implemented; local validation pending)
+## Bounded current-lap trace provider (implemented; 27-test regression batch passed)
 
 The existing Performance Lap Capture Worker now publishes a detached snapshot of
 its active CandidateLapAssembler interval. It uses the worker's existing Stage 2
