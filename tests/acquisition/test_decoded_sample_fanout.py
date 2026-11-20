@@ -76,6 +76,28 @@ class DecodedSampleFanOutTests(unittest.TestCase):
         self.assertEqual(slow.metrics.rejected_count, 2)
         self.assertEqual(fast.metrics.rejected_count, 0)
 
+
+    def test_rejection_metrics_are_attributed_to_each_source_stream(self) -> None:
+        fanout = DecodedSampleFanOut()
+        subscription = fanout.subscribe("history", capacity=1)
+
+        fanout.publish(
+            stream="physics", capture_sequence=1,
+            capture_timestamp_ns=10, data={},
+        )
+        fanout.publish(
+            stream="graphics", capture_sequence=2,
+            capture_timestamp_ns=20, data={},
+        )
+        fanout.publish(
+            stream="physics", capture_sequence=3,
+            capture_timestamp_ns=30, data={},
+        )
+
+        metrics = subscription.metrics
+        self.assertEqual(metrics.rejected_count, 2)
+        self.assertEqual(metrics.rejected_by_stream, {"graphics": 1, "physics": 1})
+
     def test_unsubscribe_closes_only_the_selected_subscriber(self) -> None:
         fanout = DecodedSampleFanOut()
         removed = fanout.subscribe("removed", capacity=2)
