@@ -8,6 +8,7 @@ import math
 from .analysis_coach import rank_corner_opportunities
 from .corner_analysis import analyze_corner
 from .corner_identity import match_corner_identities
+from .track_model_archive import CanonicalTrackModelStore
 from .lap_comparison import build_lap_profile, compare_lap_profiles
 from .performance_analysis_model import align_by_timestamp, normalize_sample
 from .performance_data_quality import (
@@ -127,6 +128,7 @@ def analyze_archived_laps(
     comparison_session_id: str,
     comparison_lap_number: int,
     policy: Mapping[str, Any],
+    canonical_track_model_store: CanonicalTrackModelStore | None = None,
 ) -> dict[str, Any]:
     """Run archive-backed comparison, geometry, corner metrics and coaching.
 
@@ -202,12 +204,38 @@ def analyze_archived_laps(
         minimum_corner_length_m=policy["minimum_corner_length_m"],
         merge_gap_m=policy["merge_gap_m"],
     )
-    comparison_track_model = match_corner_identities(
-        track_model,
-        comparison_track_model,
-        max_apex_separation_m=policy["max_corner_apex_separation_m"],
-        max_apex_distance_delta_m=policy["max_corner_apex_distance_delta_m"],
-    )
+    canonical_reference_model = None
+    canonical_identity_status = "reference_lap_only"
+    if canonical_track_model_store is not None:
+        track_name = reference_metadata.get("track")
+        track_configuration = reference_metadata.get("track_configuration")
+        if track_name and track_configuration:
+            canonical_document = canonical_track_model_store.load(
+                str(track_name), str(track_configuration)
+            )
+            if canonical_document is not None:
+                canonical_reference_model = canonical_document["model"]
+                canonical_identity_status = "persisted_track_configuration"
+    if canonical_reference_model is not None:
+        track_model = match_corner_identities(
+            canonical_reference_model,
+            track_model,
+            max_apex_separation_m=policy["max_corner_apex_separation_m"],
+            max_apex_distance_delta_m=policy["max_corner_apex_distance_delta_m"],
+        )
+        comparison_track_model = match_corner_identities(
+            canonical_reference_model,
+            comparison_track_model,
+            max_apex_separation_m=policy["max_corner_apex_separation_m"],
+            max_apex_distance_delta_m=policy["max_corner_apex_distance_delta_m"],
+        )
+    else:
+        comparison_track_model = match_corner_identities(
+            track_model,
+            comparison_track_model,
+            max_apex_separation_m=policy["max_corner_apex_separation_m"],
+            max_apex_distance_delta_m=policy["max_corner_apex_distance_delta_m"],
+        )
     reference_corners = []
     comparison_corners = []
     if track_model["available"]:
@@ -257,6 +285,7 @@ def analyze_archived_laps(
         },
         "lap_delta": delta,
         "track_model": track_model,
+        "corner_identity_scope": canonical_identity_status,
         "comparison_track_model": comparison_track_model,
         "reference_corner_metrics": reference_corners,
         "comparison_corner_metrics": comparison_corners,
