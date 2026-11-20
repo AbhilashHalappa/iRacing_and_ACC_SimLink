@@ -100,6 +100,12 @@ class GraphicsDecodeConsumer:
                 pass
 
     @property
+    def sample_publish_error_count(self) -> int:
+        """Number of unexpected exceptions raised by the Stage 2 sample publisher."""
+        with self._lock:
+            return self._sample_publish_error_count
+
+    @property
     def snapshot(self) -> GraphicsConsumerSnapshot:
         with self._lock:
             return GraphicsConsumerSnapshot(
