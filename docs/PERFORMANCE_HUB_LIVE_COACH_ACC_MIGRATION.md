@@ -109,7 +109,9 @@ quality reasons, overflow streams, and an explicit coaching-usability gate.
 It does not align samples by array index or infer lap-local distance, lap clock,
 or session-clock semantics. An active snapshot is never marked complete.
 
-The RaceEngineerService snapshot payload exposes this contract as
-`current_lap_trace`. This completes the current-lap trace-provider foundation;
+The service exposes this contract through the explicit request-path method
+`RaceEngineerService.read_current_lap_trace_snapshot()`. It is deliberately not
+embedded in the high-frequency live `snapshot()` payload, avoiding repeated
+serialization of the growing trace on the live UI hot path. This completes the current-lap trace-provider foundation;
 ACC-session semantic validation and the Corner Coach runtime/voice migration
 remain outstanding.
