@@ -331,7 +331,7 @@ Requirements:
 
 Create evidence-based recommendations from analysis outputs.
 
-**Implementation status:** Analysis Coach backend primitives exist. The ACC source contract is implemented in `src/race_engineer_acquisition/live_coach_adapter.py` and exposed through the Race Engineer service as `live_coach_source`. Explicit retained-reference candidate listing and source-preserving reference loading are implemented in `live_coach_reference.py` and exposed through the service. These are foundations only; there is not yet an executable Corner Coach or voice integration. The verified F1-to-ACC migration contract and remaining slices are documented in `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`.
+**Implementation status:** Analysis Coach backend primitives exist. The ACC source contract is implemented in `src/race_engineer_acquisition/live_coach_adapter.py` and exposed through the Race Engineer service as `live_coach_source`. Explicit retained-reference candidate listing and source-preserving reference loading are implemented in `live_coach_reference.py` and exposed through the service. The bounded current-lap trace provider is now implemented in `current_lap_trace.py`, sourced from the existing `CandidateLapAssembler` buffers and exposed through `PerformanceLapCaptureWorker` and `RaceEngineerService.snapshot()` as `current_lap_trace`. It preserves independent Physics/Graphics samples and capture provenance, reports gaps/overflow, and gates coaching usability. Local regression validation is pending. There is not yet an executable Corner Coach or voice integration. The verified F1-to-ACC migration contract and remaining slices are documented in `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`.
 
 **Analysis Coach**
 - Rank the most important improvement opportunities.
@@ -430,4 +430,4 @@ Performance Hub is complete when a user can:
 
 ## 11. Immediate next step
 
-Continue Phase 8 from the ACC-native Live Coach source contract. First validate ACC lap-local distance, lap-clock, session-clock, and reference-lap semantics; then implement explicit archived-reference selection and the bounded current-lap trace provider before porting the preserved Corner Coach and asynchronous voice worker. Follow `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`. Do not begin UI integration until the coaching and voice service contracts are stable.
+Continue Phase 8 from the ACC-native Live Coach source contract. The explicit archived-reference selection and bounded current-lap trace provider are implemented. Next validate ACC lap-local distance, lap-clock, and session-clock semantics using actual ACC-session evidence; then adapt the selected reference/current trace into the preserved Corner Coach contract and migrate its asynchronous voice worker. Follow `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`. Do not begin UI integration until the coaching and voice service contracts are stable.
