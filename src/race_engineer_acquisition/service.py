@@ -290,6 +290,10 @@ class RaceEngineerService:
         """Read one source-preserving retained trace for analysis consumers."""
         return self._performance_archive.read_trace(session_id, lap_number)
 
+    def read_current_lap_trace_snapshot(self) -> dict[str, Any]:
+        """Return the latest bounded active-lap trace on an explicit request path."""
+        return asdict(self._performance_capture.current_lap_snapshot)
+
     def list_live_coach_reference_candidates(
         self, *, car_model: str, track: str, track_configuration: str,
         session_id: str | None = None, limit: int = 100,
@@ -733,7 +737,6 @@ class RaceEngineerService:
             out_lap_status=self._broker.out_lap_status,
         )
         return {
-            "current_lap_trace": asdict(self._performance_capture.current_lap_snapshot),
             "live_coach_source": live_coach_source.to_payload(),
             "fuel_engineer": fuel_payload,
             "race_progress": race_progress_payload_value,
