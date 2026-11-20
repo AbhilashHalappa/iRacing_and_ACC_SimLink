@@ -331,7 +331,7 @@ Requirements:
 
 Create evidence-based recommendations from analysis outputs.
 
-**Implementation status:** Analysis Coach backend primitives exist. The first ACC Live Coach migration slice is implemented in `src/race_engineer_acquisition/live_coach_adapter.py` and exposed through the Race Engineer service as `live_coach_source`. This is a provenance-preserving ACC source contract only; it is not yet an executable Corner Coach or voice integration. The verified F1-to-ACC migration contract and remaining slices are documented in `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`.
+**Implementation status:** Analysis Coach backend primitives exist. The ACC source contract is implemented in `src/race_engineer_acquisition/live_coach_adapter.py` and exposed through the Race Engineer service as `live_coach_source`. Explicit retained-reference candidate listing and source-preserving reference loading are implemented in `live_coach_reference.py` and exposed through the service. These are foundations only; there is not yet an executable Corner Coach or voice integration. The verified F1-to-ACC migration contract and remaining slices are documented in `docs/PERFORMANCE_HUB_LIVE_COACH_ACC_MIGRATION.md`.
 
 **Analysis Coach**
 - Rank the most important improvement opportunities.
