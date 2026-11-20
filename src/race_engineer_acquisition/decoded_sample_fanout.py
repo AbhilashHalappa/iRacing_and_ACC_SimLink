@@ -30,6 +30,7 @@ class DecodedSampleQueueMetrics:
     accepted_count: int
     delivered_count: int
     rejected_count: int
+    rejected_by_stream: dict[str, int]
     queued_count: int
     high_water_mark: int
     first_rejected_sequence: int | None
@@ -58,6 +59,7 @@ class DecodedSampleSubscription:
         self._accepted_count = 0
         self._delivered_count = 0
         self._rejected_count = 0
+        self._rejected_by_stream: dict[str, int] = {}
         self._high_water_mark = 0
         self._first_rejected_sequence: int | None = None
         self._last_rejected_sequence: int | None = None
@@ -74,6 +76,9 @@ class DecodedSampleSubscription:
                 self._queue.put_nowait(sample)
             except Full:
                 self._rejected_count += 1
+                self._rejected_by_stream[sample.stream] = (
+                    self._rejected_by_stream.get(sample.stream, 0) + 1
+                )
                 if self._first_rejected_sequence is None:
                     self._first_rejected_sequence = sample.capture_sequence
                 self._last_rejected_sequence = sample.capture_sequence
@@ -114,6 +119,7 @@ class DecodedSampleSubscription:
                 accepted_count=self._accepted_count,
                 delivered_count=self._delivered_count,
                 rejected_count=self._rejected_count,
+                rejected_by_stream=dict(self._rejected_by_stream),
                 queued_count=self._queue.qsize(),
                 high_water_mark=self._high_water_mark,
                 first_rejected_sequence=self._first_rejected_sequence,
