@@ -10,6 +10,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .current_lap_trace import CurrentLapTraceSnapshot, build_current_lap_trace_snapshot
+
 
 @dataclass(frozen=True, slots=True)
 class CompactLapMetadata:
@@ -479,6 +481,21 @@ class CandidateLapAssembler:
             self._quality_reasons.clear()
             self._overflow_streams.clear()
         return LapAssemblyOutput(tuple(completed), tuple(compact), tuple(diagnostics))
+
+    def current_lap_snapshot(self, *, snapshot_timestamp_ns: int | None = None) -> CurrentLapTraceSnapshot:
+        """Return a detached bounded view of the active interval."""
+        active = self._start_timestamp_ns is not None
+        physics = tuple(self._buffers["physics"]) if active else ()
+        graphics = tuple(self._buffers["graphics"]) if active else ()
+        return build_current_lap_trace_snapshot(
+            session_id=self._session_id, lap_number=self._start_lap_number,
+            start_timestamp_ns=self._start_timestamp_ns,
+            snapshot_timestamp_ns=snapshot_timestamp_ns,
+            physics_samples=physics, graphics_samples=graphics,
+            quality_reasons=tuple(self._quality_reasons),
+            overflow_streams=tuple(self._overflow_streams),
+            per_stream_capacity=self._capacity, active=active,
+        )
 
     def _take_through(self, stream: str, boundary_ns: int) -> tuple[Any, ...]:
         buffer = self._buffers[stream]
