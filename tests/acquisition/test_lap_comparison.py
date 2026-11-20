@@ -27,7 +27,7 @@ def test_build_profile_uses_timestamp_aligned_physics_and_graphics():
 
     assert profile == (
         {"distance_m": 0.0, "source_distance_m": 0.0, "elapsed_s": 0.0, "speed_mps": 10.0, "throttle_ratio": None, "brake_ratio": None, "steering_angle_rad": None, "gear_index": None, "engine_rpm": None, "brake_pressure": None},
-        {"distance_m": 10.0, "source_distance_m": 10.0, "elapsed_s": 1.0, "speed_mps": 20.0, "throttle_ratio": None, "brake_ratio": None, "steering_angle_rad": None, "gear_index": None, "engine_rpm": None},
+        {"distance_m": 10.0, "source_distance_m": 10.0, "elapsed_s": 1.0, "speed_mps": 20.0, "throttle_ratio": None, "brake_ratio": None, "steering_angle_rad": None, "gear_index": None, "engine_rpm": None, "brake_pressure": None},
         {"distance_m": 20.0, "source_distance_m": 20.0, "elapsed_s": 2.0, "speed_mps": 30.0, "throttle_ratio": None, "brake_ratio": None, "steering_angle_rad": None, "gear_index": None, "engine_rpm": None},
     )
 
