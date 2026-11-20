@@ -46,6 +46,18 @@ The adapter consumes the existing freshness-aware `RaceEngineerTelemetrySnapshot
 
 The adapter does not subscribe to shared memory, add a decoder, consume a second acquisition queue, or alter the existing broker. It does not modify Stage 1, Overview calculations, Race Strategy, or the proven F1 Corner Coach.
 
+## 4. Explicit retained-reference selection implemented
+
+New module: `src/race_engineer_acquisition/live_coach_reference.py`
+
+New tests: `tests/acquisition/test_live_coach_reference.py`
+
+The service now exposes:
+- `list_live_coach_reference_candidates(...)`: lists only retained full traces with valid, non-out classification, complete car/track/configuration identity, and both Physics and Graphics sample counts. Filters are exact car/track/configuration matches and can be narrowed to one session.
+- `load_live_coach_reference(...)`: loads a caller-selected session/lap pair, rechecks classification and exact identity, and rejects missing/corrupt/incomplete traces.
+
+The returned reference keeps original ACC Physics and Graphics sample envelopes, including independent capture sequences and timestamps. It is deliberately not translated into the F1 reference-lap schema. No automatic "best lap" choice or mutable selected-reference state is introduced yet; the consumer must explicitly select a candidate.
+
 ## 4. Semantics deliberately not guessed
 
 The adapter preserves candidate fields with raw names and provenance. It does not currently map them into the F1 engine's state shape because these ACC meanings still need explicit confirmation:
@@ -64,7 +76,7 @@ The source payload includes unresolved contract identifiers so consumers cannot 
 ## 5. Remaining Phase 8 implementation slices
 
 1. Validate the ACC lap-distance, lap-clock, session-clock, pit, and track-identity semantics from actual ACC sessions. Use source sequence/timestamp evidence and preserve stream independence.
-2. Add explicit reference-lap selection using a retained, valid, non-out high-resolution archive lap. Convert the selected archive trace into the reference format required by the preserved coaching calculations, with data-quality gates.
+2. Complete reference-lap selection using the new explicit archive candidate/load API, then define and test the ACC-to-coach reference representation with data-quality gates.
 3. Provide a bounded current-lap trace to the coach using the existing Stage 2 decoded-sample fan-out. Do not add another recorder or read shared memory from the coach.
 4. Port the generic message model and voice delivery worker with tests for message priority, `corner:` independence, deadline/pre-emption, cancellation, stale messages, and shutdown. Keep voice output off decoder and UI threads.
 5. Port/adapt the Corner Coach engine and only the dependencies required by its verified ACC input contract. Keep F1 session/race-control assumptions behind the adapter or replace them with ACC-authoritative behaviour.
