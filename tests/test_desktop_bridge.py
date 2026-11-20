@@ -19,7 +19,7 @@ def test_bridge_serializes_nested_acquisition_health_dataclass() -> None:
     with TemporaryDirectory() as directory:
         root = Path(directory)
         (root / "index.html").write_text("<html>ACC UI</html>", encoding="utf-8")
-        bridge = TelemetryBridge(root)
+        bridge = TelemetryBridge(root, port=0)
         url = bridge.start()
         try:
             bridge.publish({"acquisition": {"physics": {"health": FakeHealthSnapshot("running", 42)}}})
@@ -38,7 +38,7 @@ def test_bridge_serializes_capture_pipeline_diagnostics() -> None:
     with TemporaryDirectory() as directory:
         root = Path(directory)
         (root / "index.html").write_text("<html>ACC UI</html>", encoding="utf-8")
-        bridge = TelemetryBridge(root)
+        bridge = TelemetryBridge(root, port=0)
         url = bridge.start()
         try:
             bridge.publish({
@@ -67,7 +67,7 @@ def test_bridge_serves_frontend_and_latest_snapshot_and_sse() -> None:
     with TemporaryDirectory() as directory:
         root = Path(directory)
         (root / "index.html").write_text("<html>ACC UI</html>", encoding="utf-8")
-        bridge = TelemetryBridge(root)
+        bridge = TelemetryBridge(root, port=0)
         url = bridge.start()
         try:
             with urlopen(url, timeout=2) as response:
