@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from threading import Event, Lock, Thread
 import time
+import math
 from pathlib import Path
 from typing import Any
 
@@ -316,6 +317,20 @@ class RaceEngineerService:
         missing = [key for key in required if key not in geometry_policy]
         if missing:
             raise ValueError("missing geometry policy values: " + ", ".join(missing))
+        for key in required:
+            value = geometry_policy[key]
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(float(value))
+            ):
+                raise ValueError(f"{key} must be a finite number")
+        if geometry_policy["minimum_point_spacing_m"] < 0:
+            raise ValueError("minimum_point_spacing_m must be non-negative")
+        if not 0 < geometry_policy["minimum_turn_angle_rad"] < 3.141592653589793:
+            raise ValueError("minimum_turn_angle_rad must be between 0 and pi")
+        if geometry_policy["minimum_corner_length_m"] <= 0 or geometry_policy["merge_gap_m"] < 0:
+            raise ValueError("corner length must be positive and merge gap non-negative")
         metadata = self._performance_archive.read_lap_metadata(session_id, lap_number)
         if metadata is None:
             raise LookupError(f"lap not found in archive: {session_id}:{lap_number}")
