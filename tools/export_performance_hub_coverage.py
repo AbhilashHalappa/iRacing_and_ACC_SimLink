@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 from pathlib import Path
 import sys
+import zlib
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT / "src"))
+for import_path in (PROJECT_ROOT, PROJECT_ROOT / "src"):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
-from monitor_performance_hub import (
+from tools.monitor_performance_hub import (
     check_trace,
     default_db_path,
     read_archive,
@@ -32,9 +35,10 @@ from race_engineer_acquisition.performance_lap_archive import (
 COLUMNS = (
     "session_id", "lap_number", "trace_status", "stream", "field",
     "sample_count", "field_in_all_samples", "non_null_sample_count",
-    "null_sample_count", "coverage_percent", "source_sequence_first",
-    "source_sequence_last", "source_timestamp_first_ns",
-    "source_timestamp_last_ns", "stream_validation_status",
+    "null_value_sample_count", "missing_key_sample_count", "coverage_percent",
+    "source_sequence_first", "source_sequence_last",
+    "source_timestamp_first_ns", "source_timestamp_last_ns",
+    "stream_validation_status",
 )
 
 
@@ -60,15 +64,14 @@ def _coverage_rows_for_trace(
         count = len(samples)
         sequences = [sample.get("capture_sequence") for sample in samples]
         timestamps = [sample.get("capture_timestamp_ns") for sample in samples]
-        missing_contract = set(
-            validation.get(f"{stream}_missing_archive_fields", [])
-        )
+        missing_contract = set(validation.get(f"{stream}_missing_archive_fields", []))
         for field in contract_fields:
-            non_null = sum(
+            missing_keys = sum(1 for sample in data_samples if field not in sample)
+            null_values = sum(
                 1 for sample in data_samples
-                if field in sample and sample.get(field) is not None
+                if field in sample and sample.get(field) is None
             )
-            null_count = count - non_null
+            non_null = count - missing_keys - null_values
             result.append({
                 "session_id": row["session_id"],
                 "lap_number": row["lap_number"],
@@ -78,7 +81,8 @@ def _coverage_rows_for_trace(
                 "sample_count": count,
                 "field_in_all_samples": field not in missing_contract,
                 "non_null_sample_count": non_null,
-                "null_sample_count": null_count,
+                "null_value_sample_count": null_values,
+                "missing_key_sample_count": missing_keys,
                 "coverage_percent": round((non_null / count) * 100, 2) if count else 0.0,
                 "source_sequence_first": sequences[0] if sequences else None,
                 "source_sequence_last": sequences[-1] if sequences else None,
@@ -107,8 +111,6 @@ def build_coverage_rows(
             )
             if blob is None:
                 continue
-            import json
-            import zlib
             try:
                 payload = json.loads(zlib.decompress(blob).decode("utf-8"))
             except (ValueError, zlib.error, UnicodeDecodeError):
@@ -122,40 +124,29 @@ def build_coverage_rows(
             quality = row.get("quality") if isinstance(row.get("quality"), dict) else {}
             sector = quality.get("sector_evidence") if isinstance(quality.get("sector_evidence"), dict) else {}
             timing_count = quality.get("graphics_timing_observation_count", 0)
-            coverage.append({
-                "session_id": row["session_id"],
-                "lap_number": row["lap_number"],
-                "trace_status": trace_status,
-                "stream": "compact_metadata",
-                "field": "graphics_timing_change_points",
-                "sample_count": timing_count,
-                "field_in_all_samples": None,
-                "non_null_sample_count": timing_count,
-                "null_sample_count": None,
-                "coverage_percent": None,
-                "source_sequence_first": None,
-                "source_sequence_last": None,
-                "source_timestamp_first_ns": None,
-                "source_timestamp_last_ns": None,
-                "stream_validation_status": "COMPACT_EVIDENCE_ONLY",
-            })
-            coverage.append({
-                "session_id": row["session_id"],
-                "lap_number": row["lap_number"],
-                "trace_status": trace_status,
-                "stream": "compact_metadata",
-                "field": "raw_sector_observations",
-                "sample_count": sector.get("observation_count", 0),
-                "field_in_all_samples": None,
-                "non_null_sample_count": sector.get("observation_count", 0),
-                "null_sample_count": None,
-                "coverage_percent": None,
-                "source_sequence_first": None,
-                "source_sequence_last": None,
-                "source_timestamp_first_ns": None,
-                "source_timestamp_last_ns": None,
-                "stream_validation_status": "NOT_ASSIGNED_TO_SECTOR_TIMES",
-            })
+            for field, count, status in (
+                ("graphics_timing_change_points", timing_count, "COMPACT_EVIDENCE_ONLY"),
+                ("raw_sector_observations", sector.get("observation_count", 0),
+                 "NOT_ASSIGNED_TO_SECTOR_TIMES"),
+            ):
+                coverage.append({
+                    "session_id": row["session_id"],
+                    "lap_number": row["lap_number"],
+                    "trace_status": trace_status,
+                    "stream": "compact_metadata",
+                    "field": field,
+                    "sample_count": count,
+                    "field_in_all_samples": None,
+                    "non_null_sample_count": count,
+                    "null_value_sample_count": None,
+                    "missing_key_sample_count": None,
+                    "coverage_percent": None,
+                    "source_sequence_first": None,
+                    "source_sequence_last": None,
+                    "source_timestamp_first_ns": None,
+                    "source_timestamp_last_ns": None,
+                    "stream_validation_status": status,
+                })
     return coverage
 
 
@@ -171,9 +162,10 @@ def write_session_coverage(
         coverage_rows = build_coverage_rows(session_rows, archive_path)
         if not coverage_rows:
             continue
-        session_dir = output_dir / safe_session_name(session_id)
+        safe_id = safe_session_name(session_id)
+        session_dir = output_dir / safe_id
         session_dir.mkdir(parents=True, exist_ok=True)
-        path = session_dir / f"telemetry_coverage_{safe_session_name(session_id)}.csv"
+        path = session_dir / f"telemetry_coverage_{safe_id}.csv"
         with path.open("w", newline="", encoding="utf-8-sig") as handle:
             writer = csv.DictWriter(handle, fieldnames=COLUMNS)
             writer.writeheader()
