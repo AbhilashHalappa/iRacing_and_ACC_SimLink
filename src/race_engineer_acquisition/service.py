@@ -733,6 +733,7 @@ class RaceEngineerService:
             out_lap_status=self._broker.out_lap_status,
         )
         return {
+            "current_lap_trace": asdict(self._performance_capture.current_lap_snapshot),
             "live_coach_source": live_coach_source.to_payload(),
             "fuel_engineer": fuel_payload,
             "race_progress": race_progress_payload_value,
