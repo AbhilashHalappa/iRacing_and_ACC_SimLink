@@ -62,7 +62,6 @@ def test_reference_candidates_include_only_valid_non_out_retained_complete_ident
     )
 
     assert len(result) == 1
-    assert result[0]["reference_id"] if "reference_id" in result[0] else result[0]["lap_number"] == 4
     assert result[0]["lap_number"] == 4
 
 
