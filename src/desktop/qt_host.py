@@ -190,7 +190,7 @@ class ACCDesktopWindow(QMainWindow):
                 "[Capture Pipeline Diagnostics] " + json.dumps({
                     "streams": capture_pipeline,
                     "performance_hub": performance_diagnostics,
-                }, sort_keys=True, default=lambda value: asdict(value)),
+                }, sort_keys=True, default=lambda value: asdict(value) if hasattr(value, "__dataclass_fields__") else str(value)),
                 flush=True,
             )
         static_health = self._runtime.acquirers["static"].health.snapshot
