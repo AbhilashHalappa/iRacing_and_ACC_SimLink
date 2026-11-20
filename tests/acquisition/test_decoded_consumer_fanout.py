@@ -118,5 +118,34 @@ class DecodedConsumerFanOutIntegrationTests(unittest.TestCase):
         self.assertEqual(consumer.sample_publish_error_count, 1)
 
 
+    def test_decode_error_detail_is_retained_after_later_success(self) -> None:
+        ring = AcquisitionRingBuffer(4)
+        consumer = PhysicsDecodeConsumer(ring)
+        self.assertTrue(ring.try_put(PhysicsSnapshot(1, 17, 10, 20, 20, b"bad")))
+        self.assertTrue(ring.try_put(PhysicsSnapshot(2, 18, 30, 40, 40, b"good")))
+        with patch(
+            "race_engineer_acquisition.physics_consumer.decode_physics",
+            side_effect=[ValueError("bad physics page"), SimpleNamespace(packet_id=18)],
+        ):
+            self.assertEqual(consumer.process_pending(), 2)
+        self.assertEqual(consumer.snapshot.decode_error_count, 1)
+        self.assertIsNone(consumer.snapshot.last_error)
+        self.assertIn("bad physics page", consumer.snapshot.last_decode_error)
+
+    def test_graphics_decode_error_detail_is_retained_after_later_success(self) -> None:
+        ring = AcquisitionRingBuffer(4)
+        consumer = GraphicsDecodeConsumer(ring)
+        self.assertTrue(ring.try_put(GraphicsSnapshot(1, 23, 10, 20, 20, b"bad")))
+        self.assertTrue(ring.try_put(GraphicsSnapshot(2, 24, 30, 40, 40, b"good")))
+        with patch(
+            "race_engineer_acquisition.graphics_consumer.decode_graphics",
+            side_effect=[ValueError("bad graphics page"), SimpleNamespace(packet_id=24)],
+        ):
+            self.assertEqual(consumer.process_pending(), 2)
+        self.assertEqual(consumer.snapshot.decode_error_count, 1)
+        self.assertIsNone(consumer.snapshot.last_error)
+        self.assertIn("bad graphics page", consumer.snapshot.last_decode_error)
+
+
 if __name__ == "__main__":
     unittest.main()
