@@ -1,5 +1,6 @@
 from race_engineer_acquisition.performance_analysis_service import analyze_archived_laps
 from race_engineer_acquisition.track_model_archive import CanonicalTrackModelStore
+from race_engineer_acquisition.service import RaceEngineerService
 
 
 class FakeArchive:
@@ -204,3 +205,50 @@ def test_archive_analysis_uses_persisted_canonical_corner_ids_across_sessions(tm
     assert result["corner_identity_scope"] == "persisted_track_configuration"
     assert result["track_model"]["corners"][0]["stable_corner_id"] == stable_id
     assert result["comparison_track_model"]["corners"][0]["stable_corner_id"] == stable_id
+
+
+
+def test_service_explicitly_saves_selected_valid_lap_as_canonical_reference(tmp_path):
+    archive = FakeArchive({("reference-session", 3): make_trace(1_000_000_000)})
+    service = RaceEngineerService.__new__(RaceEngineerService)
+    service._performance_archive = archive
+    service._canonical_track_models = CanonicalTrackModelStore(tmp_path)
+
+    saved = service.save_canonical_track_model(
+        session_id="reference-session",
+        lap_number=3,
+        geometry_policy={
+            "minimum_point_spacing_m": 0.25,
+            "minimum_turn_angle_rad": 0.4,
+            "minimum_corner_length_m": 5.0,
+            "merge_gap_m": 15.0,
+        },
+    )
+
+    assert saved["reference"]["session_id"] == "reference-session"
+    assert saved["reference"]["lap_number"] == 3
+    assert saved["model"]["corners"][0]["stable_corner_id"].startswith("corner-")
+    assert service.list_canonical_track_models()[0]["track"] == "Test Track"
+
+
+def test_service_rejects_nonfinite_canonical_geometry_policy(tmp_path):
+    archive = FakeArchive({("reference-session", 3): make_trace(1_000_000_000)})
+    service = RaceEngineerService.__new__(RaceEngineerService)
+    service._performance_archive = archive
+    service._canonical_track_models = CanonicalTrackModelStore(tmp_path)
+
+    try:
+        service.save_canonical_track_model(
+            session_id="reference-session",
+            lap_number=3,
+            geometry_policy={
+                "minimum_point_spacing_m": 0.25,
+                "minimum_turn_angle_rad": float("nan"),
+                "minimum_corner_length_m": 5.0,
+                "merge_gap_m": 15.0,
+            },
+        )
+    except ValueError as exc:
+        assert "finite number" in str(exc)
+    else:
+        raise AssertionError("non-finite geometry policy should be rejected")
