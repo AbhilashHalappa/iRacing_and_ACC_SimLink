@@ -138,7 +138,6 @@ def build_acc_live_coach_source(
             "current_lap_clock_semantics",
             "monotonic_session_clock",
             "selected_high_resolution_reference_lap",
-            "current_lap_trace_provider",
             "corner_coach_runtime_and_voice_delivery",
         ),
     )
