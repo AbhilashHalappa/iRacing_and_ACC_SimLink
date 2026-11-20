@@ -110,7 +110,7 @@ class PerformanceLapCaptureWorker:
                         # No lap.started event was observed, so this completion
                         # or counter-gap event is only a conservative re-attachment
                         # anchor; earlier sample loss predates the new interval.
-                        self._pre_boundary_sample_loss = False
+                        self._pre_boundary_sample_loss_streams.clear()
                     with self._lock:
                         self._processed_event_count += 1
                     did_work = True
