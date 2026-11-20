@@ -21,6 +21,10 @@ from .racing_line_analysis import build_track_trajectory
 from .track_model import build_track_model
 from .track_model_archive import CanonicalTrackModelStore
 from .live_coach_adapter import build_acc_live_coach_source
+from .live_coach_reference import (
+    list_live_coach_reference_candidates,
+    load_live_coach_reference,
+)
 from .performance_lap_archive import (
     LapArchiveContext,
     PerformanceArchiveConfig,
@@ -285,6 +289,34 @@ class RaceEngineerService:
     ) -> dict[str, Any] | None:
         """Read one source-preserving retained trace for analysis consumers."""
         return self._performance_archive.read_trace(session_id, lap_number)
+
+    def list_live_coach_reference_candidates(
+        self, *, car_model: str, track: str, track_configuration: str,
+        session_id: str | None = None, limit: int = 100,
+    ) -> tuple[dict[str, Any], ...]:
+        """List selectable retained ACC references for one exact car/track identity."""
+        return list_live_coach_reference_candidates(
+            self._performance_archive,
+            car_model=car_model,
+            track=track,
+            track_configuration=track_configuration,
+            session_id=session_id,
+            limit=limit,
+        )
+
+    def load_live_coach_reference(
+        self, *, session_id: str, lap_number: int, car_model: str,
+        track: str, track_configuration: str,
+    ) -> dict[str, Any]:
+        """Load an explicitly selected original ACC reference trace."""
+        return load_live_coach_reference(
+            self._performance_archive,
+            session_id=session_id,
+            lap_number=lap_number,
+            car_model=car_model,
+            track=track,
+            track_configuration=track_configuration,
+        )
 
     def analyze_performance_laps(
         self, *, reference_session_id: str, reference_lap_number: int,
