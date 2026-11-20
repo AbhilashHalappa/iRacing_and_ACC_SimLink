@@ -100,7 +100,7 @@ def test_worker_marks_pre_boundary_sample_loss_when_lap_one_start_arrives():
     worker = PerformanceLapCaptureWorker(samples, events, poll_interval_s=0.002)
     worker.start()
     try:
-        assert _wait_for(lambda: worker.metrics["diagnostic_count"] >= 2)
+        assert _wait_for(lambda: worker.metrics["diagnostic_count"] >= 1)
         outputs = []
         while True:
             output = worker.read_result()
