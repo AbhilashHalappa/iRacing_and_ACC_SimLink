@@ -1,4 +1,4 @@
-"""High-priority ACC telemetry acquisition foundation."""
+"""ACC telemetry acquisition and live Overview runtime primitives."""
 
 from .models import PhysicsSnapshot, RawPhysicsRead
 from .physics_decoder import DecodedPhysics, decode_physics, WHEEL_ORDER
@@ -7,17 +7,6 @@ from .graphics_decoder import DecodedGraphics, decode_graphics
 from .graphics_consumer import GraphicsDecodeConsumer, GraphicsConsumerSnapshot
 from .static_consumer import StaticDecodeConsumer, StaticConsumerSnapshot
 from .health import AcquisitionHealth, AcquisitionHealthSnapshot
-from .fuel_engineer import FuelEngineerSnapshot, build_fuel_engineer_snapshot
-from .fuel_strategy import FuelStrategyAssessment, assess_fuel_strategy
-from .fuel_consumption_strategy import FuelConsumptionAssessment, assess_measured_fuel
-from .race_progress_strategy import RaceProgressAssessment, assess_race_progress
-from .service import RaceEngineerService
-from .performance_lap_archive import (
-    LapArchiveContext,
-    PerformanceArchiveConfig,
-    PerformanceLapArchive,
-    PerformanceLapPersistenceWorker,
-)
 from .lap_events import (
     CompletedLapEventObserver,
     LapEventCandidate,
@@ -42,73 +31,31 @@ from .engineering_snapshot import (
     RawStreamHealthView,
 )
 from .ring_buffer import AcquisitionRingBuffer
-from .fanout import BoundedConsumerQueue, FanOutDispatcher, ConsumerQueueMetrics, FanOutMetrics
 from .acc_windows import WindowsACCPhysicsSource
-from .recorder import PhysicsRecorderWorker, RawPhysicsRecordingWriter, recover_recording
-from .static_recording import StaticRecorderWorker, RawStaticRecordingWriter, recover_static_recording
 from .supervisor import (
-    AcquisitionStream, AcquisitionSupervisor, AcquisitionStartupError,
-    ACCAcquisitionRuntime, create_acc_acquisition_runtime,
+    AcquisitionStream,
+    AcquisitionSupervisor,
+    AcquisitionStartupError,
+    ACCAcquisitionRuntime,
+    create_acc_acquisition_runtime,
 )
 
 __all__ = [
-    "AcquisitionHealth",
-    "AcquisitionHealthSnapshot",
-    "FuelEngineerSnapshot",
-    "build_fuel_engineer_snapshot",
-    "FuelStrategyAssessment",
-    "assess_fuel_strategy",
-    "FuelConsumptionAssessment",
-    "assess_measured_fuel",
-    "RaceProgressAssessment",
-    "assess_race_progress",
-    "RaceEngineerService",
-    "LapArchiveContext",
-    "PerformanceArchiveConfig",
-    "PerformanceLapArchive",
-    "PerformanceLapPersistenceWorker",
-    "CompletedLapEventObserver",
-    "LapEventCandidate",
-    "LapProgressReconciliation",
-    "reconcile_lap_progress",
-    "DecodedDomainEvent",
-    "EventDeliveryBatch",
-    "DecodedEventSubscription",
-    "DecodedEventPublisher",
-    "DecodedTelemetryBroker",
-    "DecodedSnapshotEnvelope",
-    "LatestSnapshotSubscription",
-    "RaceEngineerSnapshotAggregator",
-    "RaceEngineerTelemetrySnapshot",
-    "TelemetryStreamView",
-    "RawStreamHealthView",
-    "PhysicsSnapshot",
-    "DecodedPhysics",
-    "PhysicsDecodeConsumer",
-    "PhysicsConsumerSnapshot",
-    "DecodedGraphics",
-    "decode_graphics",
-    "GraphicsDecodeConsumer",
-    "GraphicsConsumerSnapshot",
-    "StaticDecodeConsumer",
-    "StaticConsumerSnapshot",
-    "decode_physics",
-    "WHEEL_ORDER",
-    "RawPhysicsRead",
-    "AcquisitionRingBuffer",
-    "BoundedConsumerQueue",
-    "FanOutDispatcher",
-    "ConsumerQueueMetrics",
-    "FanOutMetrics",
-    "PhysicsRecorderWorker",
-    "RawPhysicsRecordingWriter",
-    "recover_recording",
-    "StaticRecorderWorker",
-    "RawStaticRecordingWriter",
-    "recover_static_recording",
-    "AcquisitionStream",
-    "AcquisitionSupervisor",
-    "AcquisitionStartupError",
-    "ACCAcquisitionRuntime",
-    "create_acc_acquisition_runtime",
+    "AcquisitionHealth", "AcquisitionHealthSnapshot",
+    "CompletedLapEventObserver", "LapEventCandidate",
+    "LapProgressReconciliation", "reconcile_lap_progress",
+    "DecodedDomainEvent", "EventDeliveryBatch",
+    "DecodedEventSubscription", "DecodedEventPublisher",
+    "DecodedTelemetryBroker", "DecodedSnapshotEnvelope",
+    "LatestSnapshotSubscription", "RaceEngineerSnapshotAggregator",
+    "RaceEngineerTelemetrySnapshot", "TelemetryStreamView",
+    "RawStreamHealthView", "PhysicsSnapshot", "RawPhysicsRead",
+    "DecodedPhysics", "decode_physics", "WHEEL_ORDER",
+    "PhysicsDecodeConsumer", "PhysicsConsumerSnapshot",
+    "DecodedGraphics", "decode_graphics", "GraphicsDecodeConsumer",
+    "GraphicsConsumerSnapshot", "StaticDecodeConsumer",
+    "StaticConsumerSnapshot", "AcquisitionRingBuffer",
+    "WindowsACCPhysicsSource", "AcquisitionStream",
+    "AcquisitionSupervisor", "AcquisitionStartupError",
+    "ACCAcquisitionRuntime", "create_acc_acquisition_runtime",
 ]
