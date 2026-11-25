@@ -118,7 +118,6 @@ class ACCDesktopWindow(QMainWindow):
                     "last_capture_sequence": consumer_snapshot.last_capture_sequence,
                     "last_error": consumer_snapshot.last_error,
                     "last_decode_error": consumer_snapshot.last_decode_error,
-                    "sample_publish_error_count": stream_consumer.sample_publish_error_count,
                 },
             }
         capture_signature = tuple(
@@ -129,7 +128,6 @@ class ACCDesktopWindow(QMainWindow):
                 values["ring_buffer"]["last_lost_sequence"],
                 values["acquirer"].get("buffer_rejection_count", 0),
                 values["decoder"]["decode_error_count"],
-                values["decoder"]["sample_publish_error_count"],
             )
             for name, values in sorted(capture_pipeline.items())
         )
