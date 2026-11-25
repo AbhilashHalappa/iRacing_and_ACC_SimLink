@@ -156,7 +156,7 @@ class IRacingTelemetryReader:
         speed_mps = _number(_read(sdk, "Speed"))
         gear = _integer(_read(sdk, "Gear"))
         rpm = _number(_read(sdk, "RPM"))
-        max_rpm = _number(_read(sdk, "DriverCarSLBlinkRPM")) or _number(_read(sdk, "ShiftGrindRPM"))
+        max_rpm = _number(_read(sdk, "PlayerCarSLBlinkRPM"))
         fuel = _number(_read(sdk, "FuelLevel"))
         lap = _integer(_read(sdk, "LapCompleted"))
         session_num = _integer(_read(sdk, "SessionNum"))
@@ -211,6 +211,8 @@ class IRacingTelemetryReader:
         humidity = _number(_read(sdk, "RelativeHumidity"))
         track_wetness = _number(_read(sdk, "TrackWetness"))
         on_track = bool(_read(sdk, "IsOnTrack", False))
+        in_garage = bool(_read(sdk, "IsInGarage", False))
+        is_replay = bool(_read(sdk, "IsReplayPlaying", False))
         on_track_surface = _integer(_read(sdk, "PlayerTrackSurface"))
         track_surface_material = _integer(_read(sdk, "PlayerTrackSurfaceMaterial"))
         abs_active = bool(_read(sdk, "BrakeABSactive", False))
@@ -336,10 +338,9 @@ class IRacingTelemetryReader:
                     (0x00000008, 2), (0x00000010, 3), (0x00000020, 1),
                     (0x00000040, 8))
         mapped_flag = next((value for bit, value in flag_map if session_flags & bit), 0)
-        status_map = {0: 0, 1: 1, 2: 2, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3}
-        graphics_status = status_map.get(session_state, 0)
-        surface_names = {0: "Not in world", 1: "On track", 2: "In pit stall", 3: "Approaching pits", 4: "On track", 5: "Off track", 6: "In pit lane"}
-        track_status = surface_names.get(on_track_surface, "Unknown surface")
+        # Overview status is not the iRacing SessionState enum.
+        graphics_status = 1 if is_replay else 2 if on_track else 0 if in_garage else 3
+        track_status = "Pit road" if on_pit_road else "On track" if on_track else "Off track"
         graphics_data = {
             "status": graphics_status, "session": session_type_index, "session_name": session_type, "session_index": session_num,
             "current_time_ms": current_ms, "current_time_str": _time_string(current_ms),
@@ -350,7 +351,7 @@ class IRacingTelemetryReader:
             "position": position, "class_position": class_position, "class_id": class_id, "active_cars": active_cars,
             "gap_ahead_ms": gap_ahead_ms, "gap_behind_ms": gap_behind_ms,
             "session_time_left_s": remain_s, "is_in_pit": on_pit_road, "is_in_pit_lane": on_pit_road,
-            "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
+            "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "is_in_garage": in_garage, "is_replay": is_replay, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
             "is_valid_lap": None, "sector": None, "split_time_str": "",
             "last_sector_time_ms": None, "tyre_compound": None,
             "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps,
@@ -360,7 +361,7 @@ class IRacingTelemetryReader:
             "track_grip_status": None, "track_wetness": track_wetness, "rain_intensity": None, "rain_10min": None, "rain_30min": None,
             "wind_speed": wind_mps * 3.6 if wind_mps is not None else None, "wind_direction": wind_direction,
             "flag": mapped_flag, "track_status": track_status, "session_flags": session_flags,
-            "global_yellow_1": bool(session_flags & 0x00000008), "global_yellow_2": False, "global_yellow_3": False,
+            "global_yellow_1": bool(session_flags & 0x00000008), "global_yellow_2": None, "global_yellow_3": None,
             "global_green": bool(session_flags & 0x00000004), "global_chequered": bool(session_flags & 0x00000001),
             "global_red": bool(session_flags & 0x00000010),
             "penalty": None, "penalty_time_s": None, "incident_count": incidents, "team_incident_count": team_incidents, "driver_incident_count": driver_incidents, "missing_mandatory_pits": None,
