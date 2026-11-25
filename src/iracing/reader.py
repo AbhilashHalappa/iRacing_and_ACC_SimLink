@@ -156,7 +156,7 @@ class IRacingTelemetryReader:
         speed_mps = _number(_read(sdk, "Speed"))
         gear = _integer(_read(sdk, "Gear"))
         rpm = _number(_read(sdk, "RPM"))
-        max_rpm = _number(_read(sdk, "PlayerCarSLBlinkRPM")) or 9000.0
+        max_rpm = _number(_read(sdk, "DriverCarSLBlinkRPM")) or _number(_read(sdk, "ShiftGrindRPM"))
         fuel = _number(_read(sdk, "FuelLevel"))
         lap = _integer(_read(sdk, "LapCompleted"))
         session_num = _integer(_read(sdk, "SessionNum"))
@@ -232,8 +232,11 @@ class IRacingTelemetryReader:
             wheel_data[corner] = {
                 "tyre_core_temp_c": average_temp,
                 "tyre_temp_c": average_temp,
-                # iRacing exposes cold setup pressure, not a live hot pressure.
-                "tyre_pressure_psi": None,
+                # iRacing exposes cold setup pressure (kPa), not live hot pressure.
+                "tyre_pressure_psi": (
+                    _number(_read(sdk, f"{prefix}coldPressure")) * 0.1450377377
+                    if _number(_read(sdk, f"{prefix}coldPressure")) is not None else None
+                ),
                 "slip_ratio": None,
                 "slip_angle": None,
                 "brake_temp_c": None,
