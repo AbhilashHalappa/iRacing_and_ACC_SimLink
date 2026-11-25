@@ -200,6 +200,11 @@ class IRacingTelemetryReader:
         position = _integer(_read(sdk, "PlayerCarPosition"))
         completed = lap if lap is not None else 0
 
+        fuel_session_key = (track, configuration, session_num)
+        if fuel_session_key != self._fuel_session_key:
+            self._fuel_session_key = fuel_session_key
+            self._fuel_lap_anchor = (lap, fuel) if fuel is not None and lap is not None else None
+            self._fuel_per_lap = None
         if fuel is not None and lap is not None:
             if self._fuel_lap_anchor is None:
                 self._fuel_lap_anchor = (lap, fuel)
@@ -250,6 +255,7 @@ class IRacingTelemetryReader:
             "last_time_ms": last_ms, "last_time_str": _time_string(last_ms),
             "best_time_ms": best_ms, "best_time_str": _time_string(best_ms),
             "completed_laps": completed, "number_of_laps": _integer(_read(sdk, "RaceLaps")),
+            "distance_traveled_m": _number(_read(sdk, "LapDist")),
             "position": position, "active_cars": active_cars,
             "session_time_left_s": remain_s, "is_in_pit": on_pit_road, "is_in_pit_lane": on_pit_road,
             "normalized_car_position": lap_pct, "player_world_position": None,
