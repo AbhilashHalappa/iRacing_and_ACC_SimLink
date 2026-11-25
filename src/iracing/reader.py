@@ -440,7 +440,7 @@ class IRacingTelemetryReader:
             ),
             "split_time_str": _time_string(
                 max(0, current_ms - self._sector_boundary_time_ms)
-                if sector_index is not None and current_ms is not None and current_ms >= self._sector_boundary_time_ms else None
+                if sector_index is not None and current_ms is not None and self._sector_boundary_time_ms is not None and current_ms >= self._sector_boundary_time_ms else None
             ),
             "last_sector_time_ms": (
                 self._sector_times_ms[sector_index - 1]
