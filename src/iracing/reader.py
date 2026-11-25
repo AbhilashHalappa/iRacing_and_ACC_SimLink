@@ -90,7 +90,7 @@ class IRacingTelemetryReader:
         self._sector_session_key: tuple[Any, ...] | None = None
         self._sector_lap: int | None = None
         self._sector_index: int | None = None
-        self._sector_boundary_time_ms: int = 0
+        self._sector_boundary_time_ms: int | None = 0
         self._sector_times_ms: list[int | None] = []
 
     @staticmethod
@@ -205,7 +205,7 @@ class IRacingTelemetryReader:
             self._sector_session_key = sector_session_key
             self._sector_lap = lap
             self._sector_index = sector_index
-            self._sector_boundary_time_ms = 0
+            self._sector_boundary_time_ms = 0 if sector_index == 0 else None
             self._sector_times_ms = [None] * sector_count
         elif sector_count:
             if lap is not None and self._sector_lap is not None and lap != self._sector_lap:
@@ -217,11 +217,12 @@ class IRacingTelemetryReader:
                     self._sector_times_ms[self._sector_index] = max(0, last_ms - self._sector_boundary_time_ms)
                 self._sector_lap = lap
                 self._sector_index = sector_index
-                self._sector_boundary_time_ms = 0
+                self._sector_boundary_time_ms = 0 if sector_index == 0 else None
                 self._sector_times_ms = [None] * sector_count
             elif sector_index is not None and self._sector_index is not None and sector_index > self._sector_index:
-                if current_ms is not None and current_ms >= self._sector_boundary_time_ms:
+                if current_ms is not None and self._sector_boundary_time_ms is not None and current_ms >= self._sector_boundary_time_ms:
                     self._sector_times_ms[self._sector_index] = current_ms - self._sector_boundary_time_ms
+                if current_ms is not None:
                     self._sector_boundary_time_ms = current_ms
                 self._sector_index = sector_index
             elif self._sector_index is None:
@@ -429,7 +430,7 @@ class IRacingTelemetryReader:
             "sector_times_ms": list(self._sector_times_ms),
             "live_sector_time_ms": (
                 max(0, current_ms - self._sector_boundary_time_ms)
-                if sector_index is not None and current_ms is not None and current_ms >= self._sector_boundary_time_ms else None
+                if sector_index is not None and current_ms is not None and self._sector_boundary_time_ms is not None and current_ms >= self._sector_boundary_time_ms else None
             ),
             "split_time_str": _time_string(
                 max(0, current_ms - self._sector_boundary_time_ms)
