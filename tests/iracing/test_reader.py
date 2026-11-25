@@ -16,6 +16,12 @@ class FakeSDK:
             "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full"},
             "DriverInfo": {"DriverCarFuelMaxLtr": 40.0, "Drivers": [{"CarIdx": 0, "CarScreenName": "Formula Vee"}]},
             "SessionInfo": {"Sessions": [{"SessionType": "Race"}]},
+            "SplitTimeInfo": {"Sectors": [
+                {"SectorNum": 0, "SectorStartPct": 0.0},
+                {"SectorNum": 1, "SectorStartPct": 0.2},
+                {"SectorNum": 2, "SectorStartPct": 0.4},
+                {"SectorNum": 3, "SectorStartPct": 0.7},
+            ]},
             "PlayerCarIdx": 0, "Throttle": 0.8, "Brake": 0.1, "Clutch": 0.0,
             "SteeringWheelAngle": 0.15, "AirTemp": 21.0, "TrackTempCrew": 28.0,
             "WindVel": 2.0, "WindDir": 1.0, "OnPitRoad": False,
@@ -63,6 +69,28 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
+
+    def test_track_sector_count_and_timing_are_dynamic(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+
+        first = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(first["sector_count"], 4)
+        self.assertEqual(first["sector"], 2)
+        self.assertEqual(first["sector_boundaries_pct"], [0.0, 0.2, 0.4, 0.7])
+        self.assertEqual(len(first["sector_times_ms"]), 4)
+        # Attaching mid-lap must not invent a sector duration from lap start.
+        self.assertIsNone(first["live_sector_time_ms"])
+
+        sdk.values["LapDistPct"] = 0.72
+        sdk.values["LapCurrentLapTime"] = 85.234
+        crossed = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(crossed["sector"], 3)
+        self.assertIsNone(crossed["sector_times_ms"][2])
+
+        sdk.values["LapCurrentLapTime"] = 87.234
+        live = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(live["live_sector_time_ms"], 2000)
 
     def test_does_not_misrepresent_unavailable_iRacing_channels(self):
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
