@@ -84,6 +84,7 @@ class IRacingTelemetryReader:
         self._last_error: str | None = None
         self._fuel_lap_anchor: tuple[int, float] | None = None
         self._fuel_per_lap: float | None = None
+        self._fuel_start_level: float | None = None
         self._fuel_session_key: tuple[Any, ...] | None = None
 
     @staticmethod
@@ -225,6 +226,7 @@ class IRacingTelemetryReader:
         session_state = _integer(_read(sdk, "SessionState"))
         session_flags = _integer(_read(sdk, "SessionFlags")) or 0
         on_pit_road = bool(_read(sdk, "OnPitRoad", False))
+        in_pit_stall = bool(_read(sdk, "PlayerCarInPitStall", False))
         position = _integer(_read(sdk, "PlayerCarPosition"))
         class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
         class_id = _integer(_read(sdk, "PlayerCarClass"))
@@ -259,6 +261,7 @@ class IRacingTelemetryReader:
         if fuel_session_key != self._fuel_session_key:
             self._fuel_session_key = fuel_session_key
             self._fuel_lap_anchor = (lap, fuel) if fuel is not None and lap is not None else None
+            self._fuel_start_level = fuel
             self._fuel_per_lap = None
         if fuel is not None and lap is not None:
             if self._fuel_lap_anchor is None:
@@ -271,6 +274,7 @@ class IRacingTelemetryReader:
             elif lap < self._fuel_lap_anchor[0]:
                 self._fuel_lap_anchor = (lap, fuel)
         estimated_laps = fuel / self._fuel_per_lap if fuel is not None and self._fuel_per_lap and self._fuel_per_lap > 0 else None
+        used_fuel = max(0.0, self._fuel_start_level - fuel) if fuel is not None and self._fuel_start_level is not None else None
         delta_ms = round(delta_s * 1000) if delta_s is not None else None
         estimated_ms = best_ms + delta_ms if best_ms is not None and delta_ms is not None else None
 
@@ -318,6 +322,7 @@ class IRacingTelemetryReader:
             "air_temp_c": air_temp, "road_temp_c": track_temp, "water_temp_c": water_temp,
             "oil_temp_c": oil_temp, "oil_pressure_bar": oil_pressure, "fuel_pressure_bar": fuel_pressure,
             "fuel_level_pct": fuel_pct, "fuel_use_kg_hour": fuel_use_kg_hour,
+            "fuel_tank_capacity_l": _number(_nested(driver_info, "DriverCarFuelMaxLtr")),
             "air_density_kg_m3": air_density, "air_pressure_inhg": air_pressure,
             "relative_humidity_pct": humidity, "track_wetness": track_wetness,
             "longitudinal_accel_mps2": _number(_read(sdk, "LongAccel")),
@@ -353,8 +358,22 @@ class IRacingTelemetryReader:
             "session_time_left_s": remain_s, "is_in_pit": on_pit_road, "is_in_pit_lane": on_pit_road,
             "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "is_in_garage": in_garage, "is_replay": is_replay, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
             "is_valid_lap": None, "sector": None, "split_time_str": "",
-            "last_sector_time_ms": None, "tyre_compound": None,
-            "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps,
+            "last_sector_time_ms": None, "tyre_compound": _read(sdk, "PlayerTireCompound"),
+            "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps, "used_fuel_l": used_fuel,
+            "mfd_fuel_to_add": _number(_read(sdk, "PitSvFuel")),
+            "mfd_tyre_pressures": [
+                (_number(_read(sdk, "PitSvLFP")) * 0.1450377377) if _number(_read(sdk, "PitSvLFP")) is not None else None,
+                (_number(_read(sdk, "PitSvRFP")) * 0.1450377377) if _number(_read(sdk, "PitSvRFP")) is not None else None,
+                (_number(_read(sdk, "PitSvLRP")) * 0.1450377377) if _number(_read(sdk, "PitSvLRP")) is not None else None,
+                (_number(_read(sdk, "PitSvRRP")) * 0.1450377377) if _number(_read(sdk, "PitSvRRP")) is not None else None,
+            ],
+            "current_tyre_set": _integer(_read(sdk, "TireSetsUsed")),
+            "pitstop_active": bool(_read(sdk, "PitstopActive", False)),
+            "pit_repair_left_s": _number(_read(sdk, "PitRepairLeft")),
+            "pit_optional_repair_left_s": _number(_read(sdk, "PitOptRepairLeft")),
+            "fast_repairs_available": _integer(_read(sdk, "FastRepairAvailable")),
+            "fast_repairs_used": _integer(_read(sdk, "PlayerFastRepairsUsed")),
+            "session_laps_remaining": _integer(_read(sdk, "SessionLapsRemainEx")),
             "delta_lap_time_ms": delta_ms, "delta_lap_time_str": f"{delta_s:+.3f}" if delta_s is not None else "",
             "delta_positive": delta_s > 0 if delta_s is not None else None,
             "estimated_lap_time_ms": estimated_ms, "estimated_lap_time_str": _time_string(estimated_ms),
@@ -377,7 +396,7 @@ class IRacingTelemetryReader:
             "streams": {"physics": dict(fresh), "graphics": dict(fresh), "static": dict(fresh)},
             "physics": {"data": physics_data, "processed_count": self._sample_count, "decode_error_count": self._decode_errors},
             "graphics": {"data": graphics_data, "lap_status": None},
-            "static_metadata": {"data": {"max_fuel": None}},
+            "static_metadata": {"data": {"max_fuel": _number(_nested(driver_info, "DriverCarFuelMaxLtr"))}},
             "vehicle": {"car_model": str(car_model), "track": str(track) if track else None, "track_configuration": str(configuration) if configuration else None},
             "lap_history": [],
             "acquisition": {"physics": {"state": "running"}, "graphics": {"state": "running"}, "static": {"state": "running"}},
