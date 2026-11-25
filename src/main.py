@@ -26,15 +26,12 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        if args.game == "iracing":
-            from .desktop.iracing_host import run_desktop
-        else:
-            from .desktop.qt_host import run_desktop
+        from .desktop.switchable_host import run_desktop
     except ImportError as exc:
         print(f"Desktop dependencies are missing: {exc}", file=sys.stderr)
         print("Install requirements-desktop.txt and rebuild the frontend.", file=sys.stderr)
         return 2
-    return run_desktop()
+    return run_desktop(initial_game=args.game)
 
 
 if __name__ == "__main__":
