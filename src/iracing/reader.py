@@ -175,6 +175,12 @@ class IRacingTelemetryReader:
         current_ms = _time_ms(_read(sdk, "LapCurrentLapTime"))
         last_ms = _time_ms(_read(sdk, "LapLastLapTime"))
 
+        # Track identity is part of the sector-state key, so resolve it before
+        # sector bookkeeping (not later with the rest of the metadata).
+        session_info = _read(sdk, "WeekendInfo", {})
+        track = _nested(session_info, "TrackName")
+        configuration = _nested(session_info, "TrackConfigName")
+
         # SplitTimeInfo is session YAML, not a fixed three-sector telemetry
         # channel. Read the active track's sector starts and derive the count.
         split_info = _read(sdk, "SplitTimeInfo", {})
