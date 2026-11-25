@@ -184,6 +184,10 @@ class IRacingTelemetryReader:
         sessions = _nested(session_data, "Sessions")
         if isinstance(sessions, list) and session_num is not None and 0 <= session_num < len(sessions):
             session_type = _nested(sessions[session_num], "SessionType")
+        session_type_index = {
+            "practice": 0, "warmup": 0, "qualify": 1, "qualification": 1,
+            "race": 2, "hotlap": 3, "time trial": 4,
+        }.get(str(session_type or "").strip().lower())
         if not car_model:
             car_model = "iRacing vehicle"
 
@@ -250,7 +254,7 @@ class IRacingTelemetryReader:
             "car_damage": None, "wheels": wheel_data,
         }
         graphics_data = {
-            "status": 2, "session": session_type, "session_index": session_num,
+            "status": 2, "session": session_type_index, "session_name": session_type, "session_index": session_num,
             "current_time_ms": current_ms, "current_time_str": _time_string(current_ms),
             "last_time_ms": last_ms, "last_time_str": _time_string(last_ms),
             "best_time_ms": best_ms, "best_time_str": _time_string(best_ms),
