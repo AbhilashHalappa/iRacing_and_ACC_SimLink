@@ -31,3 +31,22 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m unittest discover -s tests/acquisition -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+      - name: Build Overview frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Run Overview utility tests
+        working-directory: frontend
+        run: |
+          npm run test:track-map
+          npm run test:time-units
