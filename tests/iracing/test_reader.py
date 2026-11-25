@@ -94,7 +94,10 @@ class IRacingReaderTests(unittest.TestCase):
 
     def test_does_not_misrepresent_unavailable_iRacing_channels(self):
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
-        snapshot = reader._build_snapshot(FakeSDK())
+        sdk = FakeSDK()
+        # This test models a session where iRacing has not supplied sector metadata.
+        sdk.values.pop("SplitTimeInfo")
+        snapshot = reader._build_snapshot(sdk)
         physics = snapshot["physics"]["data"]
         graphics = snapshot["graphics"]["data"]
         self.assertAlmostEqual(physics["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
