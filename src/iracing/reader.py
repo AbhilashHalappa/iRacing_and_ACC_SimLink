@@ -201,8 +201,31 @@ class IRacingTelemetryReader:
         track_temp = _number(_read(sdk, "TrackTempCrew"))
         wind_mps = _number(_read(sdk, "WindVel"))
         wind_direction = _number(_read(sdk, "WindDir"))
+        oil_temp = _number(_read(sdk, "OilTemp"))
+        oil_pressure = _number(_read(sdk, "OilPress"))
+        fuel_pressure = _number(_read(sdk, "FuelPress"))
+        fuel_use_kg_hour = _number(_read(sdk, "FuelUsePerHour"))
+        fuel_pct = _number(_read(sdk, "FuelLevelPct"))
+        air_density = _number(_read(sdk, "AirDensity"))
+        air_pressure = _number(_read(sdk, "AirPressure"))
+        humidity = _number(_read(sdk, "RelativeHumidity"))
+        track_wetness = _number(_read(sdk, "TrackWetness"))
+        on_track = bool(_read(sdk, "IsOnTrack", False))
+        on_track_surface = _integer(_read(sdk, "PlayerTrackSurface"))
+        track_surface_material = _integer(_read(sdk, "PlayerTrackSurfaceMaterial"))
+        abs_active = bool(_read(sdk, "BrakeABSactive", False))
+        engine_warnings = _integer(_read(sdk, "EngineWarnings"))
+        engine_running = rpm is not None and rpm > 0
+        pit_limiter = bool(_read(sdk, "dcPitSpeedLimiterToggle", False))
+        incidents = _integer(_read(sdk, "PlayerCarMyIncidentCount"))
+        team_incidents = _integer(_read(sdk, "PlayerCarTeamIncidentCount"))
+        driver_incidents = _integer(_read(sdk, "PlayerCarDriverIncidentCount"))
+        session_state = _integer(_read(sdk, "SessionState"))
+        session_flags = _integer(_read(sdk, "SessionFlags")) or 0
         on_pit_road = bool(_read(sdk, "OnPitRoad", False))
         position = _integer(_read(sdk, "PlayerCarPosition"))
+        class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
+        class_id = _integer(_read(sdk, "PlayerCarClass"))
         # CarIdxF2Time is the time to the car ahead/behind in the F2 relative
         # display. Pair it with CarIdxPosition so gaps are assigned by race order.
         car_positions = _read(sdk, "CarIdxPosition", [])
@@ -221,7 +244,7 @@ class IRacingTelemetryReader:
                         if other_position is None or other_gap is None or idx == player_idx:
                             continue
                         if other_position < player_position:
-                            ahead_gaps.append(other_gap - player_gap)
+                            ahead_gaps.append(player_gap - other_gap)
                         elif other_position > player_position:
                             behind_gaps.append(other_gap - player_gap)
                     if ahead_gaps:
@@ -266,6 +289,18 @@ class IRacingTelemetryReader:
                 "slip_angle": None,
                 "brake_temp_c": None,
                 "brake_pressure": _number(_read(sdk, f"{prefix}brakeLinePress")),
+                "tyre_wear_pct": (
+                    sum(v for v in (
+                        _number(_read(sdk, f"{prefix}wearL")),
+                        _number(_read(sdk, f"{prefix}wearM")),
+                        _number(_read(sdk, f"{prefix}wearR")),
+                    ) if v is not None) / len([v for v in (
+                        _number(_read(sdk, f"{prefix}wearL")),
+                        _number(_read(sdk, f"{prefix}wearM")),
+                        _number(_read(sdk, f"{prefix}wearR")),
+                    ) if v is not None])
+                    if any(_number(_read(sdk, f"{prefix}wear{side}")) is not None for side in ("L", "M", "R")) else None
+                ),
                 "suspension_damage": None,
                 "pad_life": None,
                 "disc_life": None,
@@ -279,34 +314,61 @@ class IRacingTelemetryReader:
             "gear_display": "R" if gear == -1 else "N" if gear == 0 else str(gear) if gear is not None else "—",
             "rpm": rpm, "current_max_rpm": max_rpm, "fuel_kg": fuel,
             "air_temp_c": air_temp, "road_temp_c": track_temp, "water_temp_c": water_temp,
-            "autoshifter_on": None, "turbo_boost": None, "brake_bias": _number(_read(sdk, "dcBrakeBias")),
+            "oil_temp_c": oil_temp, "oil_pressure_bar": oil_pressure, "fuel_pressure_bar": fuel_pressure,
+            "fuel_level_pct": fuel_pct, "fuel_use_kg_hour": fuel_use_kg_hour,
+            "air_density_kg_m3": air_density, "air_pressure_inhg": air_pressure,
+            "relative_humidity_pct": humidity, "track_wetness": track_wetness,
+            "longitudinal_accel_mps2": _number(_read(sdk, "LongAccel")),
+            "lateral_accel_mps2": _number(_read(sdk, "LatAccel")),
+            "vertical_accel_mps2": _number(_read(sdk, "VertAccel")),
+            "yaw_rate_rad_s": _number(_read(sdk, "YawRate")),
+            "pitch_rad": _number(_read(sdk, "Pitch")), "roll_rad": _number(_read(sdk, "Roll")),
+            "autoshifter_on": None, "turbo_boost": _number(_read(sdk, "ManifoldPress")),
+            "brake_bias": _number(_read(sdk, "dcBrakeBias")),
+            "abs_active": abs_active, "engine_running": engine_running,
+            "pit_limiter_on": pit_limiter, "ignition_on": None, "starter_engine_on": None,
+            "is_ai_controlled": None, "engine_warnings": engine_warnings,
             "car_damage": None, "wheels": wheel_data,
         }
+        # iRacing SessionFlags is a bitfield. Convert only known flags to the
+        # Overview's display booleans; never pass the raw bitmask as an ACC enum.
+        flag_map = ((0x00000001, 5), (0x00000002, 4), (0x00000004, 7),
+                    (0x00000008, 2), (0x00000010, 3), (0x00000020, 1),
+                    (0x00000040, 8))
+        mapped_flag = next((value for bit, value in flag_map if session_flags & bit), 0)
+        status_map = {0: 0, 1: 1, 2: 2, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3}
+        graphics_status = status_map.get(session_state, 0)
+        surface_names = {0: "Not in world", 1: "On track", 2: "In pit stall", 3: "Approaching pits", 4: "On track", 5: "Off track", 6: "In pit lane"}
+        track_status = surface_names.get(on_track_surface, "Unknown surface")
         graphics_data = {
-            "status": 2, "session": session_type_index, "session_name": session_type, "session_index": session_num,
+            "status": graphics_status, "session": session_type_index, "session_name": session_type, "session_index": session_num,
             "current_time_ms": current_ms, "current_time_str": _time_string(current_ms),
             "last_time_ms": last_ms, "last_time_str": _time_string(last_ms),
             "best_time_ms": best_ms, "best_time_str": _time_string(best_ms),
             "completed_laps": completed, "number_of_laps": _integer(_read(sdk, "RaceLaps")),
             "distance_traveled_m": _number(_read(sdk, "LapDist")),
-            "position": position, "active_cars": active_cars,
+            "position": position, "class_position": class_position, "class_id": class_id, "active_cars": active_cars,
             "gap_ahead_ms": gap_ahead_ms, "gap_behind_ms": gap_behind_ms,
             "session_time_left_s": remain_s, "is_in_pit": on_pit_road, "is_in_pit_lane": on_pit_road,
-            "normalized_car_position": lap_pct, "player_world_position": None,
+            "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
             "is_valid_lap": None, "sector": None, "split_time_str": "",
             "last_sector_time_ms": None, "tyre_compound": None,
             "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps,
             "delta_lap_time_ms": delta_ms, "delta_lap_time_str": f"{delta_s:+.3f}" if delta_s is not None else "",
             "delta_positive": delta_s > 0 if delta_s is not None else None,
             "estimated_lap_time_ms": estimated_ms, "estimated_lap_time_str": _time_string(estimated_ms),
-            "track_grip_status": None, "rain_intensity": None, "rain_10min": None, "rain_30min": None,
+            "track_grip_status": None, "track_wetness": track_wetness, "rain_intensity": None, "rain_10min": None, "rain_30min": None,
             "wind_speed": wind_mps * 3.6 if wind_mps is not None else None, "wind_direction": wind_direction,
-            "penalty": None, "penalty_time_s": None, "missing_mandatory_pits": None,
+            "flag": mapped_flag, "track_status": track_status, "session_flags": session_flags,
+            "global_yellow_1": bool(session_flags & 0x00000008), "global_yellow_2": False, "global_yellow_3": False,
+            "global_green": bool(session_flags & 0x00000004), "global_chequered": bool(session_flags & 0x00000001),
+            "global_red": bool(session_flags & 0x00000010),
+            "penalty": None, "penalty_time_s": None, "incident_count": incidents, "team_incident_count": team_incidents, "driver_incident_count": driver_incidents, "missing_mandatory_pits": None,
             "mandatory_pit_done": None, "used_fuel_l": None, "mfd_fuel_to_add": None,
             "mfd_tyre_set": None, "current_tyre_set": None, "strategy_tyre_set": None,
             "mfd_tyre_pressures": None, "tc_level": _number(_read(sdk, "dcTractionControl")),
             "abs_level": _number(_read(sdk, "dcABS")), "tc_cut": None, "engine_map": None,
-            "is_valid_lap": None,
+            "is_valid_lap": None, "class_position": class_position,
         }
         fresh = {"state": "fresh", "age_ms": 0, "threshold_ms": 1000, "lifecycle_state": "running"}
         return {
