@@ -5,8 +5,10 @@ on:
     paths:
       - "src/race_engineer_acquisition/**"
       - "src/desktop/**"
+      - "src/iracing/**"
       - "frontend/**"
       - "tests/acquisition/**"
+      - "tests/iracing/**"
       - ".github/workflows/acquisition-tests.yml"
   pull_request:
     paths:
