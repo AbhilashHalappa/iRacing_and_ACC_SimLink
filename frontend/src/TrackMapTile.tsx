@@ -23,7 +23,8 @@ type TrackMapTileProps = {
   track: string | null | undefined;
   configuration: string | null | undefined;
   graphics: any;
-  lapStatus?: string | null;\n  source?: string;
+  lapStatus?: string | null;
+  source?: string;
 };
 
 const CACHE_PREFIX = "acc-track-map-v2:";
@@ -57,6 +58,7 @@ export default function TrackMapTile({
   configuration,
   graphics,
   lapStatus,
+  source,
 }: TrackMapTileProps) {
   const trackName = typeof track === "string" ? track.trim() : "";
   const configurationName = typeof configuration === "string" ? configuration.trim() : "";
