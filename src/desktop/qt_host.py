@@ -4,36 +4,17 @@ from __future__ import annotations
 from pathlib import Path
 from dataclasses import asdict
 import json
-import sqlite3
 import time
 
-from PySide6.QtCore import QStandardPaths, QTimer, QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from .bridge import TelemetryBridge
 from ..race_engineer_acquisition.supervisor import create_acc_acquisition_runtime
-from ..race_engineer_acquisition.service import RaceEngineerService
+from ..race_engineer_acquisition.decoded_distribution import DecodedTelemetryBroker
 from .stream_health import build_stream_freshness
-
-
-def _migrate_legacy_strategy_history(legacy_path: Path, new_path: Path) -> None:
-    """Copy the previous Qt AppLocalDataLocation database into repository data."""
-    if new_path.exists() or not legacy_path.is_file():
-        return
-    new_path.parent.mkdir(parents=True, exist_ok=True)
-    source = sqlite3.connect(str(legacy_path))
-    destination = sqlite3.connect(str(new_path))
-    try:
-        source.backup(destination)
-    except Exception:
-        destination.close()
-        new_path.unlink(missing_ok=True)
-        raise
-    finally:
-        source.close()
-    destination.close()
 
 
 class ACCDesktopWindow(QMainWindow):
@@ -50,25 +31,10 @@ class ACCDesktopWindow(QMainWindow):
         # not change where history and the WebEngine profile are stored.
         project_root = Path(__file__).resolve().parents[2]
         app_data = project_root / "user_data"
-        strategy_data = app_data / "strategy"
-        strategy_data.mkdir(parents=True, exist_ok=True)
-
-        # Preserve history created by earlier builds that used Qt AppLocalDataLocation.
-        legacy_app_data = Path(
-            QStandardPaths.writableLocation(
-                QStandardPaths.StandardLocation.AppLocalDataLocation
-            )
-        )
-        _migrate_legacy_strategy_history(
-            legacy_app_data / "strategy_lap_history.sqlite3",
-            strategy_data / "strategy_lap_history.sqlite3",
-        )
-
         self._runtime = create_acc_acquisition_runtime()
-        self._race_engineer_service = RaceEngineerService(
-            self._runtime,
-            history_path=strategy_data / "strategy_lap_history.sqlite3",
-        )
+        # Overview needs only decoded live state and the shared out-lap observer.
+        # Strategy history, Performance Hub archives and assessment workers are not started.
+        self._decoded_broker = DecodedTelemetryBroker(self._runtime)
         self._car_model: str | None = None
         self._track: str | None = None
         self._track_configuration: str | None = None
@@ -77,9 +43,9 @@ class ACCDesktopWindow(QMainWindow):
         self._last_capture_diagnostics_log_signature: tuple[object, ...] | None = None
         try:
             self._runtime.supervisor.start()
-            self._race_engineer_service.start()
+            self._decoded_broker.start()
         except Exception:
-            self._race_engineer_service.close()
+            self._decoded_broker.close()
             self._runtime.supervisor.stop(timeout=5.0)
             raise
         self._bridge = TelemetryBridge(static_root or Path(__file__).resolve().parents[1] / "web_ui" / "dist", port=8765)
@@ -103,7 +69,7 @@ class ACCDesktopWindow(QMainWindow):
         try:
             self._bridge_url = self._bridge.start()
         except Exception:
-            self._race_engineer_service.close()
+            self._decoded_broker.close()
             self._runtime.supervisor.stop(timeout=5.0)
             raise
         self._view.load(QUrl(self._bridge_url))
@@ -119,7 +85,7 @@ class ACCDesktopWindow(QMainWindow):
         graphics_consumer = self._runtime.graphics_consumer.snapshot
         physics = consumer.to_payload()
         graphics = graphics_consumer.to_payload()
-        out_lap_status = self._race_engineer_service.out_lap_status()
+        out_lap_status = self._decoded_broker.out_lap_status
         graphics["lap_status"] = (
             "out"
             if out_lap_status["fresh"] and out_lap_status["active"]
@@ -158,39 +124,23 @@ class ACCDesktopWindow(QMainWindow):
                     "sample_publish_error_count": stream_consumer.sample_publish_error_count,
                 },
             }
-        performance_diagnostics = self._race_engineer_service.performance_archive_metrics
-        sample_delivery = performance_diagnostics.get("sample_delivery", {})
-        sample_subscribers = sample_delivery.get("subscribers", {})
-        sample_rejections = tuple(sorted(
+        capture_signature = tuple(
             (
                 name,
-                metrics.rejected_count,
-                tuple(sorted(metrics.rejected_by_stream.items())),
+                values["ring_buffer"]["total_rejection_count"],
+                values["ring_buffer"]["first_lost_sequence"],
+                values["ring_buffer"]["last_lost_sequence"],
+                values["acquirer"].get("buffer_rejection_count", 0),
+                values["decoder"]["decode_error_count"],
+                values["decoder"]["sample_publish_error_count"],
             )
-            for name, metrics in sample_subscribers.items()
-        ))
-        capture_signature = (
-            *(
-                (
-                    name,
-                    values["ring_buffer"]["total_rejection_count"],
-                    values["ring_buffer"]["first_lost_sequence"],
-                    values["ring_buffer"]["last_lost_sequence"],
-                    values["acquirer"].get("buffer_rejection_count", 0),
-                    values["decoder"]["decode_error_count"],
-                    values["decoder"]["sample_publish_error_count"],
-                )
-                for name, values in sorted(capture_pipeline.items())
-            ),
-            sample_rejections,
-            performance_diagnostics["capture"].get("result_drop_count", 0),
+            for name, values in sorted(capture_pipeline.items())
         )
         if capture_signature != self._last_capture_diagnostics_log_signature:
             self._last_capture_diagnostics_log_signature = capture_signature
             print(
                 "[Capture Pipeline Diagnostics] " + json.dumps({
                     "streams": capture_pipeline,
-                    "performance_hub": performance_diagnostics,
                 }, sort_keys=True, default=lambda value: asdict(value) if hasattr(value, "__dataclass_fields__") else str(value)),
                 flush=True,
             )
@@ -209,80 +159,17 @@ class ACCDesktopWindow(QMainWindow):
             },
         )
         connected = streams["physics"]["state"] == "fresh"
-        engineer_snapshot = self._race_engineer_service.snapshot(
-            track=self._track, car=self._car_model
+        static_snapshot = self._runtime.static_consumer.snapshot
+        static_data = (
+            asdict(static_snapshot.latest)
+            if static_snapshot.latest is not None
+            else {}
         )
-        static_metadata = engineer_snapshot.get("static_metadata", {})
-        static_data = static_metadata.get("data") or {}
-        if static_metadata.get("status") == "fresh":
-            self._car_model = static_data.get("car_model") or self._car_model
-            self._track = static_data.get("track") or self._track
-            self._track_configuration = (
-                static_data.get("track_configuration") or self._track_configuration
-            )
-        race_progress = engineer_snapshot.get("race_progress", {})
-        raw_graphics = graphics_consumer.latest
-        raw_session_time = (
-            raw_graphics.session_time_left_ms if raw_graphics is not None else None
+        self._car_model = static_data.get("car_model") or self._car_model
+        self._track = static_data.get("track") or self._track
+        self._track_configuration = (
+            static_data.get("track_configuration") or self._track_configuration
         )
-        raw_lap_limit = (
-            raw_graphics.number_of_laps if raw_graphics is not None else None
-        )
-        raw_graphics_status = (
-            raw_graphics.status if raw_graphics is not None else None
-        )
-        time_bucket = (
-            int(float(raw_session_time) // 30000)
-            if isinstance(raw_session_time, (int, float))
-            else None
-        )
-        fuel_strategy = engineer_snapshot.get("fuel_sufficiency_strategy", {})
-        fuel_laps = fuel_strategy.get("acc_fuel_laps_remaining")
-        fuel_margin = fuel_strategy.get("fuel_margin_laps")
-        log_signature = (
-            race_progress.get("status"),
-            race_progress.get("session_type_code"),
-            race_progress.get("completed_laps"),
-            race_progress.get("average_lap_time_ms"),
-            race_progress.get("lap_time_sample_count"),
-            race_progress.get("laps_remaining"),
-            fuel_strategy.get("status"),
-            round(fuel_laps, 1) if isinstance(fuel_laps, (int, float)) else None,
-            round(fuel_margin, 1) if isinstance(fuel_margin, (int, float)) else None,
-            race_progress.get("chequered_flag_candidate"),
-            raw_graphics_status,
-            raw_lap_limit,
-            time_bucket,
-        )
-        if log_signature != self._last_race_progress_log_signature:
-            self._last_race_progress_log_signature = log_signature
-            diagnostic = {
-                **race_progress,
-                "fuel_sufficiency_strategy": fuel_strategy,
-                "raw_graphics_status": raw_graphics_status,
-                "raw_session_time_left": raw_session_time,
-                "raw_number_of_laps": raw_lap_limit,
-            }
-            print(
-                "[Race Progress] " + json.dumps(diagnostic, sort_keys=True),
-                flush=True,
-            )
-        static_signature = (
-            static_metadata.get("status"),
-            static_metadata.get("capture_sequence"),
-            static_data.get("track"),
-            static_data.get("car_model"),
-            static_data.get("track_configuration"),
-            static_data.get("is_timed_race"),
-            static_data.get("has_extra_lap"),
-            static_metadata.get("last_error"),
-        )
-        if static_signature != self._last_static_metadata_log_signature:
-            self._last_static_metadata_log_signature = static_signature
-            print(
-                "[Static Metadata] " + json.dumps(static_metadata, sort_keys=True),
-                flush=True,
-            )
         snapshot = {
             "connected": connected,
             "streams": streams,
@@ -296,8 +183,6 @@ class ACCDesktopWindow(QMainWindow):
             },
             "acquisition": acquisition,
             "capture_pipeline": capture_pipeline,
-            "performance_archive_metrics": performance_diagnostics,
-            **engineer_snapshot,
         }
         self._bridge.publish(snapshot)
         if connected:
@@ -311,7 +196,7 @@ class ACCDesktopWindow(QMainWindow):
         self._publish_timer.stop()
         self._bridge.stop()
         alive = self._runtime.supervisor.stop(timeout=5.0)
-        self._race_engineer_service.close()
+        self._decoded_broker.close()
         if alive:
             QMessageBox.warning(
                 self,
