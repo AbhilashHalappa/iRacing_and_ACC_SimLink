@@ -26,7 +26,7 @@ class FakeSDK:
             "LFcoldPressure": 200.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
             "PitSvFuel": 15.0, "PitSvLFP": 200.0, "PitSvRFP": 201.0, "PitSvLRP": 202.0, "PitSvRRP": 203.0,
             "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
-            "PlayerCarPosition": 7, "LFtempCL": 70.0, "LFtempCM": 75.0,
+            "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
         }
 
@@ -69,7 +69,7 @@ class IRacingReaderTests(unittest.TestCase):
         snapshot = reader._build_snapshot(FakeSDK())
         physics = snapshot["physics"]["data"]
         graphics = snapshot["graphics"]["data"]
-        self.assertIsNone(physics["wheels"]["FL"]["tyre_pressure_psi"])
+        self.assertAlmostEqual(physics["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
         self.assertIsNone(physics["wheels"]["FL"]["brake_temp_c"])
         self.assertIsNone(graphics["is_valid_lap"])
         self.assertIsNone(graphics["player_world_position"])
