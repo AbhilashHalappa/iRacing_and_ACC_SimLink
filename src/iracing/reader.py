@@ -84,6 +84,7 @@ class IRacingTelemetryReader:
         self._last_error: str | None = None
         self._fuel_lap_anchor: tuple[int, float] | None = None
         self._fuel_per_lap: float | None = None
+        self._fuel_session_key: tuple[Any, ...] | None = None
 
     @staticmethod
     def _waiting_snapshot() -> dict[str, Any]:
