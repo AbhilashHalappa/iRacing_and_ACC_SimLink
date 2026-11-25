@@ -55,7 +55,7 @@ This is a UI-field-by-UI-field mapping, not a claim that every ACC concept exist
 | Completed lap count / current lap number | `LapCompleted` | Mapped |
 | Lap validity | No universal direct equivalent confirmed in the current adapter | No safe equivalent yet; `LapDeltaToBestLap_OK` is delta-reference validity, not lap legality |
 | Recent lap history | `LapCompleted`, `LapLastLapTime` plus app-side capture | Derivable; current app captures completed lap times |
-| Sector 1/2/3 | iRacing session split timing / session metadata if exposed | Partial / not mapped; current reader returns `sector=None` and no split string |
+| Dynamic sectors | `SplitTimeInfo.Sectors[].SectorStartPct` | Mapped by active track; sector count and boundaries are read dynamically, with no three-sector assumption |
 | Best sector history | Completed lap sector boundaries | Not available until reliable sector boundaries are decoded |
 
 ## 5. Weather
@@ -159,13 +159,13 @@ This is a UI-field-by-UI-field mapping, not a claim that every ACC concept exist
 
 | Overview field | iRacing source | Status / notes |
 |---|---|---|
-| Current sector number | iRacing split/session sector metadata | Not mapped; current reader emits `sector=None` |
-| Live sector/split time | iRacing split timing data | Not mapped; current reader emits empty string |
-| Last completed sector | Reconstructed from reliable split boundaries | Not mapped |
-| Best S1/S2/S3 | Completed valid lap sector splits | Not mapped; cannot calculate until sector splits are available |
-| Sector delta | Current sector vs best sector | Derivable only after reliable split mapping |
+| Current sector number | `SplitTimeInfo.Sectors[].SectorStartPct` + `LapDistPct` | Mapped; current sector is derived from the active track's boundary array |
+| Live sector time | `LapCurrentLapTime` sampled at observed `SectorStartPct` crossings | Derivable; duration starts when the app observes a boundary. A sector already in progress on attach remains unavailable until the next boundary |
+| Completed sector durations | `LapCurrentLapTime` differences at dynamic sector boundaries | Mapped for boundaries observed during the current lap; the final sector is closed with `LapLastLapTime` on lap transition |
+| Best sector history | Requires trustworthy valid-lap classification and complete dynamic sector splits | Not yet mapped; no best-sector claim is made for iRacing |
+| Sector delta | Current sector vs best sector | Not yet mapped; requires trustworthy best-sector history |
 
-## 15. Race position & gaps tile
+The iRacing sector tile renders the number of sectors reported by the active track's `SplitTimeInfo.Sectors` array. It does not impose a three-sector fallback. Timing is accumulated from observed `LapCurrentLapTime` values at sector-boundary crossings; when the app attaches mid-sector, that partial sector remains unavailable rather than being guessed.\n\n## 15. Race position & gaps tile
 
 | Overview field | iRacing source | Status / notes |
 |---|---|---|
