@@ -12,6 +12,7 @@ on:
     paths:
       - "src/race_engineer_acquisition/**"
       - "src/desktop/**"
+      - "frontend/**"
       - "tests/acquisition/**"
       - ".github/workflows/acquisition-tests.yml"
 
