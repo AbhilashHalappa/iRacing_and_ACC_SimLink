@@ -1,20 +1,17 @@
-name: Acquisition core tests
+name: Overview acquisition tests
 
 on:
   push:
     paths:
       - "src/race_engineer_acquisition/**"
+      - "src/desktop/**"
       - "tests/acquisition/**"
-      - "scripts/record_acc_physics.py"
-      - "scripts/probe_acc_graphics.py"
-      - "scripts/record_acc_graphics.py"
-      - "scripts/recover_acc_recording.py"
       - ".github/workflows/acquisition-tests.yml"
   pull_request:
     paths:
       - "src/race_engineer_acquisition/**"
+      - "src/desktop/**"
       - "tests/acquisition/**"
-      - "scripts/record_acc_graphics.py"
       - ".github/workflows/acquisition-tests.yml"
 
 jobs:
@@ -28,8 +25,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Compile acquisition package and operational scripts
-        run: python -m compileall -q src/race_engineer_acquisition scripts/record_acc_physics.py scripts/record_acc_graphics.py scripts/recover_acc_recording.py scripts/probe_acc_graphics.py
+      - name: Compile live Overview runtime
+        run: python -m compileall -q src
       - name: Run acquisition core tests
         env:
           PYTHONPATH: src
