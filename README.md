@@ -1,21 +1,33 @@
-# iRacing & ACC SimLink — Overview-only branch
+# iRacing & ACC SimLink — Overview-only
 
-This branch is a lightweight, live-telemetry desktop application. It retains the Overview dashboard, its configurable tiles, and the ACC telemetry acquisition/decoding path required to feed them.
+This branch adds iRacing telemetry to the tested Overview-only desktop application while retaining the ACC implementation. The React Overview dashboard, tile library, tile arrangement, settings, theme, and bridge contract are shared.
 
-## Included
+## Supported game modes
 
-- ACC Shared Memory Physics, Graphics and Static acquisition.
-- Existing decoded telemetry consumers and stream-health reporting.
-- Live Overview dashboard and its tiles, including the track map.
-- Overview tile layout, glow thresholds and tyre-pressure target settings.
-- Out-lap observation used to mark the current lap tile.
-- Local WebEngine profile/cache for the desktop shell.
+### ACC (unchanged)
+Uses the existing ACC Shared Memory Physics, Graphics and Static acquisition/decoding path.
 
-## Deliberately excluded
+```powershell
+python -m src.main --game acc
+```
 
-This branch does not start or include the Race Strategy service, Performance Hub lap archive/capture/persistence workers, canonical track-model analysis, coaching/analysis workspaces, fuel-assessment background workers, standalone acquisition/recording tools, or the Hardware workspace.
+### iRacing (new)
+Uses the iRacing SDK shared-memory interface through `pyirsdk`. The SDK reader runs on a background thread, reconnects when iRacing starts or restarts, and publishes detached snapshots through the same HTTP/SSE bridge and normalized tile data contract.
 
-The Overview UI reads the live Physics, Graphics and Static consumer snapshots directly. No lap archive or strategy-history database is created by this branch. User settings remain in browser local storage.
+```powershell
+python -m src.main --game iracing
+```
+
+The default game remains ACC to preserve the tested startup behaviour. Start the selected simulator before expecting live values.
+
+## Overview tile coverage and source limitations
+
+The same Overview tiles are retained. iRacing fields are mapped where the SDK provides them; unavailable values are deliberately left blank rather than inferred or fabricated.
+
+- Live: speed, gear, RPM, throttle, brake, clutch, steering, lap timer, last/best lap, lap count, session/track/car identity, position, fuel level, air/track temperature, wind, and available tyre carcass temperatures.
+- Derived: fuel-per-lap and estimated laps remaining are calculated from observed fuel changes across completed laps.
+- Not exposed by the standard iRacing SDK contract used here: live hot tyre pressure, brake-disc temperature, suspension/car damage, reliable lap-validity/out-lap status, sector timing, and circuit world coordinates. The relevant tiles remain present but show unavailable values. The Track Map tile explains the world-coordinate limitation.
+- Hardware connections remain reported by the existing hardware tile; no firmware or hardware protocol changes are made.
 
 ## Windows setup
 
@@ -29,10 +41,10 @@ npm.cmd install
 npm.cmd run build
 
 cd ..
-python -m src.main
+python -m src.main --game iracing
 ```
 
-Start ACC before expecting live values. The desktop app can open without ACC, but its telemetry tiles will show their waiting/unavailable states until the shared-memory streams become available.
+For ACC, use `python -m src.main --game acc`.
 
 ## Tests
 
@@ -40,7 +52,9 @@ From the repository root:
 
 ```powershell
 $env:PYTHONPATH = "src"
+python -m compileall -q src
 python -m unittest discover -s tests/acquisition -v
+python -m unittest discover -s tests/iracing -v
 ```
 
 Frontend utility tests:
@@ -51,4 +65,4 @@ npm.cmd run test:track-map
 npm.cmd run test:time-units
 ```
 
-This branch is intentionally separate from `main`. It is a reduced Overview runtime, not a replacement for the full development branch.
+This feature branch is based on `feature/overview-only`. The `main` and `feature/overview-only` branches are not modified by the iRacing work.
