@@ -11,6 +11,7 @@ from pathlib import Path
 import json
 import threading
 from urllib.parse import urlparse
+from typing import Callable
 
 
 def _json_default(value):
@@ -26,6 +27,7 @@ class TelemetryBridge:
         self._condition = threading.Condition()
         self._snapshot: dict = {"connected": False, "physics": None, "acquisition": {}}
         self._revision = 0
+        self._game_switch_handler: Callable[[str], None] | None = None
         bridge = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -42,6 +44,28 @@ class TelemetryBridge:
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
+
+            def do_POST(self) -> None:
+                path = urlparse(self.path).path
+                if path != "/api/game":
+                    self._json({"error": "not found"}, 404)
+                    return
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if length < 1 or length > 256:
+                        raise ValueError("invalid request size")
+                    payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                    game = payload.get("game") if isinstance(payload, dict) else None
+                    if game not in ("acc", "iracing"):
+                        raise ValueError("game must be 'acc' or 'iracing'")
+                    handler = bridge._game_switch_handler
+                    if handler is None:
+                        self._json({"error": "game switching is unavailable"}, 503)
+                        return
+                    handler(game)
+                    self._json({"accepted": True, "game": game}, 202)
+                except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    self._json({"error": str(exc)}, 400)
 
             def do_GET(self) -> None:
                 path = urlparse(self.path).path
@@ -118,6 +142,9 @@ class TelemetryBridge:
     def start(self) -> str:
         self._thread.start()
         return self.url
+
+    def set_game_switch_handler(self, handler: Callable[[str], None]) -> None:
+        self._game_switch_handler = handler
 
     def publish(self, snapshot: dict) -> None:
         # Snapshot is already detached from the acquisition ring and consumer.
