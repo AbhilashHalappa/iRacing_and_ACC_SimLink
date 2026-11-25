@@ -157,7 +157,11 @@ class IRacingTelemetryReader:
         speed_mps = _number(_read(sdk, "Speed"))
         gear = _integer(_read(sdk, "Gear"))
         rpm = _number(_read(sdk, "RPM"))
-        max_rpm = _number(_read(sdk, "PlayerCarSLBlinkRPM")) or _number(_nested(_read(sdk, "DriverInfo", {}), "DriverCarSLBlinkRPM"))
+        max_rpm = (
+            _number(_nested(_read(sdk, "DriverInfo", {}), "DriverCarSLShiftRPM"))
+            or _number(_read(sdk, "PlayerCarSLBlinkRPM"))
+            or _number(_nested(_read(sdk, "DriverInfo", {}), "DriverCarSLBlinkRPM"))
+        )
         fuel = _number(_read(sdk, "FuelLevel"))
         lap = _integer(_read(sdk, "LapCompleted"))
         session_num = _integer(_read(sdk, "SessionNum"))
@@ -398,7 +402,7 @@ class IRacingTelemetryReader:
             "tyre_sets_used": _integer(_read(sdk, "TireSetsUsed")),
             "tc_level": _number(_read(sdk, "dcTractionControl")),
             "abs_level": _number(_read(sdk, "dcABS")), "tc_cut": None, "engine_map": None,
-            "is_valid_lap": None, "class_position": class_position,
+            "class_position": class_position,
         }
         fresh = {"state": "fresh", "age_ms": 0, "threshold_ms": 1000, "lifecycle_state": "running"}
         return {
