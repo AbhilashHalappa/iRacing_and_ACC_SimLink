@@ -23,7 +23,7 @@ type TrackMapTileProps = {
   track: string | null | undefined;
   configuration: string | null | undefined;
   graphics: any;
-  lapStatus?: string | null;
+  lapStatus?: string | null;\n  source?: string;
 };
 
 const CACHE_PREFIX = "acc-track-map-v2:";
@@ -177,7 +177,7 @@ export default function TrackMapTile({
             viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label={`ACC learned circuit for ${trackName}`}
+            aria-label={`Learned circuit for ${trackName}`}
           >
             <polyline className="track-map-outline" points={`${projected.points} ${projected.points.split(" ")[0]}`}/>
             {marker && <g className="track-map-car" aria-label="Live car position">
