@@ -213,7 +213,7 @@ class IRacingTelemetryReader:
                 # close the final sector if the SDK has already reset current time.
                 if self._sector_index is not None and self._sector_index < sector_count - 1:
                     pass
-                elif self._sector_index is not None and last_ms is not None:
+                elif self._sector_index is not None and last_ms is not None and self._sector_boundary_time_ms is not None:
                     self._sector_times_ms[self._sector_index] = max(0, last_ms - self._sector_boundary_time_ms)
                 self._sector_lap = lap
                 self._sector_index = sector_index
