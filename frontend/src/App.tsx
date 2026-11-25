@@ -70,13 +70,8 @@ const initial: Tile[] = [
 ];
 const nav = [
   { name: "Overview", icon: LayoutDashboard, group: "WORKSPACE" },
-  { name: "Race Engineer", icon: Activity, group: "ENGINEERING" },
-  { name: "Performance Coach", icon: ChartNoAxesCombined, group: "ENGINEERING" },
-  { name: "Corner Coach", icon: Gauge, group: "ENGINEERING" },
-  { name: "Race Strategy", icon: Flag, group: "TOOLS" },
-  { name: "Replay & Analysis", icon: Clock3, group: "TOOLS" },
-  { name: "Hardware", icon: Cable, group: "SYSTEM" },
-  { name: "Settings", icon: Settings, group: "SYSTEM" },
+  // These settings configure Overview tiles (thresholds, target pressures and visual feedback).
+  { name: "Settings", icon: Settings, group: "WORKSPACE" },
 ];
 const fmt = (id: TileId) => definitions.find((d) => d.id === id)?.title ?? id;
 function loadLayout(): Tile[] {
@@ -541,14 +536,6 @@ function App() {
   const move = (from: TileId, to: TileId) => setDraft(prev => { const a = prev.findIndex(t=>t.id===from), b=prev.findIndex(t=>t.id===to); if(a<0||b<0||a===b)return prev; const next=[...prev]; const [item]=next.splice(a,1); next.splice(b,0,item); return next; });
   const reset = () => setDraft(initial.map(t=>({...t})));
   const groups = [...new Set(nav.map(n=>n.group))];
-  const raceProgress = telemetry?.race_progress ?? {};
-  const fuelPlan = telemetry?.fuel_sufficiency_strategy ?? {};
-  const raceModeLabel = raceProgress.session_mode === "timed" ? "Timed Race" : raceProgress.session_mode === "lap_based" ? "Lap-based" : "Unknown";
-  const sessionTypeLabel = raceProgress.session_type_label ? String(raceProgress.session_type_label).replace(/^./, (c:string) => c.toUpperCase()) : "—";
-  const remainingTimeLabel = typeof raceProgress.session_time_remaining_s === "number" ? stintTimeDisplay(raceProgress.session_time_remaining_s * 1000) : "—";
-  const averageLapLabel = typeof raceProgress.average_lap_time_ms === "number" ? lapTimeDisplay(null, Math.round(raceProgress.average_lap_time_ms)) : "—";
-  const fuelMarginLabel = typeof fuelPlan.fuel_margin_l === "number" ? (fuelPlan.fuel_margin_l >= 0 ? "SURPLUS" : "SHORTFALL") : "UNAVAILABLE";
-  const fuelTone = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? (value >= 0 ? "fuel-positive" : "fuel-negative") : "fuel-neutral";
   return <div className="app-shell" data-theme={theme}>
     <aside className="navigation-rail"><div className="brand" title="Race Engineer ACC"><div className="brand-mark">RE</div></div><nav aria-label="Main navigation">{groups.map(group=><div className="nav-group" key={group}>{nav.filter(n=>n.group===group).map(item=>{const Icon=item.icon;return <button key={item.name} className={active===item.name?"nav-item selected":"nav-item"} onClick={()=>setActive(item.name)} title={item.name} aria-label={item.name} data-tooltip={item.name}><Icon size={20}/></button>;})}</div>)}</nav><div className="rail-footer" title={connected?"ACC Physics connected":"ACC not connected"}><span className={`status-dot ${connected?"connected":""}`}/></div></aside>
     <main className="main-content"><header className="top-bar"><div><div className="eyebrow">RACE ENGINEER ACC</div><h1>{active}</h1></div><div className="top-bar-actions"><div className="stream-health-group" aria-label="Telemetry stream status">{(["physics","graphics","static"] as const).map((stream) => { const state=getStreamDisplayState(connected,telemetry?.streams?.[stream]?.state) as StreamFreshness["state"]; return <div key={stream} className={`stream-health-chip stream-${state}`} title={`${stream.toUpperCase()} · ${state.toUpperCase()}`}><i/><span>{stream.toUpperCase()}</span><b>{state==="fresh"?"LIVE":state==="stale"?"STALE":state==="unavailable"?"OFFLINE":"WAITING"}</b></div>; })}</div><button className="theme-toggle" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} title="Toggle theme">{theme==="dark"?<Sun size={16}/>:<Moon size={16}/>}<span>{theme==="dark"?"Light":"Dark"}</span></button></div></header>
@@ -562,36 +549,7 @@ function App() {
           <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon">{tile.id==="driver_trace"?<ChartNoAxesCombined/>:tile.id==="speed"?<Gauge/>:tile.id==="gear"?<Zap/>:tile.id==="rpm"?<Activity/>:tile.id==="pedals"?<Waves/>:tile.id==="laps"?<Flag/>:tile.id==="lap_history"?<Clock3/>:tile.id==="weather"?<CloudSun/>:tile.id==="map"?<Map/>:tile.id==="session"?<Radio/>:tile.id==="brakes"?<Thermometer/>:tile.id==="tyres"?<CircleGauge/>:tile.id==="fuel"?<Fuel/>:tile.id==="warnings"?<TriangleAlert/>:tile.id==="delta"?<ChartNoAxesColumnIncreasing/>:tile.id==="sectors"?<Timer/>:tile.id==="position"?<Medal/>:tile.id==="electronics"?<SlidersHorizontal/>:tile.id==="pit_stint"?<Timer/>:tile.id==="damage"?<Wrench/>:tile.id==="pressure_targets"?<Target/>:tile.id==="race_control"?<Siren/>:tile.id==="car_status"?<Lightbulb/>:<Cable/>}</span><h3>{fmt(tile.id)}</h3></div>{editing&&<span className="drag-grip"><GripVertical size={17}/></span>}</div><div className="tile-body"><TileContent id={tile.id} glow={glow} telemetry={{...telemetry,lap_history:lapHistory}} targetPressures={targetPressures} trace={driverTrace} freshness={telemetry?.streams??{}}/></div></article>
           {editing&&<div className="tile-size-control"><label>Size <select value={tile.size} onChange={e=>update(tile.id,{size:e.target.value as TileSize})}><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button className="text-action" onClick={()=>update(tile.id,{pinned:!tile.pinned})}>{tile.pinned?<PinOff size={13}/>:<Pin size={13}/>} {tile.pinned?"Unpin":"Pin"}</button><button className="remove-tile" onClick={()=>remove(tile.id)} aria-label={`Remove ${fmt(tile.id)} tile`}><X size={14}/></button></div>}
         </div>)}
-      </div></section> : active==="Race Engineer" ? <section className="workspace">
-        <div className="overview-heading"><div><div className="eyebrow">READ-ONLY ACC ENGINEERING</div><h2>Fuel Engineer</h2><p>Live fuel observations from ACC Physics and Graphics. All values are advisory; the driver remains in control.</p></div><div className="connection-chip"><span className={telemetry?.fuel_engineer?.current_fuel_fresh?"connected":""}/>{telemetry?.fuel_engineer?.current_fuel_fresh?"FUEL DATA LIVE":"FUEL DATA WAITING"}</div></div>
-        <div className="dashboard-grid race-engineer-grid">
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon"><Flag/></span><h3>Race Progress</h3></div><span className="pending-label">{raceModeLabel.toUpperCase()}</span></div><div className="tile-body"><div className="balanced-grid">
-            <div className="balanced-field"><span>SESSION TYPE</span><b>{sessionTypeLabel}</b></div>
-            <div className="balanced-field"><span>RACE FORMAT</span><b>{raceModeLabel === "Timed Race" ? "TIME-BASED RACE" : raceModeLabel === "Lap-based" ? "LAP-BASED RACE" : "UNKNOWN"}</b></div>
-            <div className="balanced-field"><span>RACE TIME REMAINING</span><b>{remainingTimeLabel}</b></div>
-            <div className="balanced-field"><span>AVERAGE LAP · LAST 5 VALID</span><b>{averageLapLabel}</b></div>
-            <div className="balanced-field"><span>VALID LAP SAMPLES</span><b>{display(raceProgress.lap_time_sample_count,0," / 5")}</b></div>
-            <div className="balanced-field"><span>EST. REMAINING LAPS</span><b>{display(raceProgress.laps_remaining,0," laps")}</b></div>
-            <div className="balanced-field"><span>COMPLETED LAPS</span><b>{display(raceProgress.completed_laps,0)}</b></div>
-          </div><small className="glance-footnote">Remaining laps are estimated only for timed races, using ACC's remaining session timer and the average of the latest five valid completed laps from this session. Lap-based sessions and incomplete samples show unavailable rather than guessing.</small></div></article>
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon"><Fuel/></span><h3>Fuel status &amp; finish requirement</h3></div></div><div className="tile-body"><div className="balanced-grid">
-            <div className="balanced-field"><span>CURRENT FUEL</span><b>{display(telemetry?.fuel_engineer?.current_fuel_l,1," L")}</b></div>
-            <div className="balanced-field"><span>FUEL REQUIRED TO FINISH</span><b>{display(fuelPlan.estimated_fuel_required_l,1," L")}</b></div>
-            <div className={`balanced-field fuel-status-field ${fuelTone(fuelPlan.fuel_margin_l)}`}><span>FUEL SURPLUS / SHORTFALL</span><b>{display(fuelPlan.fuel_margin_l,1," L")}</b><small>{fuelMarginLabel}</small></div>
-            <div className="balanced-field"><span>FUEL / LAP · ACC</span><b>{display(telemetry?.fuel_engineer?.acc_fuel_per_lap_l,2," L/lap")}</b></div>
-            <div className="balanced-field"><span>ACC FUEL LAPS LEFT</span><b>{display(telemetry?.fuel_engineer?.acc_fuel_laps_remaining,1," laps")}</b></div>
-            <div className="balanced-field"><span>FUEL MARGIN TO FINISH</span><b>{display(fuelPlan.fuel_margin_laps,1," laps")}</b></div>
-            <div className="balanced-field"><span>SAFETY RESERVE</span><b>{display(fuelPlan.safety_reserve_laps,0," laps")}</b><small>{display(fuelPlan.safety_reserve_fuel_l,1," L")} required</small></div>
-            <div className="balanced-field"><span>SAFETY-ADJUSTED MARGIN</span><b>{display(fuelPlan.safety_margin_laps,1," laps")}</b><small>{fuelPlan.safety_status==="reserve_satisfied"?"RESERVE SATISFIED":fuelPlan.safety_status==="reserve_shortfall"?"BELOW 3-LAP RESERVE":"UNAVAILABLE"}</small></div>
-            <div className={`balanced-field fuel-status-field ${fuelTone(fuelPlan.safety_fuel_margin_l)}`}><span>SAFETY-ADJUSTED FUEL MARGIN</span><b>{display(fuelPlan.safety_fuel_margin_l,1," L")}</b><small>{display(fuelPlan.safety_target_fuel_l,1," L")} target incl. reserve</small></div>
-            <div className="balanced-field fuel-pit-add-field"><span>EST. FUEL TO ADD AT NEXT PIT STOP</span><b>{display(fuelPlan.estimated_fuel_to_add_next_pit_l,1," L")}</b><small>{fuelPlan.fuel_to_add_estimate_status==="estimate_available"?"Assumes pit at end of current lap · includes 3-lap reserve":"Waiting for fresh fuel and race-distance data"}</small></div>
-            <div className="balanced-field"><span>ACC FUEL USED · CURRENT STINT</span><b>{display(telemetry?.fuel_engineer?.fuel_used_l,1," L")}</b></div>
-            <div className="balanced-field"><span>SESSION FUEL USED · CUMULATIVE</span><b>{display(telemetry?.fuel_engineer?.session_fuel_used_l,1," L")}</b></div>
-            <div className="balanced-field"><span>MFD FUEL TO ADD</span><b>{display(telemetry?.fuel_engineer?.mfd_fuel_to_add_l,1," L")}</b></div>
-          </div><small className="glance-footnote">Fuel required = ACC fuel per lap × estimated remaining laps. ACC fuel used is the current-stint counter; cumulative session fuel adds each observed stint across ACC counter resets. The cumulative total starts when Race Engineer first observes the session, so it covers the full session only if connected from the start. ACC fuel endurance and raw finish margin are shown unchanged. The separate Race Engineer safety margin applies the approved three-lap reserve using ACC fuel per lap. Next-pit fuel addition assumes a stop at the end of the current lap and is shown only when the required live inputs are fresh.</small></div></article>
-          <article className="dashboard-tile"><div className="tile-heading"><div><span className="tile-icon"><Radio/></span><h3>Radio message preview</h3></div><span className="pending-label">TEXT ONLY</span></div><div className="tile-body"><p>{telemetry?.fuel_radio_preview?.text??"Waiting for fresh fuel telemetry."}</p><small className="glance-footnote">This is a text preview, not spoken radio. TTS and communication-mode routing are not yet connected. This is an estimate, not an automatic pit or refuelling instruction.</small></div></article>
-        </div>
-      </section> : <section className="workspace"><div className="page-placeholder"><div className="placeholder-mark">RE</div><h2>{active}</h2><p>This workspace will be added in a later implementation stage.</p><span className="pending-label">NOT INTEGRATED</span></div></section>}
+      </div></section>} 
       <footer className="demo-footnote"><span><Droplets size={13}/> {connected?"LIVE ACC PHYSICS":"ACC TELEMETRY"}</span><span>{connected?`${telemetry.physics?.processed_count??0} decoded samples · ${telemetry.physics?.decode_error_count??0} decode errors`:"Waiting for ACC Shared Memory. Static identity and expanded Graphics decoding are available when a valid sample arrives."}</span></footer>
     </main>
   </div>;
