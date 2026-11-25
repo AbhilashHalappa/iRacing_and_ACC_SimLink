@@ -61,7 +61,7 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["flag"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["incident_count"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
-        self.assertEqual(snapshot["graphics"]["data"]["current_tyre_set"], 1)
+        self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
     def test_does_not_misrepresent_unavailable_iRacing_channels(self):
