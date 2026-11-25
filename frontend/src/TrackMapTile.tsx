@@ -191,7 +191,7 @@ export default function TrackMapTile({
       ) : (
         <div className="track-map-empty" role="status">
           <span className="track-map-empty-mark">⌁</span>
-          <strong>{identity ? "Complete a valid lap to learn this circuit" : "Waiting for ACC track identity"}</strong>
+          <strong>{source?.toLowerCase().includes("iracing") ? "iRacing SDK does not expose circuit world coordinates" : identity ? "Complete a valid lap to learn this circuit" : "Waiting for simulator track identity"}</strong>
         </div>
       )}
     </div>
