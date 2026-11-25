@@ -14,11 +14,18 @@ class FakeSDK:
             "LapLastLapTime": 80.5, "LapBestLapTime": 79.75,
             "LapDeltaToBestLap": 1.2, "SessionTimeRemain": 900.0,
             "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full"},
-            "DriverInfo": {"Drivers": [{"CarIdx": 0, "CarScreenName": "Formula Vee"}]},
+            "DriverInfo": {"DriverCarFuelMaxLtr": 40.0, "Drivers": [{"CarIdx": 0, "CarScreenName": "Formula Vee"}]},
             "SessionInfo": {"Sessions": [{"SessionType": "Race"}]},
             "PlayerCarIdx": 0, "Throttle": 0.8, "Brake": 0.1, "Clutch": 0.0,
             "SteeringWheelAngle": 0.15, "AirTemp": 21.0, "TrackTempCrew": 28.0,
             "WindVel": 2.0, "WindDir": 1.0, "OnPitRoad": False,
+            "PlayerCarPosition": 7, "PlayerCarClassPosition": 2, "PlayerCarClass": 1,
+            "CarIdxPosition": [7, 6, 8], "CarIdxF2Time": [13.0, 12.0, 14.0],
+            "IsOnTrack": True, "IsInGarage": False, "IsReplayPlaying": False,
+            "SessionFlags": 8, "PlayerCarMyIncidentCount": 2,
+            "LFcoldPressure": 200.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
+            "PitSvFuel": 15.0, "PitSvLFP": 200.0, "PitSvRFP": 201.0, "PitSvLRP": 202.0, "PitSvRRP": 203.0,
+            "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
             "PlayerCarPosition": 7, "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
         }
@@ -45,6 +52,17 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["best_time_str"], "01:19.750")
         self.assertEqual(snapshot["vehicle"]["track"], "Okayama")
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
+        self.assertEqual(snapshot["static_metadata"]["data"]["max_fuel"], 40.0)
+        self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
+        self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_wear_pct"], 75.0)
+        self.assertEqual(snapshot["physics"]["data"]["oil_temp_c"], 100.0)
+        self.assertEqual(snapshot["graphics"]["data"]["gap_ahead_ms"], 1000)
+        self.assertEqual(snapshot["graphics"]["data"]["gap_behind_ms"], 1000)
+        self.assertEqual(snapshot["graphics"]["data"]["flag"], 2)
+        self.assertEqual(snapshot["graphics"]["data"]["incident_count"], 2)
+        self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
+        self.assertEqual(snapshot["graphics"]["data"]["current_tyre_set"], 1)
+        self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
     def test_does_not_misrepresent_unavailable_iRacing_channels(self):
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
