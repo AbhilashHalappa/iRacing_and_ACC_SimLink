@@ -157,7 +157,7 @@ class IRacingTelemetryReader:
         speed_mps = _number(_read(sdk, "Speed"))
         gear = _integer(_read(sdk, "Gear"))
         rpm = _number(_read(sdk, "RPM"))
-        max_rpm = _number(_read(sdk, "PlayerCarSLBlinkRPM"))
+        max_rpm = _number(_read(sdk, "PlayerCarSLBlinkRPM")) or _number(_nested(_read(sdk, "DriverInfo", {}), "DriverCarSLBlinkRPM"))
         fuel = _number(_read(sdk, "FuelLevel"))
         lap = _integer(_read(sdk, "LapCompleted"))
         session_num = _integer(_read(sdk, "SessionNum"))
@@ -223,7 +223,6 @@ class IRacingTelemetryReader:
         incidents = _integer(_read(sdk, "PlayerCarMyIncidentCount"))
         team_incidents = _integer(_read(sdk, "PlayerCarTeamIncidentCount"))
         driver_incidents = _integer(_read(sdk, "PlayerCarDriverIncidentCount"))
-        session_state = _integer(_read(sdk, "SessionState"))
         session_flags = _integer(_read(sdk, "SessionFlags")) or 0
         on_pit_road = bool(_read(sdk, "OnPitRoad", False))
         in_pit_stall = bool(_read(sdk, "PlayerCarInPitStall", False))
@@ -235,7 +234,7 @@ class IRacingTelemetryReader:
         car_positions = _read(sdk, "CarIdxPosition", [])
         car_f2_times = _read(sdk, "CarIdxF2Time", [])
         gap_ahead_ms = gap_behind_ms = None
-        if player_idx is not None and isinstance(car_positions, (list, tuple)) and isinstance(car_f2_times, (list, tuple)):
+        if str(session_type or "").strip().lower() == "race" and player_idx is not None and isinstance(car_positions, (list, tuple)) and isinstance(car_f2_times, (list, tuple)):
             if player_idx < len(car_positions) and player_idx < len(car_f2_times):
                 player_position = _integer(car_positions[player_idx])
                 player_gap = _number(car_f2_times[player_idx])
@@ -324,13 +323,16 @@ class IRacingTelemetryReader:
             "fuel_level_pct": fuel_pct, "fuel_use_kg_hour": fuel_use_kg_hour,
             "fuel_tank_capacity_l": _number(_nested(driver_info, "DriverCarFuelMaxLtr")),
             "air_density_kg_m3": air_density, "air_pressure_inhg": air_pressure,
+            "oil_level_l": _number(_read(sdk, "OilLevel")), "water_level_l": _number(_read(sdk, "WaterLevel")),
+            "battery_voltage_v": _number(_read(sdk, "Voltage")),
+            "handbrake": _number(_read(sdk, "HandBrake")), "steering_wheel_angle_max_rad": _number(_read(sdk, "SteeringWheelAngleMax")),
             "relative_humidity_pct": humidity, "track_wetness": track_wetness,
             "longitudinal_accel_mps2": _number(_read(sdk, "LongAccel")),
             "lateral_accel_mps2": _number(_read(sdk, "LatAccel")),
             "vertical_accel_mps2": _number(_read(sdk, "VertAccel")),
             "yaw_rate_rad_s": _number(_read(sdk, "YawRate")),
             "pitch_rad": _number(_read(sdk, "Pitch")), "roll_rad": _number(_read(sdk, "Roll")),
-            "autoshifter_on": None, "turbo_boost": _number(_read(sdk, "ManifoldPress")),
+            "autoshifter_on": None, "turbo_boost": None, "manifold_pressure_bar": _number(_read(sdk, "ManifoldPress")),
             "brake_bias": _number(_read(sdk, "dcBrakeBias")),
             "abs_active": abs_active, "engine_running": engine_running,
             "pit_limiter_on": pit_limiter, "ignition_on": None, "starter_engine_on": None,
@@ -345,8 +347,8 @@ class IRacingTelemetryReader:
                     (0x00000040, 8))
         mapped_flag = next((value for bit, value in flag_map if session_flags & bit), 0)
         # Overview status is not the iRacing SessionState enum.
-        graphics_status = 1 if is_replay else 2 if on_track else 0 if in_garage else 3
-        track_status = "Pit road" if on_pit_road else "On track" if on_track else "Off track"
+        graphics_status = 1 if is_replay else 2 if on_track else 0
+        track_status = "Pit road" if on_pit_road else "On track" if on_track else "In garage" if in_garage else "Off track"
         graphics_data = {
             "status": graphics_status, "session": session_type_index, "session_name": session_type, "session_index": session_num,
             "current_time_ms": current_ms, "current_time_str": _time_string(current_ms),
@@ -368,7 +370,6 @@ class IRacingTelemetryReader:
                 (_number(_read(sdk, "PitSvLRP")) * 0.1450377377) if _number(_read(sdk, "PitSvLRP")) is not None else None,
                 (_number(_read(sdk, "PitSvRRP")) * 0.1450377377) if _number(_read(sdk, "PitSvRRP")) is not None else None,
             ],
-            "current_tyre_set": _integer(_read(sdk, "TireSetsUsed")),
             "pitstop_active": bool(_read(sdk, "PitstopActive", False)),
             "pit_repair_left_s": _number(_read(sdk, "PitRepairLeft")),
             "pit_optional_repair_left_s": _number(_read(sdk, "PitOptRepairLeft")),
