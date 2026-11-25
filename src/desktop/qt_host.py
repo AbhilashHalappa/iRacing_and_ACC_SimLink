@@ -166,6 +166,7 @@ class ACCDesktopWindow(QMainWindow):
             static_data.get("track_configuration") or self._track_configuration
         )
         snapshot = {
+            "game": "acc",
             "connected": connected,
             "streams": streams,
             "source": "ACC Shared Memory / Physics + Graphics",
