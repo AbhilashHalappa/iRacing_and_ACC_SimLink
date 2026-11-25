@@ -395,6 +395,7 @@ class IRacingTelemetryReader:
             "global_red": bool(session_flags & 0x00000010),
             "penalty": None, "penalty_time_s": None, "incident_count": incidents, "team_incident_count": team_incidents, "driver_incident_count": driver_incidents, "missing_mandatory_pits": None,
             "mandatory_pit_done": None, "mfd_tyre_set": None, "current_tyre_set": None, "strategy_tyre_set": None,
+            "tyre_sets_used": _integer(_read(sdk, "TireSetsUsed")),
             "tc_level": _number(_read(sdk, "dcTractionControl")),
             "abs_level": _number(_read(sdk, "dcABS")), "tc_cut": None, "engine_map": None,
             "is_valid_lap": None, "class_position": class_position,
