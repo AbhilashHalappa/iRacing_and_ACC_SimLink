@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from src.iracing.reader import IRacingTelemetryReader
+from iracing.reader import IRacingTelemetryReader
 
 
 class FakeSDK:
