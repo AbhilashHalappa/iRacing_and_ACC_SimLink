@@ -290,6 +290,6 @@ These are useful telemetry candidates, but must be added as separate normalized 
 
 - iRacing SDK variable catalogue mirror: https://irsdk-node.bengsfort.dev/API-Reference/irsdk-node-types/interfaces/TelemetryVarList/
 - Community-exported iRacing variable list with descriptions/units: https://github.com/MartijnStraatman/iracing-exporter/blob/main/iracing-vars.txt
-- iRacing telemetry SDK documentation overview: https://github.com/ irsdk-node (see linked generated variable catalogue above)
+- iRacing telemetry SDK documentation overview: https://github.com/bengsfort/irsdk-node (see linked generated variable catalogue above)
 
 The SDK's live telemetry, session YAML, and IBT/logged telemetry are separate sources. This mapping is scoped to the live shared-memory adapter plus selected session/driver metadata.
