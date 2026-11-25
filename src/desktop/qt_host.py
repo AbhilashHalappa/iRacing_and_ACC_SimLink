@@ -26,9 +26,8 @@ class ACCDesktopWindow(QMainWindow):
         self.setMinimumSize(1024, 680)
         self.setStyleSheet("QMainWindow { background: #0b1118; }")
 
-        # Keep runtime-owned data beside the source checkout. Resolve from this
-        # file rather than the process working directory so launch location does
-        # not change where history and the WebEngine profile are stored.
+        # Keep the WebEngine profile beside the source checkout, independent of
+        # the process working directory.
         project_root = Path(__file__).resolve().parents[2]
         app_data = project_root / "user_data"
         self._runtime = create_acc_acquisition_runtime()
@@ -38,8 +37,6 @@ class ACCDesktopWindow(QMainWindow):
         self._car_model: str | None = None
         self._track: str | None = None
         self._track_configuration: str | None = None
-        self._last_race_progress_log_signature: tuple[object, ...] | None = None
-        self._last_static_metadata_log_signature: tuple[object, ...] | None = None
         self._last_capture_diagnostics_log_signature: tuple[object, ...] | None = None
         try:
             self._runtime.supervisor.start()
