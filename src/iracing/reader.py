@@ -177,7 +177,7 @@ class IRacingTelemetryReader:
         car_model = None
         active_cars = 0
         if isinstance(drivers, list):
-            active_cars = len([driver for driver in drivers if isinstance(driver, dict) and driver.get("CarIsPaceCar") is not True])
+            active_cars = len([driver for driver in drivers if isinstance(driver, dict) and driver.get("CarIsPaceCar") not in (True, 1) and driver.get("IsSpectator") not in (True, 1)])
             for driver in drivers:
                 if isinstance(driver, dict) and _integer(driver.get("CarIdx")) == player_idx:
                     car_model = driver.get("CarScreenName") or driver.get("CarScreenNameShort") or driver.get("CarPath")
@@ -187,7 +187,7 @@ class IRacingTelemetryReader:
         if isinstance(sessions, list) and session_num is not None and 0 <= session_num < len(sessions):
             session_type = _nested(sessions[session_num], "SessionType")
         session_type_index = {
-            "practice": 0, "warmup": 0, "qualify": 1, "qualification": 1,
+            "practice": 0, "offline testing": 0, "warmup": 0, "qualify": 1, "qualification": 1,
             "race": 2, "hotlap": 3, "time trial": 4,
         }.get(str(session_type or "").strip().lower())
         if not car_model:
@@ -318,7 +318,7 @@ class IRacingTelemetryReader:
             "steering_angle": steering, "speed_kph": speed_mps * 3.6 if speed_mps is not None else None,
             "gear_raw": gear + 1 if gear is not None else None,
             "gear_display": "R" if gear == -1 else "N" if gear == 0 else str(gear) if gear is not None else "—",
-            "rpm": rpm, "current_max_rpm": max_rpm, "fuel_kg": fuel,
+            "rpm": rpm, "current_max_rpm": max_rpm, "fuel_l": fuel, "fuel_kg": fuel,  # legacy Overview field name; value is litres
             "air_temp_c": air_temp, "road_temp_c": track_temp, "water_temp_c": water_temp,
             "oil_temp_c": oil_temp, "oil_pressure_bar": oil_pressure, "fuel_pressure_bar": fuel_pressure,
             "fuel_level_pct": fuel_pct, "fuel_use_kg_hour": fuel_use_kg_hour,
@@ -340,7 +340,8 @@ class IRacingTelemetryReader:
         # iRacing SessionFlags is a bitfield. Convert only known flags to the
         # Overview's display booleans; never pass the raw bitmask as an ACC enum.
         flag_map = ((0x00000001, 5), (0x00000002, 4), (0x00000004, 7),
-                    (0x00000008, 2), (0x00000010, 3), (0x00000020, 1),
+                    (0x00000008, 2), (0x00000100, 2), (0x00004000, 2),
+                    (0x00000010, 3), (0x00010000, 3), (0x00000020, 1),
                     (0x00000040, 8))
         mapped_flag = next((value for bit, value in flag_map if session_flags & bit), 0)
         # Overview status is not the iRacing SessionState enum.
@@ -374,13 +375,21 @@ class IRacingTelemetryReader:
             "fast_repairs_available": _integer(_read(sdk, "FastRepairAvailable")),
             "fast_repairs_used": _integer(_read(sdk, "PlayerFastRepairsUsed")),
             "session_laps_remaining": _integer(_read(sdk, "SessionLapsRemainEx")),
+            "session_time_elapsed_s": _number(_read(sdk, "SessionTime")),
+            "session_time_total_s": _number(_read(sdk, "SessionTimeTotal")),
+            "session_id": _integer(_read(sdk, "SessionUniqueID")),
+            "player_tow_time_s": _number(_read(sdk, "PlayerCarTowTime")),
+            "player_weight_penalty_kg": _number(_read(sdk, "PlayerCarWeightPenalty")),
+            "player_power_adjust_pct": _number(_read(sdk, "PlayerCarPowerAdjust")),
+            "push_to_pass_active": bool(_read(sdk, "PushToPass", False)),
+            "push_to_pass_count": _integer(_read(sdk, "P2P_Count")),
             "delta_lap_time_ms": delta_ms, "delta_lap_time_str": f"{delta_s:+.3f}" if delta_s is not None else "",
             "delta_positive": delta_s > 0 if delta_s is not None else None,
             "estimated_lap_time_ms": estimated_ms, "estimated_lap_time_str": _time_string(estimated_ms),
             "track_grip_status": None, "track_wetness": track_wetness, "rain_intensity": None, "rain_10min": None, "rain_30min": None,
             "wind_speed": wind_mps * 3.6 if wind_mps is not None else None, "wind_direction": wind_direction,
             "flag": mapped_flag, "track_status": track_status, "session_flags": session_flags,
-            "global_yellow_1": bool(session_flags & 0x00000008), "global_yellow_2": None, "global_yellow_3": None,
+            "global_yellow_1": bool(session_flags & (0x00000008 | 0x00000100 | 0x00004000)), "global_yellow_2": None, "global_yellow_3": None,
             "global_green": bool(session_flags & 0x00000004), "global_chequered": bool(session_flags & 0x00000001),
             "global_red": bool(session_flags & 0x00000010),
             "penalty": None, "penalty_time_s": None, "incident_count": incidents, "team_incident_count": team_incidents, "driver_incident_count": driver_incidents, "missing_mandatory_pits": None,
