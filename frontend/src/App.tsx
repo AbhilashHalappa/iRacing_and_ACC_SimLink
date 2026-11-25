@@ -350,7 +350,7 @@ function TileContentBody({ id, glow, telemetry, targetPressures, trace, mapTrack
             <div><span>CURRENT SECTOR</span><b>{current===null?"—":current+1} / {count}</b></div>
           </div>
           <div className="sector-strip" style={{gridTemplateColumns:`repeat(${count}, minmax(0, 1fr))`}}>
-            {dynamicBoundaries.map((_,index)=>{
+            {dynamicBoundaries.map((_: number, index: number)=>{
               const isLive=index===current;
               const recorded=typeof dynamicTimes[index]==="number"?dynamicTimes[index]:null;
               const shown=isLive?liveText:recorded===null?"—:—.---":lapTimeDisplay(null,recorded,true);
