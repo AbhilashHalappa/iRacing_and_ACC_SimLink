@@ -6,6 +6,7 @@ snapshots; it never calls into pyirsdk or blocks on shared memory.
 from __future__ import annotations
 
 from copy import deepcopy
+from bisect import bisect_right
 from threading import Event, Lock, Thread
 import math
 import time
@@ -86,6 +87,11 @@ class IRacingTelemetryReader:
         self._fuel_per_lap: float | None = None
         self._fuel_start_level: float | None = None
         self._fuel_session_key: tuple[Any, ...] | None = None
+        self._sector_session_key: tuple[Any, ...] | None = None
+        self._sector_lap: int | None = None
+        self._sector_index: int | None = None
+        self._sector_boundary_time_ms: int = 0
+        self._sector_times_ms: list[int | None] = []
 
     @staticmethod
     def _waiting_snapshot() -> dict[str, Any]:
@@ -168,6 +174,58 @@ class IRacingTelemetryReader:
         lap_pct = _number(_read(sdk, "LapDistPct"))
         current_ms = _time_ms(_read(sdk, "LapCurrentLapTime"))
         last_ms = _time_ms(_read(sdk, "LapLastLapTime"))
+
+        # SplitTimeInfo is session YAML, not a fixed three-sector telemetry
+        # channel. Read the active track's sector starts and derive the count.
+        split_info = _read(sdk, "SplitTimeInfo", {})
+        if not isinstance(split_info, dict) or not split_info:
+            split_info = _nested(_read(sdk, "SessionInfo", {}), "SplitTimeInfo") or {}
+        raw_sectors = _nested(split_info, "Sectors")
+        sector_starts: list[float] = []
+        if isinstance(raw_sectors, list):
+            parsed = []
+            for item in raw_sectors:
+                if not isinstance(item, dict):
+                    continue
+                pct = _number(item.get("SectorStartPct"))
+                if pct is not None and 0.0 <= pct < 1.0:
+                    parsed.append((pct, _integer(item.get("SectorNum"))))
+            sector_starts = sorted({pct for pct, _ in parsed})
+        if sector_starts and sector_starts[0] > 0.0001:
+            sector_starts.insert(0, 0.0)
+        if not sector_starts:
+            sector_starts = []
+        sector_count = len(sector_starts)
+        sector_index = (
+            max(0, min(sector_count - 1, bisect_right(sector_starts, lap_pct) - 1))
+            if sector_count and lap_pct is not None and 0.0 <= lap_pct <= 1.0 else None
+        )
+        sector_session_key = (track, configuration, session_num, tuple(sector_starts))
+        if sector_session_key != self._sector_session_key:
+            self._sector_session_key = sector_session_key
+            self._sector_lap = lap
+            self._sector_index = sector_index
+            self._sector_boundary_time_ms = 0
+            self._sector_times_ms = [None] * sector_count
+        elif sector_count:
+            if lap is not None and self._sector_lap is not None and lap != self._sector_lap:
+                # LapLastLapTime is the completed lap duration. Use it to
+                # close the final sector if the SDK has already reset current time.
+                if self._sector_index is not None and self._sector_index < sector_count - 1:
+                    pass
+                elif self._sector_index is not None and last_ms is not None:
+                    self._sector_times_ms[self._sector_index] = max(0, last_ms - self._sector_boundary_time_ms)
+                self._sector_lap = lap
+                self._sector_index = sector_index
+                self._sector_boundary_time_ms = 0
+                self._sector_times_ms = [None] * sector_count
+            elif sector_index is not None and self._sector_index is not None and sector_index > self._sector_index:
+                if current_ms is not None and current_ms >= self._sector_boundary_time_ms:
+                    self._sector_times_ms[self._sector_index] = current_ms - self._sector_boundary_time_ms
+                    self._sector_boundary_time_ms = current_ms
+                self._sector_index = sector_index
+            elif self._sector_index is None:
+                self._sector_index = sector_index
         best_ms = _time_ms(_read(sdk, "LapBestLapTime"))
         delta_s = _number(_read(sdk, "LapDeltaToBestLap"))
         remain_s = _number(_read(sdk, "SessionTimeRemain"))
@@ -364,8 +422,24 @@ class IRacingTelemetryReader:
             "gap_ahead_ms": gap_ahead_ms, "gap_behind_ms": gap_behind_ms,
             "session_time_left_s": remain_s, "is_in_pit": in_pit_stall, "is_in_pit_lane": on_pit_road,
             "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "is_in_garage": in_garage, "is_replay": is_replay, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
-            "is_valid_lap": None, "sector": None, "split_time_str": "",
-            "last_sector_time_ms": None, "tyre_compound": _read(sdk, "PlayerTireCompound"),
+            "is_valid_lap": None,
+            "sector": sector_index,
+            "sector_count": sector_count or None,
+            "sector_boundaries_pct": sector_starts,
+            "sector_times_ms": list(self._sector_times_ms),
+            "live_sector_time_ms": (
+                max(0, current_ms - self._sector_boundary_time_ms)
+                if sector_index is not None and current_ms is not None and current_ms >= self._sector_boundary_time_ms else None
+            ),
+            "split_time_str": _time_string(
+                max(0, current_ms - self._sector_boundary_time_ms)
+                if sector_index is not None and current_ms is not None and current_ms >= self._sector_boundary_time_ms else None
+            ),
+            "last_sector_time_ms": (
+                self._sector_times_ms[sector_index - 1]
+                if sector_index is not None and sector_index > 0 and sector_index - 1 < len(self._sector_times_ms) else None
+            ),
+            "tyre_compound": _read(sdk, "PlayerTireCompound"),
             "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps, "used_fuel_l": used_fuel,
             "mfd_fuel_to_add": _number(_read(sdk, "PitSvFuel")),
             "mfd_tyre_pressures": [
