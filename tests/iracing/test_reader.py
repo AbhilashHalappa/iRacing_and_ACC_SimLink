@@ -113,6 +113,31 @@ class IRacingReaderTests(unittest.TestCase):
         live = reader._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(live["live_sector_time_ms"], 2000)
 
+    def test_completed_lap_preserves_dynamic_sector_durations(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+
+        sdk.values["LapDistPct"] = 0.10
+        sdk.values["LapCurrentLapTime"] = 10.0
+        reader._build_snapshot(sdk)
+        sdk.values["LapDistPct"] = 0.30
+        sdk.values["LapCurrentLapTime"] = 25.0
+        reader._build_snapshot(sdk)
+        sdk.values["LapDistPct"] = 0.50
+        sdk.values["LapCurrentLapTime"] = 50.0
+        reader._build_snapshot(sdk)
+        sdk.values["LapDistPct"] = 0.80
+        sdk.values["LapCurrentLapTime"] = 80.0
+        reader._build_snapshot(sdk)
+
+        sdk.values["LapCompleted"] = 5
+        sdk.values["LapDistPct"] = 0.01
+        sdk.values["LapCurrentLapTime"] = 0.5
+        sdk.values["LapLastLapTime"] = 100.0
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["last_lap_sector_times_ms"], [25000, 25000, 30000, 20000])
+        self.assertEqual(graphics["sector_times_ms"], [None, None, None, None])
+
     def test_does_not_misrepresent_unavailable_iRacing_channels(self):
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
         sdk = FakeSDK()
