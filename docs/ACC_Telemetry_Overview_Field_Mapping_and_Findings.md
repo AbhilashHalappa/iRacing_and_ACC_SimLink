@@ -19,7 +19,7 @@ The ACC path is split across three shared-memory streams and a desktop publicati
 
 The reviewed acquisition/decoder code indicates nominal polling rates of approximately **480 Hz Physics**, **100 Hz Graphics**, and **1 Hz Static**. The Qt snapshot publication path is approximately **50 ms (20 Hz)**. These are implementation settings/observations from the reviewed source, not a guarantee that every field updates at those rates.
 
-The central engineering risk is that the Overview currently mixes raw simulator values, converted values, host-derived values, and UI-derived values without consistently exposing their units or provenance. The most important confirmed code-level concerns are the fuel mass/litre mismatch, session-time property mismatch, and static metadata not appearing in the published snapshot shape expected by the frontend.
+The central engineering risk is that the Overview currently mixes raw simulator values, converted values, host-derived values, and UI-derived values without consistently exposing their units or provenance. The most important confirmed code-level concerns include an ACC fuel-unit naming/source discrepancy (the ACC game UI displays fuel in litres, while the reviewed decoder field is named `fuel_kg`), the session-time property mismatch, and Static metadata not appearing in the published snapshot shape expected by the frontend.
 
 **Do not replace unavailable channels with zero or guessed values.** Keep the tile present and display an unavailable state until a valid source or explicitly documented derivation exists.
 
@@ -108,7 +108,7 @@ The table below records the source family and the mapping behaviour identified i
 
 | Overview field / tile value | ACC source | Mapping / conversion | Classification | Review notes |
 |---|---|---|---|---|
-| Fuel remaining | Physics fuel quantity (`fuel_kg` in the reviewed decoder path) | Frontend consumes it as `fuelLitres` and labels it L | **Confirmed unit mismatch** | Kilograms are not litres. Expose kg explicitly or use a verified litre-valued source. Do not assume 1 kg = 1 L |
+| Fuel remaining | Physics fuel quantity (decoder field currently named `fuel_kg`) | ACC game UI displays fuel in litres; Overview must display the matching litre quantity as L | **Source naming/semantics discrepancy; numeric mapping needs HUD correlation** | Treat ACC fuel as litres for the user-facing contract. The `fuel_kg` suffix conflicts with the game's displayed unit and must not be accepted as proof of kilograms; verify the decoded numeric value against the ACC HUD before finalizing the source-field semantics |
 | Fuel capacity / maximum fuel | Static decoder reads `max_fuel` | Frontend expects `telemetry.static_metadata.data.max_fuel` | **Confirmed publication-shape mismatch** | The reviewed Qt host snapshot does not publish the expected `static_metadata.data` structure, so the tile cannot reliably obtain capacity from this path |
 | Fuel used per lap | Difference between observed fuel values across completed laps | Calculated from fuel samples | Derived | Needs stable lap boundaries and non-negative/credible delta handling |
 | Estimated laps remaining | Fuel remaining divided by observed fuel-per-lap | Calculated estimate | Derived | Only show when sufficient valid consumption samples exist; show unavailable before that |
@@ -163,13 +163,14 @@ The table below records the source family and the mapping behaviour identified i
 
 These are the highest-priority findings from the reviewed source paths.
 
-### 5.1 Fuel mass is consumed as litres
+### 5.1 ACC fuel is displayed in litres; decoder naming must be reconciled
 
-- Decoder/source path exposes fuel as `fuel_kg`.
-- Frontend consumes the value through a `fuelLitres`-style property and labels it in litres.
-- Kilograms and litres are different physical quantities. Fuel density varies by fuel and temperature; a fixed 1:1 conversion is not valid.
+- **User-confirmed game behaviour:** the ACC in-game UI displays remaining fuel in litres (L), not kilograms (kg).
+- The reviewed Physics decoder exposes the quantity under the name `fuel_kg`, while the Overview consumes it through a `fuelLitres`-style property and labels it L.
+- The field suffix alone does not establish the native unit. The current evidence identifies a naming/semantic discrepancy; it does not prove that the numeric source is kilograms.
+- The ACC Overview fuel quantity, fuel-per-lap and fuel-add presentation must use litres (L), with fuel-per-lap expressed as L/lap. Do not introduce a kg-to-L conversion unless source evidence proves the native value is mass.
 
-**Recommended correction:** Keep the source value named and typed as kilograms (for example, `fuel_remaining_kg`) unless a verified ACC litre field is available. If the UI wants litres, convert using a documented, justified density or a simulator-provided litre value. Do not silently relabel kg as L.
+**Required verification:** Capture the Physics fuel value and the ACC HUD fuel display at the same moments (including a known refuel change). Confirm whether the decoder value already matches litres, whether the decoder's field name is simply wrong, or whether a conversion is actually required. Until that comparison is recorded, mark the native-field unit as `candidate`/`unverified`, but retain litres as the ACC UI and canonical display requirement.
 
 ### 5.2 Session remaining-time property mismatch
 
@@ -224,7 +225,7 @@ The shared Overview should consume a game-independent contract. Each simulator a
 | Engine speed | RPM | Display RPM |
 | Throttle / brake / clutch | Normalized 0–1 | Percent = value × 100 |
 | Steering angle | Radians, if it is a physical angle | Degrees = radians × 180 / π |
-| Fuel remaining | Explicit quantity plus unit (kg or L) | Display the matching unit; never relabel |
+| Fuel remaining | Explicit quantity plus unit; ACC is L | ACC display unit is litres; adapter output must be `fuel_remaining_l` after source semantics are verified |
 | Tyre pressure | Pa | PSI = Pa ÷ 6894.757; bar = Pa ÷ 100000 |
 | Temperatures | °C | Display °C or convert explicitly |
 | Lap and sector times | Milliseconds | Format as time string |
@@ -484,7 +485,7 @@ This table describes the actual tile consumers in the current `App.tsx`, not mer
 | Session | Static vehicle identity; Graphics `session`, `status`, `session_time_left_s` (frontend key), `completed_laps`, `position`, `tyre_compound` | Raw enums formatted through helper functions; time helper divides by 1000 | Decoder actually emits `session_time_left_ms`, so current UI key does not match; session time can remain unavailable |
 | Brakes | Physics wheel `brake_temp_c`, `brake_pressure`, `pad_life`, `disc_life` | Four-corner FL/FR/RL/RR layout; temperature thresholds and glow; raw pressure/pad/disc secondary values | Brake temperature °C; brake pressure and life units/semantics need further qualification |
 | Tyres | Physics wheel `tyre_core_temp_c`, `tyre_pressure_psi`, `slip_ratio`, `slip_angle` | Four-corner layout; temperature bands/glow; pressure shown PSI; slip and angle formatted | Core temperature is selected; angle gets ° suffix without conversion; tyre_temp_c is not an independent validated alternate |
-| Fuel | Physics `fuel_kg`; Graphics `fuel_per_lap_l`, `fuel_estimated_laps` | Remaining fuel variable is named `fuelLitres` and displayed with L; bar fraction = current value / highest value observed since app start; fuel/lap and laps remaining displayed directly | Confirmed kg→L labelling bug; bar is not tank-capacity percentage. Fuel/lap and estimated laps come from Graphics, not a locally calculated Physics estimator; direct HUD/refuel/session-reset validation remains open |
+| Fuel | Physics field currently named `fuel_kg`; Graphics `fuel_per_lap_l`, `fuel_estimated_laps` | Remaining fuel is displayed in L; fuel/lap is displayed in L/lap; estimated laps displayed directly; bar fraction = current value / highest value observed since app start | ACC game UI confirms litres as the display unit. The `fuel_kg` decoder name conflicts with this and requires source-to-HUD numeric correlation; do not infer kg from the suffix or apply an unverified density conversion. Bar is not tank-capacity percentage. Fuel/lap and estimated laps come from Graphics, not a locally calculated Physics estimator; direct HUD/refuel/session-reset validation remains open |
 | Warnings | Graphics `is_valid_lap`, `penalty`, `penalty_time_s`, `missing_mandatory_pits`, `mandatory_pit_done` | Validity/penalty helpers and time formatting | Penalty enum values and penalty-time unit/suffix need verification; helper divides penalty time by 1000 |
 | Delta | Graphics `delta_lap_time_str`, `delta_positive`, `estimated_lap_time_str`, numeric estimate fields | Displays delta string, positive/negative label and estimated lap | `delta_positive` semantics only observation-level; reject numeric sentinel values |
 | Sectors | Graphics `sector`, `last_sector_time_ms`, `split_ms`, plus current-time values | Live and last-completed sector presentation | Frontend references `live_sector_time_ms`, but this field is not present in the current `DecodedGraphics` dataclass; confirm whether it is injected/derived elsewhere. Do not claim it is a direct decoder field. |
@@ -504,7 +505,7 @@ This table describes the actual tile consumers in the current `App.tsx`, not mer
 | `graphics.session_time_left_s` | `DecodedGraphics` emits `session_time_left_ms` | Session time property mismatch; frontend formatter also divides by 1000 |
 | `graphics.live_sector_time_ms` | Not a member of the current `DecodedGraphics` dataclass | Live sector timer may remain unavailable unless another layer derives/injects it |
 | `static_metadata.data.max_fuel` | Static decoder has `max_fuel`, but Qt snapshot only publishes Static-derived vehicle identity | Tank capacity is unavailable to the tile |
-| Fuel variable named `fuelLitres` | Physics emits `fuel_kg` | Incorrect unit label |
+| Fuel variable named `fuelLitres` | Physics emits a field named `fuel_kg`, while ACC HUD displays litres | Field-name/unit discrepancy; correlate numeric value with HUD before changing decoder semantics |
 | `penalty_time_s` | Decoder field is named `penalty_time_s`; formatter comment says source is milliseconds and divides by 1000 | Field suffix is misleading; confirm raw semantics and rename the contract explicitly |
 | `last_sector_time_ms` treated as a sector duration | App's own lap-history logic treats it as cumulative elapsed time at the sector boundary | Consumers must subtract boundary timestamps to derive S2/S3; do not display it as an isolated sector duration |
 | Static `sector_count` | Decoded but not forwarded to frontend | Lap History currently assumes exactly 3 sectors rather than using Static sector count |
@@ -554,7 +555,7 @@ These are UI requirements/implementation notes, not additional raw telemetry cha
 
 ## 14. Corrected validation priorities
 
-1. Fix the fuel quantity contract: expose kg as kg, or use a verified litre-valued channel. Do not retain the `fuelLitres` alias for Physics `fuel_kg`.
+1. Reconcile the Physics decoder field named `fuel_kg` against the ACC HUD. ACC fuel is displayed in litres; preserve L in the Overview and correct the decoder field name/unit only after numeric source-to-HUD correlation.
 2. Publish an explicit Static metadata object or intentionally map required Static fields into a documented snapshot shape. At minimum decide whether `max_fuel` and `sector_count` are to be consumed by Overview.
 3. Align `session_time_left_ms` between decoder, snapshot and frontend; format once. Reconcile `penalty_time_s` naming against its actual raw unit.
 4. Resolve the missing `live_sector_time_ms` expectation and make the live sector timer's producer explicit.
@@ -571,6 +572,7 @@ These are UI requirements/implementation notes, not additional raw telemetry cha
 
 The cross-check found several places where the initial short document was incomplete or imprecise:
 
+- **ACC fuel display units are litres.** The user confirmed that the in-game ACC UI displays fuel in L, so the Overview must use L for remaining fuel and L/lap for consumption. The Physics decoder's `fuel_kg` name is inconsistent with that display contract and must be reconciled through a simultaneous raw-value/HUD capture; the suffix alone is not proof that the source value is kilograms.
 - **Fuel per lap and estimated laps remaining are not calculated locally from Physics fuel deltas in the current Overview path.** They are read from Graphics fields `fuel_per_lap_l` (offset 0x504) and `fuel_estimated_laps` (offset 0x584). The earlier recommendation to build a duplicate Physics estimator should not be followed.
 - **Static is decoded, but not fully published.** The host uses Static data for `vehicle.car_model`, `vehicle.track` and `vehicle.track_configuration`; it does not publish `static_metadata.data.max_fuel`. This is the exact reason the UI's tank-capacity lookup is unavailable.
 - **The tyre temperature fields at offsets 152 and 696 are not established as two distinct measurements.** A long raw capture found them byte-for-byte identical in every one of 224,956 samples. The UI uses `tyre_core_temp_c`; do not claim the second field is an independent alternate sensor.
