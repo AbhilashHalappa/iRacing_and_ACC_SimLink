@@ -535,7 +535,7 @@ function App() {
       return;
     }
     if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
+      lapCapture.current={sessionKey,completedLaps:completed,lastTimeMs:typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       try{window.localStorage.removeItem(storageKey);}catch{}
       setLapHistory([]);
       return;
