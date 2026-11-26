@@ -238,7 +238,12 @@ class IRacingTelemetryReader:
                 self._sector_index = sector_index
         best_ms = _time_ms(_read(sdk, "LapBestLapTime"))
         delta_s = _number(_read(sdk, "LapDeltaToBestLap"))
-        remain_s = _number(_read(sdk, "SessionTimeRemain"))
+        session_total_s = _number(_read(sdk, "SessionTimeTotal"))
+        remain_s_raw = _number(_read(sdk, "SessionTimeRemain"))
+        # iRacing can expose a stale SessionTimeRemain value in sessions with
+        # no configured duration. Only publish a countdown when a time limit
+        # is explicitly reported; preserve unknown totals as unknown.
+        remain_s = remain_s_raw if session_total_s is None or session_total_s > 0 else None
         session_info = _read(sdk, "WeekendInfo", {})
         driver_info = _read(sdk, "DriverInfo", {})
         session_data = _read(sdk, "SessionInfo", {})
@@ -466,7 +471,7 @@ class IRacingTelemetryReader:
             "fast_repairs_used": _integer(_read(sdk, "PlayerFastRepairsUsed")),
             "session_laps_remaining": _integer(_read(sdk, "SessionLapsRemainEx")),
             "session_time_elapsed_s": _number(_read(sdk, "SessionTime")),
-            "session_time_total_s": _number(_read(sdk, "SessionTimeTotal")),
+            "session_time_total_s": session_total_s,
             "session_id": _integer(_read(sdk, "SessionUniqueID")),
             "player_tow_time_s": _number(_read(sdk, "PlayerCarTowTime")),
             "player_weight_penalty_kg": _number(_read(sdk, "PlayerCarWeightPenalty")),
