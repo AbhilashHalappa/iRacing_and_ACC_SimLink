@@ -88,6 +88,17 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertIsNone(graphics["session_time_left_s"])
         self.assertEqual(graphics["session_time_left_display"], "NO TIME LIMIT")
 
+    def test_practice_session_seven_day_sentinel_is_unlimited(self):
+        sdk = FakeSDK()
+        sdk.values["SessionInfo"] = {"Sessions": [{"SessionType": "Practice"}]}
+        sdk.values["SessionTimeTotal"] = 604800.0
+        sdk.values["SessionTimeRemain"] = 604800.0
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["session_time_total_s"], 604800.0)
+        self.assertIsNone(graphics["session_time_left_s"])
+        self.assertEqual(graphics["session_time_left_display"], "NO TIME LIMIT")
+
     def test_timed_practice_session_keeps_real_countdown(self):
         sdk = FakeSDK()
         sdk.values["SessionInfo"] = {"Sessions": [{"SessionType": "Practice"}]}
