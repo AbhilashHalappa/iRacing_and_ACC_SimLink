@@ -92,6 +92,7 @@ class IRacingTelemetryReader:
         self._sector_index: int | None = None
         self._sector_boundary_time_ms: int | None = 0
         self._sector_times_ms: list[int | None] = []
+        self._last_lap_sector_times_ms: list[int | None] = []
 
     @staticmethod
     def _waiting_snapshot() -> dict[str, Any]:
@@ -221,6 +222,8 @@ class IRacingTelemetryReader:
                     pass
                 elif self._sector_index is not None and last_ms is not None and self._sector_boundary_time_ms is not None:
                     self._sector_times_ms[self._sector_index] = max(0, last_ms - self._sector_boundary_time_ms)
+                # Preserve completed per-sector durations before resetting the live accumulator.
+                self._last_lap_sector_times_ms = list(self._sector_times_ms)
                 self._sector_lap = lap
                 self._sector_index = sector_index
                 self._sector_boundary_time_ms = 0 if sector_index == 0 else None
@@ -434,6 +437,7 @@ class IRacingTelemetryReader:
             "sector_count": sector_count or None,
             "sector_boundaries_pct": sector_starts,
             "sector_times_ms": list(self._sector_times_ms),
+            "last_lap_sector_times_ms": list(self._last_lap_sector_times_ms),
             "live_sector_time_ms": (
                 max(0, current_ms - self._sector_boundary_time_ms)
                 if sector_index is not None and current_ms is not None and self._sector_boundary_time_ms is not None and current_ms >= self._sector_boundary_time_ms else None
