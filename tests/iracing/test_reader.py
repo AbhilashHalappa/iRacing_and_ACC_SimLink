@@ -76,6 +76,27 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
+    def test_practice_session_without_time_limit_does_not_publish_stale_countdown(self):
+        sdk = FakeSDK()
+        sdk.values["SessionInfo"] = {"Sessions": [{"SessionType": "Practice"}]}
+        sdk.values["SessionTimeTotal"] = 0.0
+        sdk.values["SessionTimeRemain"] = 604.0
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["session_name"], "Practice")
+        self.assertEqual(graphics["session_time_total_s"], 0.0)
+        self.assertIsNone(graphics["session_time_left_s"])
+
+    def test_timed_practice_session_keeps_real_countdown(self):
+        sdk = FakeSDK()
+        sdk.values["SessionInfo"] = {"Sessions": [{"SessionType": "Practice"}]}
+        sdk.values["SessionTimeTotal"] = 1800.0
+        sdk.values["SessionTimeRemain"] = 604.0
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["session_time_total_s"], 1800.0)
+        self.assertEqual(graphics["session_time_left_s"], 604.0)
+
     def test_lap_times_reject_zero_and_missing_sdk_values(self):
         sdk = FakeSDK()
         sdk.values["LapCurrentLapTime"] = 0.0
