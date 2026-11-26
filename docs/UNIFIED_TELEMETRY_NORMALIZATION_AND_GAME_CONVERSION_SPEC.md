@@ -57,7 +57,7 @@ The reviewed ACC acquisition rates differ by stream; the Qt host publishes a low
 
 The current ACC mapping identifies, among other things:
 
-- Fuel mass exposed as `fuel_kg` is consumed by the frontend as litres in one path. Kilograms must not be relabelled as litres.
+- ACC's in-game UI displays remaining fuel in litres (L), as confirmed by the user. The reviewed Physics decoder field is named `fuel_kg`; that suffix conflicts with the game display unit but does not, by itself, prove the numeric value is kilograms. Preserve litres in the ACC Overview contract and verify the decoder value against a simultaneous HUD capture before changing source semantics or adding any conversion.
 - Graphics publishes `session_time_left_ms`, while a frontend path reads `session_time_left_s`. The producer and consumer contract must be aligned.
 - Static decoding obtains `max_fuel`, but the expected `static_metadata.data.max_fuel` publication shape is not present in the reviewed Qt snapshot.
 - A frontend reference to `live_sector_time_ms` does not have a corresponding field in the reviewed decoded Graphics structure.
@@ -151,7 +151,7 @@ Lap history, best-lap selection and sector comparisons are application/session l
 
 | Canonical field | Meaning | Canonical representation | Notes |
 |---|---|---|---|
-| `fuel_remaining` | Remaining fuel quantity | Quantity plus explicit unit | Do not assume kg equals L |
+| `fuel_remaining_l` (ACC profile) | Remaining ACC fuel | Litres (L) | ACC HUD displays litres; reconcile the decoder's `fuel_kg` field name with raw-value/HUD evidence. Do not apply an unverified density conversion |
 | `fuel_capacity` | Maximum tank quantity | Quantity plus explicit unit | Unit must match or be explicitly convertible |
 | `fuel_used_per_lap` | Observed fuel use per completed lap | Quantity per lap plus unit | Derived; requires stable lap boundaries |
 | `fuel_laps_remaining` | Estimated remaining laps | Laps | Derived only with credible consumption estimate |
@@ -163,7 +163,7 @@ Lap history, best-lap selection and sector comparisons are application/session l
 | `in_pit_stall` | Vehicle stopped in pit stall | Boolean / unknown | Optional |
 | `pit_limiter_active` | Pit speed limiter state | Boolean / unknown | Distinguish setting from active state |
 
-Fuel is not a single universal scalar. It is a physical quantity with a unit. The contract must retain whether the source is mass (kg) or volume (L). A conversion between mass and volume requires a documented density appropriate to the fuel and conditions; a fixed 1:1 conversion is prohibited.
+Fuel is not a single universal scalar. It is a physical quantity with a unit. The canonical schema must retain the explicit unit for each game's fuel channel. **ACC's game UI displays fuel in litres (L)**, so the ACC adapter and Overview must expose/display litres; the decoder field currently named `fuel_kg` must be reconciled against a simultaneous raw-value/HUD capture rather than interpreted from its suffix alone. Other simulators may expose mass (kg) or volume (L). A mass-to-volume conversion requires a documented density appropriate to the fuel and conditions; a fixed 1:1 conversion is prohibited.
 
 ### 4.4 Tyres and brakes
 
@@ -253,7 +253,7 @@ Use the following canonical units internally. Display-unit preferences are appli
 | Wind speed | m/s | km/h = m/s × 3.6; mph = m/s × 2.2369362921 |
 | Angular direction | radians | degrees = radians × 180 / π |
 | Track progress | 0.0–1.0 | percent = value × 100 |
-| Fuel | Explicit quantity + unit | Display same unit or use justified density conversion |
+| Fuel | Explicit quantity + unit; ACC profile uses L | ACC Overview displays litres; verify native decoder semantics and do not apply an unverified conversion |
 | Fuel flow | Explicit quantity/time + unit | Convert only with dimensionally valid formula |
 
 ### 5.1 Conversion rules
@@ -297,7 +297,7 @@ The profile must explicitly identify:
 
 ACC conversion and contract audit priorities are:
 
-1. Resolve fuel kg versus litres. Preserve mass as kg unless a verified litre source or defensible density conversion is available.
+1. ACC fuel is displayed in litres (L). Correlate the Physics decoder field named `fuel_kg` with the in-game HUD; preserve L in the ACC Overview and only change decoder naming/conversion after evidence establishes the native numeric semantics.
 2. Align session remaining time on `session_time_remaining_ms` (or another single agreed canonical name) end to end.
 3. Publish Static metadata through an explicit schema if required, rather than relying on an unpublished nested object.
 4. Identify or derive the live sector time explicitly; do not reference a nonexistent decoded field.
@@ -660,7 +660,7 @@ Do not change multiple unrelated tiles in one implementation step. Preserve know
 - [ ] Define how profile versions are recorded.
 
 ### ACC
-- [ ] Correct or explicitly preserve kg-versus-litre distinction.
+- [ ] Confirm ACC's litre-valued fuel display against the Physics decoder value; resolve the misleading `fuel_kg` field name without an unverified conversion.
 - [ ] Align session remaining-time field name and unit.
 - [ ] Publish Static metadata through a documented snapshot schema.
 - [ ] Resolve live sector-time source/derivation.
