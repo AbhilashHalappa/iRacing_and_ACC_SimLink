@@ -203,14 +203,18 @@ function correctedBrakeBiasPercent(data: any, carModel: unknown): number | null 
   const isPorsche992 = model.includes("porsche") && model.includes("992");
   return raw * 100 + (isPorsche992 ? -21.0 : 0);
 }
-type LapHistoryEntry = { lap:number; timeMs:number; valid:boolean|null; s1Ms:number|null; s2Ms:number|null; s3Ms:number|null };
+type LapHistoryEntry = { lap:number; timeMs:number; valid:boolean|null; sectorsMs:(number|null)[] };
 const LAP_HISTORY_LIMIT = 10;
 function readLapHistory(key:string):LapHistoryEntry[] {
   try {
     const raw=JSON.parse(window.localStorage.getItem(key)||"[]");
     if(!Array.isArray(raw)) return [];
     return raw.filter((lap:any)=>lap&&Number.isInteger(lap.lap)&&Number.isInteger(lap.timeMs)&&lap.timeMs>0)
-      .slice(-LAP_HISTORY_LIMIT);
+      .map((lap:any)=>({
+        lap:lap.lap,timeMs:lap.timeMs,valid:typeof lap.valid==="boolean"?lap.valid:null,
+        sectorsMs:Array.isArray(lap.sectorsMs)?lap.sectorsMs.map((value:any)=>Number.isInteger(value)&&value>0?value:null):
+          [lap.s1Ms??null,lap.s2Ms??null,lap.s3Ms??null].map((value:any)=>Number.isInteger(value)&&value>0?value:null)
+      })).slice(-LAP_HISTORY_LIMIT);
   } catch { return []; }
 }
 function lapDeltaDisplay(delta:number|null):string {
@@ -306,12 +310,12 @@ function TileContentBody({ id, glow, telemetry, targetPressures, trace, mapTrack
   // Separate display-only best-sector calculation. The existing live-sector
   // tracker above remains unchanged and continues to own current-lap timings.
   const bestSectorTimes=useMemo(()=>{
-    const best:(number|null)[]=[null,null,null];
     const completed=Array.isArray(telemetry?.lap_history)?telemetry.lap_history:[];
+    const count=Math.max(0,...completed.map((lap:any)=>Array.isArray(lap?.sectorsMs)?lap.sectorsMs.length:0));
+    const best:(number|null)[]=Array(count).fill(null);
     for(const lap of completed){
-      if(lap?.valid!==true) continue;
-      const values=[lap.s1Ms,lap.s2Ms,lap.s3Ms];
-      values.forEach((value,index)=>{
+      if(lap?.valid!==true||!Array.isArray(lap.sectorsMs)) continue;
+      lap.sectorsMs.forEach((value:number|null,index:number)=>{
         if(typeof value==="number"&&Number.isInteger(value)&&value>0&&(best[index]===null||value<best[index]!)) best[index]=value;
       });
     }
@@ -324,7 +328,7 @@ function TileContentBody({ id, glow, telemetry, targetPressures, trace, mapTrack
     case "rpm": { const rpm=Number(data?.rpm??0); const max=Number(data?.current_max_rpm??9000); const ratio=max>0?Math.max(0,Math.min(1,rpm/max)):0; const shift=ratio>=0.95; const lit=shift?15:Math.max(0,Math.min(15,Math.round(ratio*15))); return <div className={"rpm-content glance-rpm"+(shift?" rpm-shift-active":"")}><div className="rpm-number">{display(data?.rpm,0)} <small>RPM</small></div><div className="rpm-leds">{Array.from({ length: 15 }, (_, i) => { const zone=i<5?"green":i<9?"yellow":i<12?"orange":"red"; return <i key={i} className={i<lit?("active zone-"+zone+(shift?" shift-flash":"")):""}/>; })}</div><div className="rpm-scale"><span>0</span><span>{display(max/4,0)}</span><span>{display(max/2,0)}</span><span>{display(max,0)}</span></div><small className="glance-hint">LIVE TELEMETRY · MAX {display(max,0)} RPM{shift?" · SHIFT":""}</small></div>; }
     case "pedals": { const steeringDeg=typeof data?.steering_angle==="number"?data.steering_angle*180/Math.PI:null; const steeringWidth=steeringDeg===null?0:Math.min(50,Math.abs(steeringDeg)/180*50); return <div className="stacked-meters glance-pedals"><div className="driver-steering-angle"><div className="steering-angle-heading"><span>STEERING ANGLE</span><b>{display(steeringDeg,1,"°")}</b></div><div className="steering-angle-track"><i className="steering-angle-center"/>{steeringDeg!==null&&<i className={`steering-angle-fill ${steeringDeg<0?"left":"right"}`} style={{width:`${steeringWidth}%`}}/>}</div><div className="steering-angle-scale"><span>LEFT</span><span>CENTER</span><span>RIGHT</span></div></div><Meter label="THROTTLE" value={data?Math.max(0,Math.min(100,Number(data.throttle)*100)):null}/><Meter label="BRAKE" value={data?Math.max(0,Math.min(100,Number(data.brake)*100)):null} tone="red"/><Meter label="CLUTCH" value={data?Math.max(0,Math.min(100,Number(data.clutch)*100)):null} tone="teal"/></div>; }
     case "laps": { const validity=lapValidityDisplay(graphics?.is_valid_lap); return <div className={`lap-metrics glance-laps lap-glow lap-${telemetry?.graphics?.lap_status??(validity==="VALID"?"valid":validity==="INVALID"?"invalid":"unknown")}`} style={{"--glow-intensity":glow.intensity/100,"--glow-blur":`${5+12*glow.intensity/100}px`} as React.CSSProperties}><div className="lap-primary"><span>CURRENT</span><b>{lapTimeDisplay(graphics?.current_time_str,graphics?.current_time_ms,true)}</b><small>{["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics?.lap_status??"").toLowerCase())?"OUT LAP":`LAP ${typeof graphics?.completed_laps==="number"?graphics.completed_laps+1:"—"} · ${validity}`}</small></div><div><span>LAST</span><b>{lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)}</b></div><div><span>BEST</span><b>{lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</b></div></div>; }
-    case "lap_history": { const best=typeof graphics?.best_time_ms==="number"&&graphics.best_time_ms>0?graphics.best_time_ms:null; const history=(telemetry?.lap_history??[]) as LapHistoryEntry[]; return <div className="history-table"><div className="history-head"><span>RECORD</span><span>TIME</span><span>DELTA</span><span>S1</span><span>S2</span><span>S3</span></div>{history.length===0?<div className="history-empty">No completed timed laps recorded in this session yet.<br/>LAST · {lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)} · BEST · {lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</div>:<div className="history-rows">{[...history].reverse().map((lap)=> <div className="history-row" key={lap.lap}><span> LAP {lap.lap} · {lap.valid===true?"VALID":lap.valid===false?"INVALID":"REVIEW"}</span><b>{lapTimeDisplay(null,lap.timeMs)}</b><span>{lapDeltaDisplay(best===null?null:lap.timeMs-best)}</span><span>{lapTimeDisplay(null,lap.s1Ms)}</span><span>{lapTimeDisplay(null,lap.s2Ms)}</span><span>{lapTimeDisplay(null,lap.s3Ms)}</span></div>)}</div>}</div>; }
+    case "lap_history": { const best=typeof graphics?.best_time_ms==="number"&&graphics.best_time_ms>0?graphics.best_time_ms:null; const history=(telemetry?.lap_history??[]) as LapHistoryEntry[]; const sectorCount=Math.max(0,Number.isInteger(graphics?.sector_count)&&graphics.sector_count>0?graphics.sector_count:0,...history.map(lap=>lap.sectorsMs.length)); const sectorLabels=Array.from({length:sectorCount},(_,index)=>`S${index+1}`); return <div className="history-table"><div className="history-head"><span>RECORD</span><span>TIME</span><span>DELTA</span>{sectorLabels.map(label=><span key={label}>{label}</span>)}</div>{history.length===0?<div className="history-empty">No completed timed laps recorded in this session yet.<br/>LAST · {lapTimeDisplay(graphics?.last_time_str,graphics?.last_time_ms)} · BEST · {lapTimeDisplay(graphics?.best_time_str,graphics?.best_time_ms)}</div>:<div className="history-rows">{[...history].reverse().map((lap)=> <div className="history-row" key={lap.lap}><span> LAP {lap.lap} · {lap.valid===true?"VALID":lap.valid===false?"INVALID":"REVIEW"}</span><b>{lapTimeDisplay(null,lap.timeMs)}</b><span>{lapDeltaDisplay(best===null?null:lap.timeMs-best)}</span>{sectorLabels.map((label,index)=><span key={label}>{lapTimeDisplay(null,lap.sectorsMs[index]??null)}</span>)}</div>)}</div>}</div>; }
     case "weather": return <div className="field-grid balanced-grid glance-weather">{[["ROAD TEMP",display(data?.road_temp_c,1," °C")],["AIR TEMP",display(data?.air_temp_c,1," °C")],["TRACK GRIP",graphicsTrackGrip(graphics?.track_grip_status)],["NOW / +10 / +30",[graphics?.rain_intensity,graphics?.rain_10min,graphics?.rain_30min].map(graphicsRainIcon).join(" / ")],["WIND SPEED",display(graphics?.wind_speed,2," km/h")],["WIND DIRECTION",graphicsWindDirection(graphics?.wind_direction)]].map(([a,b]) => <div key={a}><span>{a}</span><b>{b}</b></div>)}</div>;
     case "map": return <TrackMapTile track={mapTrack?.track} configuration={mapTrack?.track_configuration} graphics={graphics} source={mapTrack?.source}  lapStatus={telemetry?.graphics?.lap_status ?? graphics?.lap_status}/>;
     case "session": { const position=typeof graphics?.position==="number"&&graphics.position>0?graphics.position:null; const activeCars=typeof graphics?.active_cars==="number"&&graphics.active_cars>0?graphics.active_cars:null; const positionDisplay=position!==null&&activeCars!==null?`${position} / ${activeCars}`:"—"; return <div className="balanced-grid">{[["TRACK",telemetry?.vehicle?.track??"—"],["SESSION TYPE",graphicsSession(graphics?.session)],["SESSION STATUS",graphicsStatus(graphics?.status)],["TIME LEFT",sessionTimeDisplay(graphics?.session_time_left_s)],["LAP COUNT",typeof graphics?.completed_laps==="number"?String(graphics.completed_laps):"—"],["POSITION",positionDisplay],["TYRE COMPOUND",tyreCompoundDisplay(graphics?.tyre_compound)]].map(([a,b]) => <div className="balanced-field" key={a}><span>{a}</span><b>{b}</b></div>)}</div>; }
@@ -489,7 +493,7 @@ function App() {
     previousTraceNormalizedPosition.current=g.normalized_car_position;
   },[telemetry]);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
-  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;sector1BoundaryMs:number|null;sector2BoundaryMs:number|null;validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:null});
+  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;boundaryTimesMs:number[];validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,boundaryTimesMs:[],validity:null});
   useEffect(()=>{
     const graphics=telemetry?.graphics?.data;
     if(!graphics) return;
@@ -498,36 +502,33 @@ function App() {
     const sessionKey=[telemetry?.game??"acc",track,configuration,telemetry?.vehicle?.car_model??"unknown-car",graphics.session_index,graphics.session].join("|");
     const storageKey="acc-lap-history-v1:"+sessionKey;
     const completed=typeof graphics.completed_laps==="number"?graphics.completed_laps:null;
-    const sector=typeof graphics.sector==="number"&&graphics.sector>=0&&graphics.sector<=2?graphics.sector:null;
+    const sector=typeof graphics.sector==="number"&&Number.isInteger(graphics.sector)&&graphics.sector>=0?graphics.sector:null;
+    const reportedCount=Number.isInteger(graphics.sector_count)&&graphics.sector_count>0?graphics.sector_count:null;
+    const boundaryList=Array.isArray(graphics.sector_boundaries_pct)?graphics.sector_boundaries_pct:[];
+    const sectorCount=reportedCount??(boundaryList.length>0?boundaryList.length:3);
     const tracker=lapCapture.current;
     if(tracker.sessionKey!==sessionKey){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
+      lapCapture.current={sessionKey,completedLaps:completed,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       const savedHistory=readLapHistory(storageKey);
-      // A simulator can reuse track/car/session-type identity across separate sessions.
-      // On app startup, a stored lap number ahead of the current completed
-      // lap counter proves this is a fresh session, not an app restart mid-session.
       const belongsToEarlierSession=completed!==null&&savedHistory.some(entry=>entry.lap>completed);
       if(belongsToEarlierSession){
         try{window.localStorage.removeItem(storageKey);}catch{}
         setLapHistory([]);
-      } else {
-        setLapHistory(savedHistory);
-      }
+      } else setLapHistory(savedHistory);
       return;
     }
     if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,sector1BoundaryMs:null,sector2BoundaryMs:null,validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
+      lapCapture.current={sessionKey,completedLaps:completed,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       try{window.localStorage.removeItem(storageKey);}catch{}
       setLapHistory([]);
       return;
     }
     const completingLap=completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps;
-    // The ACC adapter exposes last_sector_time_ms as cumulative elapsed time at the
-    // completed sector boundary, not as the duration of that sector.
-    const lastSectorBoundaryMs=typeof graphics.last_sector_time_ms==="number"&&Number.isInteger(graphics.last_sector_time_ms)&&graphics.last_sector_time_ms>0?graphics.last_sector_time_ms:null;
-    if(sector!==null&&tracker.sector!==null&&sector!==tracker.sector){
-      if(tracker.sector===0&&sector===1) tracker.sector1BoundaryMs=lastSectorBoundaryMs;
-      if(tracker.sector===1&&sector===2) tracker.sector2BoundaryMs=lastSectorBoundaryMs;
+    // ACC reports cumulative elapsed time at each sector boundary. iRacing
+    // additionally publishes the completed lap's native sector durations.
+    const boundaryMs=typeof graphics.last_sector_time_ms==="number"&&Number.isInteger(graphics.last_sector_time_ms)&&graphics.last_sector_time_ms>0?graphics.last_sector_time_ms:null;
+    if(sector!==null&&tracker.sector!==null&&sector!==tracker.sector&&sector>tracker.sector){
+      if(boundaryMs!==null) tracker.boundaryTimesMs[tracker.sector]=boundaryMs;
       tracker.sector=sector;
     } else if(tracker.sector===null) tracker.sector=sector;
     if(graphics.is_valid_lap===false) tracker.validity=false;
@@ -536,26 +537,27 @@ function App() {
       const lapTime=typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
       const outLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
       if(lapTime!==null&&!outLap){
-        const t1=tracker.sector1BoundaryMs;
-        const t2=tracker.sector2BoundaryMs;
-        const validBoundaries=t1!==null&&t2!==null&&t1>0&&t2>t1&&lapTime>t2;
-        const s1=validBoundaries?t1:null;
-        const s2=validBoundaries?t2-t1:null;
-        const s3=validBoundaries?lapTime-t2:null;
-        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,s1Ms:s1,s2Ms:s2,s3Ms:s3};
+        const nativeSectors=Array.isArray(graphics.last_lap_sector_times_ms)?graphics.last_lap_sector_times_ms:null;
+        const sectorsMs:(number|null)[]=nativeSectors
+          ? Array.from({length:Math.max(sectorCount,nativeSectors.length)},(_,index)=>typeof nativeSectors[index]==="number"&&Number.isInteger(nativeSectors[index])&&nativeSectors[index]>0?nativeSectors[index]:null)
+          : Array.from({length:sectorCount},(_,index)=>{
+              const end=index===sectorCount-1?lapTime:tracker.boundaryTimesMs[index];
+              const start=index===0?0:tracker.boundaryTimesMs[index-1];
+              return typeof end==="number"&&typeof start==="number"&&end>start?end-start:null;
+            });
+        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,sectorsMs};
         const next=[...readLapHistory(storageKey),entry].slice(-LAP_HISTORY_LIMIT);
         setLapHistory(next);
-        try{window.localStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Keep the in-memory history if browser storage is unavailable. */}
+        try{window.localStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Keep in-memory history if browser storage is unavailable. */}
       }
       tracker.completedLaps=completed;
-      tracker.sector1BoundaryMs=null;
-      tracker.sector2BoundaryMs=null;
+      tracker.boundaryTimesMs=[];
       tracker.validity=null;
       tracker.sector=sector;
       return;
     }
     if(completed!==null) tracker.completedLaps=completed;
-  },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration,telemetry?.vehicle?.car_model,telemetry?.graphics?.data?.session_index,telemetry?.graphics?.data?.session,telemetry?.graphics?.lap_status]);
+  },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.last_lap_sector_times_ms,telemetry?.graphics?.data?.last_sector_time_ms,telemetry?.graphics?.data?.sector_count,telemetry?.graphics?.data?.sector_boundaries_pct,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration,telemetry?.vehicle?.car_model,telemetry?.graphics?.data?.session_index,telemetry?.graphics?.data?.session,telemetry?.graphics?.lap_status]);
 
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [active, setActive] = useState("Overview");
