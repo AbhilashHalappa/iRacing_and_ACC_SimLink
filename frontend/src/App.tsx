@@ -493,7 +493,7 @@ function App() {
     previousTraceNormalizedPosition.current=g.normalized_car_position;
   },[telemetry]);
   const [lapHistory,setLapHistory]=useState<LapHistoryEntry[]>([]);
-  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;sector:number|null;boundaryTimesMs:number[];validity:boolean|null}>({sessionKey:null,completedLaps:null,sector:null,boundaryTimesMs:[],validity:null});
+  const lapCapture=useRef<{sessionKey:string|null;completedLaps:number|null;lastTimeMs:number|null;sector:number|null;boundaryTimesMs:number[];validity:boolean|null}>({sessionKey:null,completedLaps:null,lastTimeMs:null,sector:null,boundaryTimesMs:[],validity:null});
   useEffect(()=>{
     const graphics=telemetry?.graphics?.data;
     if(!graphics) return;
@@ -508,7 +508,7 @@ function App() {
     const sectorCount=reportedCount??(boundaryList.length>0?boundaryList.length:3);
     const tracker=lapCapture.current;
     if(tracker.sessionKey!==sessionKey){
-      lapCapture.current={sessionKey,completedLaps:completed,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
+      lapCapture.current={sessionKey,completedLaps:completed,lastTimeMs:typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       const savedHistory=readLapHistory(storageKey);
       const belongsToEarlierSession=completed!==null&&savedHistory.some(entry=>entry.lap>completed);
       const sessionHistory=belongsToEarlierSession?[]:savedHistory;
@@ -521,13 +521,16 @@ function App() {
       // Recover the SDK's last completed lap once, without duplicating a row.
       const initialLapTime=telemetry?.game==="iracing"&&typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
       const initialOutLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
-      if(completed!==null&&completed>0&&initialLapTime!==null&&!initialOutLap&&!sessionHistory.some(entry=>entry.lap===completed)){
-        const nativeSectors=Array.isArray(graphics.last_lap_sector_times_ms)?graphics.last_lap_sector_times_ms:[];
-        const sectorsMs:(number|null)[]=Array.from({length:Math.max(sectorCount,nativeSectors.length)},(_,index)=>typeof nativeSectors[index]==="number"&&Number.isInteger(nativeSectors[index])&&nativeSectors[index]>0?nativeSectors[index]:null);
-        const entry:LapHistoryEntry={lap:completed,timeMs:initialLapTime,valid:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null,sectorsMs};
-        const recovered=[...sessionHistory,entry].slice(-LAP_HISTORY_LIMIT);
-        setLapHistory(recovered);
-        try{window.localStorage.setItem(storageKey,JSON.stringify(recovered));}catch{/* Keep in-memory history if browser storage is unavailable. */}
+      if(telemetry?.game==="iracing"&&initialLapTime!==null&&!initialOutLap){
+        const initialLapNumber=Math.max(1,completed??1,sessionHistory.length?sessionHistory[sessionHistory.length-1].lap+1:1);
+        if(!sessionHistory.some(entry=>entry.lap===initialLapNumber)){
+          const nativeSectors=Array.isArray(graphics.last_lap_sector_times_ms)?graphics.last_lap_sector_times_ms:[];
+          const sectorsMs:(number|null)[]=Array.from({length:Math.max(sectorCount,nativeSectors.length)},(_,index)=>typeof nativeSectors[index]==="number"&&Number.isInteger(nativeSectors[index])&&nativeSectors[index]>0?nativeSectors[index]:null);
+          const entry:LapHistoryEntry={lap:initialLapNumber,timeMs:initialLapTime,valid:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null,sectorsMs};
+                  const recovered=[...sessionHistory,entry].slice(-LAP_HISTORY_LIMIT);
+          setLapHistory(recovered);
+          try{window.localStorage.setItem(storageKey,JSON.stringify(recovered));}catch{/* Keep in-memory history if browser storage is unavailable. */}
+        } else setLapHistory(sessionHistory);
       } else setLapHistory(sessionHistory);
       return;
     }
@@ -537,7 +540,11 @@ function App() {
       setLapHistory([]);
       return;
     }
-    const completingLap=completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps;
+    const lastTimeMs=typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
+    const iracingLapTimeChanged=telemetry?.game==="iracing"&&lastTimeMs!==null&&lastTimeMs!==tracker.lastTimeMs;
+    const completingLap=telemetry?.game==="iracing"
+      ? iracingLapTimeChanged
+      : completed!==null&&tracker.completedLaps!==null&&completed>tracker.completedLaps;
     // ACC reports cumulative elapsed time at each sector boundary. iRacing
     // additionally publishes the completed lap's native sector durations.
     const boundaryMs=typeof graphics.last_sector_time_ms==="number"&&Number.isInteger(graphics.last_sector_time_ms)&&graphics.last_sector_time_ms>0?graphics.last_sector_time_ms:null;
@@ -559,18 +566,24 @@ function App() {
               const start=index===0?0:tracker.boundaryTimesMs[index-1];
               return typeof end==="number"&&typeof start==="number"&&end>start?end-start:null;
             });
-        const entry:LapHistoryEntry={lap:completed,timeMs:lapTime,valid:tracker.validity,sectorsMs};
+        const existingHistory=readLapHistory(storageKey);
+        const lapNumber=telemetry?.game==="iracing"
+          ? Math.max(completed??0,existingHistory.length?existingHistory[existingHistory.length-1].lap+1:1)
+          : completed;
+        const entry:LapHistoryEntry={lap:lapNumber,timeMs:lapTime,valid:tracker.validity,sectorsMs};
         const next=[...readLapHistory(storageKey),entry].slice(-LAP_HISTORY_LIMIT);
         setLapHistory(next);
         try{window.localStorage.setItem(storageKey,JSON.stringify(next));}catch{/* Keep in-memory history if browser storage is unavailable. */}
       }
       tracker.completedLaps=completed;
+      tracker.lastTimeMs=lastTimeMs;
       tracker.boundaryTimesMs=[];
       tracker.validity=null;
       tracker.sector=sector;
       return;
     }
     if(completed!==null) tracker.completedLaps=completed;
+    tracker.lastTimeMs=lastTimeMs;
   },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.last_lap_sector_times_ms,telemetry?.graphics?.data?.last_sector_time_ms,telemetry?.graphics?.data?.sector_count,telemetry?.graphics?.data?.sector_boundaries_pct,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration,telemetry?.vehicle?.car_model,telemetry?.graphics?.data?.session_index,telemetry?.graphics?.data?.session,telemetry?.graphics?.lap_status]);
 
   const [theme, setTheme] = useState<"dark" | "light">("dark");
