@@ -86,6 +86,7 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(graphics["session_name"], "Practice")
         self.assertEqual(graphics["session_time_total_s"], 0.0)
         self.assertIsNone(graphics["session_time_left_s"])
+        self.assertEqual(graphics["session_time_left_display"], "NO TIME LIMIT")
 
     def test_timed_practice_session_keeps_real_countdown(self):
         sdk = FakeSDK()
@@ -96,6 +97,7 @@ class IRacingReaderTests(unittest.TestCase):
         graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(graphics["session_time_total_s"], 1800.0)
         self.assertEqual(graphics["session_time_left_s"], 604.0)
+        self.assertEqual(graphics["session_time_left_display"], "10:04")
 
     def test_lap_times_reject_zero_and_missing_sdk_values(self):
         sdk = FakeSDK()
