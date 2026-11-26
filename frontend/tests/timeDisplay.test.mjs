@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { penaltyTimeDisplay, sessionTimeDisplay } from "../src/timeDisplay.mjs";
+import { lapValidityDisplay, penaltyTimeDisplay, sessionTimeDisplay } from "../src/timeDisplay.mjs";
 
 test("session countdown converts ACC milliseconds to mm:ss", () => {
   assert.equal(sessionTimeDisplay(1200000), "20:00");
@@ -19,5 +19,13 @@ test("negative, non-finite and unavailable values are hidden", () => {
   for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY, null, undefined]) {
     assert.equal(sessionTimeDisplay(value), "—");
     assert.equal(penaltyTimeDisplay(value), "—");
+  }
+});
+
+test("lap validity distinguishes known and unavailable states", () => {
+  assert.equal(lapValidityDisplay(true), "VALID");
+  assert.equal(lapValidityDisplay(false), "INVALID");
+  for (const value of [null, undefined, "unknown", 0]) {
+    assert.equal(lapValidityDisplay(value), "UNKNOWN");
   }
 });
