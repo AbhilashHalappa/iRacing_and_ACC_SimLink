@@ -249,10 +249,13 @@ class IRacingTelemetryReader:
         delta_s = _number(_read(sdk, "LapDeltaToBestLap"))
         session_total_s = _number(_read(sdk, "SessionTimeTotal"))
         remain_s_raw = _number(_read(sdk, "SessionTimeRemain"))
-        # iRacing can expose a stale SessionTimeRemain value in sessions with
-        # no configured duration. Only publish a countdown when a time limit
-        # is explicitly reported; preserve unknown totals as unknown.
-        remain_s = remain_s_raw if session_total_s is None or session_total_s > 0 else None
+        # iRacing represents an unlimited session with a 7-day duration
+        # sentinel (604800 seconds), not only zero. Do not show that sentinel
+        # as a real countdown. Preserve unknown totals as unknown.
+        unlimited_time_sentinel = session_total_s is not None and (
+            session_total_s <= 0 or session_total_s >= 604800
+        )
+        remain_s = None if unlimited_time_sentinel else remain_s_raw
         session_info = _read(sdk, "WeekendInfo", {})
         driver_info = _read(sdk, "DriverInfo", {})
         session_data = _read(sdk, "SessionInfo", {})
@@ -444,7 +447,7 @@ class IRacingTelemetryReader:
             "distance_traveled_m": _number(_read(sdk, "LapDist")),
             "position": position, "class_position": class_position, "class_id": class_id, "active_cars": active_cars,
             "gap_ahead_ms": gap_ahead_ms, "gap_behind_ms": gap_behind_ms,
-            "session_time_left_s": remain_s, "session_time_left_display": ("NO TIME LIMIT" if session_total_s is not None and session_total_s <= 0 else _session_time_display(remain_s)), "is_in_pit": in_pit_stall, "is_in_pit_lane": on_pit_road,
+            "session_time_left_s": remain_s, "session_time_left_display": ("NO TIME LIMIT" if unlimited_time_sentinel else _session_time_display(remain_s)), "is_in_pit": in_pit_stall, "is_in_pit_lane": on_pit_road,
             "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "is_in_garage": in_garage, "is_replay": is_replay, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
             "is_valid_lap": None,
             "sector": sector_index,
