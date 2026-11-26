@@ -40,6 +40,15 @@ def _time_string(milliseconds: int | None) -> str:
     return f"{minutes:02d}:{seconds:02d}.{millis:03d}"
 
 
+def _session_time_display(seconds: float | None) -> str:
+    """Format iRacing session time, whose SDK unit is seconds."""
+    if seconds is None or seconds < 0:
+        return "—"
+    total_seconds = int(seconds)
+    minutes, remainder = divmod(total_seconds, 60)
+    return f"{minutes:02d}:{remainder:02d}"
+
+
 def _read(sdk: Any, key: str, default: Any = None) -> Any:
     try:
         value = sdk[key]
@@ -435,7 +444,7 @@ class IRacingTelemetryReader:
             "distance_traveled_m": _number(_read(sdk, "LapDist")),
             "position": position, "class_position": class_position, "class_id": class_id, "active_cars": active_cars,
             "gap_ahead_ms": gap_ahead_ms, "gap_behind_ms": gap_behind_ms,
-            "session_time_left_s": remain_s, "is_in_pit": in_pit_stall, "is_in_pit_lane": on_pit_road,
+            "session_time_left_s": remain_s, "session_time_left_display": ("NO TIME LIMIT" if session_total_s is not None and session_total_s <= 0 else _session_time_display(remain_s)), "is_in_pit": in_pit_stall, "is_in_pit_lane": on_pit_road,
             "normalized_car_position": lap_pct, "player_world_position": None, "is_on_track": on_track, "is_in_garage": in_garage, "is_replay": is_replay, "track_surface": on_track_surface, "track_surface_material": track_surface_material,
             "is_valid_lap": None,
             "sector": sector_index,
