@@ -511,10 +511,24 @@ function App() {
       lapCapture.current={sessionKey,completedLaps:completed,sector,boundaryTimesMs:[],validity:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null};
       const savedHistory=readLapHistory(storageKey);
       const belongsToEarlierSession=completed!==null&&savedHistory.some(entry=>entry.lap>completed);
+      const sessionHistory=belongsToEarlierSession?[]:savedHistory;
       if(belongsToEarlierSession){
         try{window.localStorage.removeItem(storageKey);}catch{}
-        setLapHistory([]);
-      } else setLapHistory(savedHistory);
+      }
+      // On the first telemetry frame for a session, the reader may already
+      // report a completed iRacing lap. There is no observed lap-counter edge
+      // in that case, so the normal completingLap path cannot capture it.
+      // Recover the SDK's last completed lap once, without duplicating a row.
+      const initialLapTime=telemetry?.game==="iracing"&&typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
+      const initialOutLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
+      if(completed!==null&&completed>0&&initialLapTime!==null&&!initialOutLap&&!sessionHistory.some(entry=>entry.lap===completed)){
+        const nativeSectors=Array.isArray(graphics.last_lap_sector_times_ms)?graphics.last_lap_sector_times_ms:[];
+        const sectorsMs:(number|null)[]=Array.from({length:Math.max(sectorCount,nativeSectors.length)},(_,index)=>typeof nativeSectors[index]==="number"&&Number.isInteger(nativeSectors[index])&&nativeSectors[index]>0?nativeSectors[index]:null);
+        const entry:LapHistoryEntry={lap:completed,timeMs:initialLapTime,valid:typeof graphics.is_valid_lap==="boolean"?graphics.is_valid_lap:null,sectorsMs};
+        const recovered=[...sessionHistory,entry].slice(-LAP_HISTORY_LIMIT);
+        setLapHistory(recovered);
+        try{window.localStorage.setItem(storageKey,JSON.stringify(recovered));}catch{/* Keep in-memory history if browser storage is unavailable. */}
+      } else setLapHistory(sessionHistory);
       return;
     }
     if(completed!==null&&tracker.completedLaps!==null&&completed<tracker.completedLaps){
