@@ -55,7 +55,13 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["physics"]["data"]["gear_display"], "3")
         self.assertEqual(snapshot["physics"]["data"]["fuel_kg"], 42.5)
         self.assertEqual(snapshot["graphics"]["data"]["current_time_ms"], 81234)
+        self.assertEqual(snapshot["graphics"]["data"]["current_time_str"], "01:21.234")
+        self.assertEqual(snapshot["graphics"]["data"]["last_time_ms"], 80500)
+        self.assertEqual(snapshot["graphics"]["data"]["last_time_str"], "01:20.500")
+        self.assertEqual(snapshot["graphics"]["data"]["best_time_ms"], 79750)
         self.assertEqual(snapshot["graphics"]["data"]["best_time_str"], "01:19.750")
+        self.assertIsNone(snapshot["graphics"]["data"]["is_valid_lap"])
+        self.assertIsNone(snapshot["graphics"]["lap_status"])
         self.assertEqual(snapshot["vehicle"]["track"], "Okayama")
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
         self.assertEqual(snapshot["static_metadata"]["data"]["max_fuel"], 40.0)
@@ -69,6 +75,21 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
+
+    def test_lap_times_reject_zero_and_missing_sdk_values(self):
+        sdk = FakeSDK()
+        sdk.values["LapCurrentLapTime"] = 0.0
+        sdk.values["LapLastLapTime"] = None
+        sdk.values["LapBestLapTime"] = 0.0
+        snapshot = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)
+        graphics = snapshot["graphics"]["data"]
+        self.assertIsNone(graphics["current_time_ms"])
+        self.assertEqual(graphics["current_time_str"], "")
+        self.assertIsNone(graphics["last_time_ms"])
+        self.assertEqual(graphics["last_time_str"], "")
+        self.assertIsNone(graphics["best_time_ms"])
+        self.assertEqual(graphics["best_time_str"], "")
+        self.assertIsNone(graphics["is_valid_lap"])
 
     def test_track_sector_count_and_timing_are_dynamic(self):
         sdk = FakeSDK()
