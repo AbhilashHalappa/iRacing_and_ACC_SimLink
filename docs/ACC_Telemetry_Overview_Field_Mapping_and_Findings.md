@@ -306,7 +306,7 @@ ACC Physics wheel arrays use **FL, FR, RL, RR** order. Offsets below are byte of
 | 0 | `packet_id` | `packet_id` | Diagnostics / sample consistency | int32 sequence-like value; not a vehicle measurement |
 | 4 | `throttle` | `throttle` | Pedals tile / driver trace | Normalized 0–1; UI multiplies by 100 for % |
 | 8 | `brake` | `brake` | Pedals tile / driver trace | Normalized 0–1; UI multiplies by 100 for % |
-| 12 | `fuel_kg` | `fuel_kg` | Fuel tile | Kilograms; current UI incorrectly labels as litres |
+| 12 | `fuel_kg` (current decoder name) | `fuel_kg` | Fuel tile | ACC HUD displays litres; decoder field name is inconsistent and must be reconciled against a simultaneous HUD capture before renaming or converting |
 | 16 | `gear_raw` | `gear_raw`, `gear_display` | Gear tile / driver trace | ACC raw encoding: 0=R, 1=N, n≥2 means gear n−1 |
 | 20 | `rpm` | `rpm` | RPM tile / driver trace | Integer RPM |
 | 24 | `steering` | `steering_angle` | Steering tile / driver trace | Raw float; Overview formats as degrees/left-right indicator. Confirm calibration/scale before cross-simulator reuse |
