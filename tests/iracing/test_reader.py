@@ -13,7 +13,7 @@ class FakeSDK:
             "LapDistPct": 0.42, "LapCurrentLapTime": 81.234,
             "LapLastLapTime": 80.5, "LapBestLapTime": 79.75,
             "LapDeltaToBestLap": 1.2, "SessionTimeRemain": 900.0,
-            "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full", "TrackRelativeHumidity": 0.99, "TrackWindDir": 0.240855},
+            "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full", "TrackRelativeHumidity": 0.99, "TrackWindDir": "0.240855 rad"},
             "DriverInfo": {"DriverCarFuelMaxLtr": 40.0, "Drivers": [{"CarIdx": 0, "CarScreenName": "Formula Vee"}]},
             "SessionInfo": {"Sessions": [{"SessionType": "Race"}]},
             "SplitTimeInfo": {"Sectors": [
