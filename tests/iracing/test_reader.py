@@ -96,7 +96,7 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["physics"]["data"]["brake_bias"], 51.04)
         self.assertEqual(snapshot["physics"]["data"]["brake_bias_fine"], 0.0)
         self.assertEqual(snapshot["physics"]["data"]["throttle_shape"], 3)
-        self.assertEqual(snapshot["graphics"]["data"]["display_page"], 2)
+        self.assertEqual(snapshot["physics"]["data"]["display_page"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["tc_level"], 7)
         self.assertEqual(snapshot["graphics"]["data"]["tc_level_2"], 4)
         self.assertEqual(snapshot["graphics"]["data"]["tc_level_3"], 2)
@@ -168,6 +168,7 @@ class IRacingReaderTests(unittest.TestCase):
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
         sdk.values["SessionFlags"] = None
         sdk.values["PlayerTrackSurface"] = 3
+        sdk.values["PlayerCarInPitStall"] = False
         graphics = reader._build_snapshot(sdk)["graphics"]["data"]
         self.assertIsNone(graphics["flag"])
         self.assertIsNone(graphics["global_yellow"])
@@ -211,23 +212,23 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertIsNone(graphics["mfd_windshield_tearoff"])
         self.assertIsNone(graphics["mfd_fast_repair"])
 
-    def test_mfd_fuel_unit_comes_from_live_sdk_metadata(self):
+    def test_mfd_fuel_unit_remains_litres_as_confirmed(self):
         sdk = FakeSDK()
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
 
         sdk._var_headers = [FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "kWh")]
         graphics = reader._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(graphics["mfd_fuel_to_add"], 15.0)
-        self.assertEqual(graphics["mfd_fuel_to_add_unit"], "kWh")
+        self.assertEqual(graphics["mfd_fuel_to_add_unit"], "L")
 
         sdk._var_headers = [FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "")]
         graphics = reader._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(graphics["mfd_fuel_to_add"], 15.0)
-        self.assertIsNone(graphics["mfd_fuel_to_add_unit"])
+        self.assertEqual(graphics["mfd_fuel_to_add_unit"], "L")
 
         sdk._var_headers = []
         graphics = reader._build_snapshot(sdk)["graphics"]["data"]
-        self.assertIsNone(graphics["mfd_fuel_to_add_unit"])
+        self.assertEqual(graphics["mfd_fuel_to_add_unit"], "L")
 
     def test_race_gaps_ignore_inactive_car_positions(self):
         sdk = FakeSDK()
