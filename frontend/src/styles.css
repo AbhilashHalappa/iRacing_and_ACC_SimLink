@@ -888,3 +888,249 @@ body:has(.overlay-shell),
   min-height: 0 !important;
   max-height: 100% !important;
 }
+
+
+/* Per-overlay responsive audit: keep every tile readable at independently
+   resized window dimensions, including content not covered by the first pass. */
+.overlay-dashboard-tile,
+.overlay-dashboard-tile * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+.overlay-dashboard-tile .tile-content-health,
+.overlay-dashboard-tile .tile-content-values {
+  width: 100%;
+  max-width: 100%;
+}
+.overlay-dashboard-tile .tile-content-values {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.overlay-dashboard-tile .tile-content-values > * {
+  flex-shrink: 1;
+}
+.overlay-dashboard-tile .balanced-grid,
+.overlay-dashboard-tile .field-grid,
+.overlay-dashboard-tile .electronics-primary,
+.overlay-dashboard-tile .electronics-secondary,
+.overlay-dashboard-tile .pit-secondary,
+.overlay-dashboard-tile .damage-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--overlay-gap);
+}
+.overlay-dashboard-tile .hardware-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--overlay-gap);
+}
+.overlay-dashboard-tile .history-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.overlay-dashboard-tile .history-head,
+.overlay-dashboard-tile .history-row {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    minmax(38px, .65fr)
+    minmax(54px, 1fr)
+    minmax(48px, .85fr)
+    repeat(var(--history-sector-count, 3), minmax(32px, .7fr));
+  gap: clamp(2px, .8cqw, 7px);
+  padding: clamp(4px, 1cqw, 8px) 2px;
+  font-size: clamp(7px, 2.1cqw, 11px);
+}
+.overlay-dashboard-tile .history-head > *,
+.overlay-dashboard-tile .history-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .history-row b {
+  font-size: clamp(8px, 2.3cqw, 12px);
+}
+.overlay-dashboard-tile .history-empty {
+  min-width: 0;
+  padding: clamp(5px, 1.5cqw, 12px);
+  font-size: clamp(8px, 2.4cqw, 12px);
+  line-height: 1.35;
+}
+.overlay-dashboard-tile .hardware-list > div,
+.overlay-dashboard-tile .corner-grid > div,
+.overlay-dashboard-tile .pressure-target-grid > div {
+  min-width: 0;
+  padding: clamp(3px, 1.1cqw, 9px);
+  gap: clamp(2px, .8cqw, 7px);
+}
+.overlay-dashboard-tile .hardware-list > div {
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .hardware-list span,
+.overlay-dashboard-tile .hardware-list b,
+.overlay-dashboard-tile .corner-grid small,
+.overlay-dashboard-tile .pressure-target-grid small {
+  font-size: clamp(7px, 2.2cqw, 11px);
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .corner-grid b,
+.overlay-dashboard-tile .pressure-target-grid b,
+.overlay-dashboard-tile .weather-grid b,
+.overlay-dashboard-tile .session-info b {
+  font-size: clamp(9px, 3cqw, 15px);
+}
+.overlay-dashboard-tile .field-grid span,
+.overlay-dashboard-tile .field-rows span,
+.overlay-dashboard-tile .balanced-field span,
+.overlay-dashboard-tile .new-tile-rows span,
+.overlay-dashboard-tile .position-grid span {
+  font-size: clamp(7px, 2.1cqw, 11px);
+  line-height: 1.2;
+}
+.overlay-dashboard-tile .field-grid b,
+.overlay-dashboard-tile .field-rows b,
+.overlay-dashboard-tile .balanced-field b,
+.overlay-dashboard-tile .new-tile-rows b,
+.overlay-dashboard-tile .position-grid b {
+  font-size: clamp(8px, 2.5cqw, 14px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .glance-inline-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--overlay-gap);
+}
+.overlay-dashboard-tile .glance-inline-stats > div,
+.overlay-dashboard-tile .balanced-field,
+.overlay-dashboard-tile .new-tile-rows > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .glance-inline-stats b,
+.overlay-dashboard-tile .glance-delta strong,
+.overlay-dashboard-tile .fuel-main > b {
+  font-size: clamp(12px, 5cqw, 28px);
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .tile-content-values p,
+.overlay-dashboard-tile .tile-content-values small {
+  font-size: clamp(7px, 2.2cqw, 11px);
+  line-height: 1.3;
+}
+.overlay-dashboard-tile .sector-strip,
+.overlay-dashboard-tile .best-sector-strip {
+  min-width: 0;
+  gap: clamp(2px, .7cqw, 6px);
+}
+.overlay-dashboard-tile .sector-strip > div,
+.overlay-dashboard-tile .best-sector-strip > div {
+  min-width: 0;
+  padding: clamp(2px, .8cqw, 7px);
+}
+.overlay-dashboard-tile .sector-strip span,
+.overlay-dashboard-tile .best-sector-strip span,
+.overlay-dashboard-tile .sector-strip b,
+.overlay-dashboard-tile .best-sector-strip b {
+  font-size: clamp(7px, 2cqw, 11px);
+  overflow-wrap: anywhere;
+}
+.overlay-dashboard-tile .trace-controls {
+  flex-wrap: wrap;
+}
+.overlay-dashboard-tile .trace-chart-wrap {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.overlay-dashboard-tile .trace-chart {
+  display: block;
+  width: 100%;
+}
+.overlay-dashboard-tile .track-map-tile,
+.overlay-dashboard-tile .damage-layout,
+.overlay-dashboard-tile .pressure-target-layout,
+.overlay-dashboard-tile .glance-electronics,
+.overlay-dashboard-tile .glance-pit {
+  width: 100%;
+  max-width: 100%;
+}
+@container overlay-tile (max-width: 360px) {
+  .overlay-dashboard-tile .corner-grid,
+  .overlay-dashboard-tile .pressure-target-grid,
+  .overlay-dashboard-tile .hardware-list,
+  .overlay-dashboard-tile .weather-grid,
+  .overlay-dashboard-tile .session-info {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overlay-dashboard-tile .lap-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .overlay-dashboard-tile .three-up,
+  .overlay-dashboard-tile .position-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overlay-dashboard-tile .tile-content-values {
+    scrollbar-gutter: stable;
+  }
+}
+@container overlay-tile (max-width: 260px) {
+  .overlay-dashboard-tile .balanced-grid,
+  .overlay-dashboard-tile .field-grid,
+  .overlay-dashboard-tile .electronics-secondary,
+  .overlay-dashboard-tile .pit-secondary,
+  .overlay-dashboard-tile .damage-summary,
+  .overlay-dashboard-tile .weather-grid,
+  .overlay-dashboard-tile .session-info,
+  .overlay-dashboard-tile .hardware-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overlay-dashboard-tile .corner-grid,
+  .overlay-dashboard-tile .pressure-target-grid,
+  .overlay-dashboard-tile .lap-metrics,
+  .overlay-dashboard-tile .position-grid,
+  .overlay-dashboard-tile .three-up,
+  .overlay-dashboard-tile .electronics-primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overlay-dashboard-tile .glance-inline-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overlay-dashboard-tile .history-head,
+  .overlay-dashboard-tile .history-row {
+    grid-template-columns:
+      minmax(30px, .55fr)
+      minmax(42px, .9fr)
+      minmax(38px, .75fr)
+      repeat(var(--history-sector-count, 3), minmax(26px, .6fr));
+  }
+}
+@container overlay-tile (max-height: 180px) {
+  .overlay-dashboard-tile .tile-content-values {
+    overflow: auto;
+  }
+  .overlay-dashboard-tile .corner-grid,
+  .overlay-dashboard-tile .pressure-target-grid,
+  .overlay-dashboard-tile .hardware-list,
+  .overlay-dashboard-tile .weather-grid,
+  .overlay-dashboard-tile .session-info,
+  .overlay-dashboard-tile .field-grid,
+  .overlay-dashboard-tile .balanced-grid {
+    gap: 3px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .overlay-dashboard-tile .corner-grid > div,
+  .overlay-dashboard-tile .pressure-target-grid > div,
+  .overlay-dashboard-tile .hardware-list > div,
+  .overlay-dashboard-tile .balanced-field {
+    padding: 3px;
+  }
+  .overlay-dashboard-tile .tile-content-values p,
+  .overlay-dashboard-tile .glance-footnote,
+  .overlay-dashboard-tile .trace-footnote {
+    display: none;
+  }
+}
