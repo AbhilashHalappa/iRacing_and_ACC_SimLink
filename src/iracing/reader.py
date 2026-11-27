@@ -300,6 +300,9 @@ class IRacingTelemetryReader:
         air_pressure = _number(_read(sdk, "AirPressure"))
         humidity = _number(_read(sdk, "RelativeHumidity"))
         track_wetness = _number(_read(sdk, "TrackWetness"))
+        precipitation = _number(_read(sdk, "Precipitation"))
+        precipitation_pct = precipitation * 100.0 if precipitation is not None and 0.0 <= precipitation <= 1.0 else precipitation
+        skies = _integer(_read(sdk, "Skies"))
         on_track = bool(_read(sdk, "IsOnTrack", False))
         in_garage = bool(_read(sdk, "IsInGarage", False))
         is_replay = bool(_read(sdk, "IsReplayPlaying", False))
@@ -495,7 +498,8 @@ class IRacingTelemetryReader:
             "delta_lap_time_ms": delta_ms, "delta_lap_time_str": f"{delta_s:+.3f}" if delta_s is not None else "",
             "delta_positive": delta_s > 0 if delta_s is not None else None,
             "estimated_lap_time_ms": estimated_ms, "estimated_lap_time_str": _time_string(estimated_ms),
-            "track_grip_status": None, "track_wetness": track_wetness, "rain_intensity": None, "rain_10min": None, "rain_30min": None,
+            "track_grip_status": None, "track_wetness": track_wetness, "precipitation_pct": precipitation_pct, "skies": skies,
+            "rain_intensity": None, "rain_10min": None, "rain_30min": None,
             "wind_speed": wind_mps * 3.6 if wind_mps is not None else None, "wind_direction": wind_direction,
             "flag": mapped_flag, "track_status": track_status, "session_flags": session_flags,
             "global_yellow_1": bool(session_flags & (0x00000008 | 0x00000100 | 0x00004000)), "global_yellow_2": None, "global_yellow_3": None,
