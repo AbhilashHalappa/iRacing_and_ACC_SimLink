@@ -6,7 +6,7 @@ from dataclasses import asdict
 import json
 import time
 
-from PySide6.QtCore import QTimer, QUrl, Signal
+from PySide6.QtCore import QTimer, QUrl, Qt, Signal
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -81,7 +81,10 @@ class ACCDesktopWindow(QMainWindow):
         )
         self._bridge.set_overlay_ids(self._overlay_manager.enabled_tiles)
         self._bridge.set_overlay_handler(self.overlays_requested.emit)
-        self.overlays_requested.connect(self._overlay_manager.apply)
+        self.overlays_requested.connect(
+            self._overlay_manager.apply,
+            Qt.ConnectionType.QueuedConnection,
+        )
         self._overlay_manager.apply(self._overlay_manager.enabled_tiles)
 
         self._publish_timer = QTimer(self)
