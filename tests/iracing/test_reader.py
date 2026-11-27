@@ -43,7 +43,7 @@ class FakeSDK:
             "PlayerCarTowTime": 0.0, "FastRepairAvailable": 1, "FastRepairUsed": 0,
             "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
             "dcBrakeBias": 51.04, "dcBrakeBiasFine": 0.0, "dcThrottleShape": 3,
-            "dcDashPage": 2, "dcTractionControl": 7, "dcTractionControl2": 4,
+            "dcDashPage": 2, "dcToggleWindshieldWipers": True, "dcDRSToggle": 1, "dcTractionControl": 7, "dcTractionControl2": 4,
             "dcTractionControl3": 2, "dcABS": 8,
             "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
