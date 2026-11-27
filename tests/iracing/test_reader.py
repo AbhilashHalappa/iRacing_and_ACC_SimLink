@@ -86,6 +86,15 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(graphics["gap_ahead_ms"], 1000)
         self.assertEqual(graphics["gap_behind_ms"], 1000)
 
+    def test_race_leader_has_zero_gap_ahead(self):
+        sdk = FakeSDK()
+        sdk.values["CarIdxPosition"] = [1, 2, 3]
+        sdk.values["CarIdxF2Time"] = [0.0, 0.001, 0.5]
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["gap_ahead_ms"], 0)
+        self.assertEqual(graphics["gap_behind_ms"], 1)
+
     def test_race_gaps_remain_unavailable_without_player_race_position(self):
         sdk = FakeSDK()
         sdk.values["CarIdxPosition"] = [0, 6, 8]
