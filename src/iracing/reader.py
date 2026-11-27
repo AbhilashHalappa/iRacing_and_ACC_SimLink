@@ -615,8 +615,8 @@ class IRacingTelemetryReader:
         graphics_status = 1 if is_replay else 2 if on_track else 0
         track_status = (
             "Pit road" if on_pit_road else
+            "Pit stall" if in_pit_stall or on_track_surface == 1 else
             "Pit approach" if on_track_surface == 2 else
-            "Pit stall" if on_track_surface == 1 else
             "On track" if on_track_surface == 3 else
             "Off track" if on_track_surface == 0 else
             "Not in world" if on_track_surface == -1 else
