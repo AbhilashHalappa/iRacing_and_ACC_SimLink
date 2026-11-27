@@ -432,7 +432,7 @@ class IRacingTelemetryReader:
         incidents = _integer(_read(sdk, "PlayerCarMyIncidentCount"))
         team_incidents = _integer(_read(sdk, "PlayerCarTeamIncidentCount"))
         driver_incidents = _integer(_read(sdk, "PlayerCarDriverIncidentCount"))
-        session_flags = _integer(_read(sdk, "SessionFlags")) or 0
+        session_flags = _integer(_read(sdk, "SessionFlags"))
         on_pit_road = bool(_read(sdk, "OnPitRoad", False))
         in_pit_stall = bool(_read(sdk, "PlayerCarInPitStall", False))
         pit_service_flags = _integer(_read(sdk, "PitSvFlags"))
@@ -599,14 +599,29 @@ class IRacingTelemetryReader:
         }
         # iRacing SessionFlags is a bitfield. Convert only known flags to the
         # Overview's display booleans; never pass the raw bitmask as an ACC enum.
+        # Map iRacing SessionFlags to the shared flag display only when the
+        # SDK supplied the bitfield. A missing value must not become "No Flag".
         flag_map = ((0x00000001, 5), (0x00000002, 4), (0x00000004, 7),
                     (0x00000008, 2), (0x00000100, 2), (0x00004000, 2),
-                    (0x00000010, 3), (0x00010000, 3), (0x00000020, 1),
-                    (0x00000040, 8))
-        mapped_flag = next((value for bit, value in flag_map if session_flags & bit), 0)
-        # Overview status is not the iRacing SessionState enum.
+                    (0x00008000, 2), (0x00000010, 3), (0x00010000, 6),
+                    (0x00020000, 6), (0x00000020, 1), (0x00000040, 8))
+        mapped_flag = (
+            next((value for bit, value in flag_map if session_flags & bit), 0)
+            if session_flags is not None else None
+        )
+        # Overview status is not the iRacing SessionState enum. Track surface
+        # values: -1 not in world, 0 off track, 1 pit stall/pit road, 2 approaching
+        # pits, 3 on track. OnPitRoad remains the authoritative pit-lane signal.
         graphics_status = 1 if is_replay else 2 if on_track else 0
-        track_status = "Pit road" if on_pit_road else "On track" if on_track else "In garage" if in_garage else "Off track"
+        track_status = (
+            "Pit road" if on_pit_road else
+            "Pit approach" if on_track_surface == 2 else
+            "Pit stall" if on_track_surface == 1 else
+            "On track" if on_track_surface == 3 else
+            "Off track" if on_track_surface == 0 else
+            "Not in world" if on_track_surface == -1 else
+            "In garage" if in_garage else "—"
+        )
         graphics_data = {
             "status": graphics_status, "session": session_type_index, "session_name": session_type, "session_index": session_num,
             "current_time_ms": current_ms, "current_time_str": _time_string(current_ms),
@@ -672,9 +687,12 @@ class IRacingTelemetryReader:
             "rain_intensity": None, "rain_10min": None, "rain_30min": None,
             "wind_speed": wind_mps * 3.6 if wind_mps is not None else None, "wind_direction": wind_direction,
             "flag": mapped_flag, "track_status": track_status, "session_flags": session_flags,
-            "global_yellow_1": bool(session_flags & (0x00000008 | 0x00000100 | 0x00004000)), "global_yellow_2": None, "global_yellow_3": None,
-            "global_green": bool(session_flags & 0x00000004), "global_chequered": bool(session_flags & 0x00000001),
-            "global_red": bool(session_flags & 0x00000010),
+            # SessionFlags does not identify individual sector yellows.
+            "global_yellow_1": None, "global_yellow_2": None, "global_yellow_3": None,
+            "global_yellow": bool(session_flags & (0x00000008 | 0x00000100 | 0x00004000 | 0x00008000)) if session_flags is not None else None,
+            "global_green": bool(session_flags & 0x00000004) if session_flags is not None else None,
+            "global_chequered": bool(session_flags & 0x00000001) if session_flags is not None else None,
+            "global_red": bool(session_flags & 0x00000010) if session_flags is not None else None,
             "penalty": None, "penalty_time_s": None, "incident_count": incidents, "team_incident_count": team_incidents, "driver_incident_count": driver_incidents, "missing_mandatory_pits": None,
             "mandatory_pit_done": None, "mfd_tyre_set": None, "current_tyre_set": None, "strategy_tyre_set": None,
             "tyre_sets_used": _integer(_read(sdk, "TireSetsUsed")),
