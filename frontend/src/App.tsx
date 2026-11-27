@@ -28,7 +28,7 @@ const definitions: { id: TileId; title: string; description: string }[] = [
   { id: "weather", title: "Track weather", description: "Ambient and track conditions" },
   { id: "map", title: "Track map", description: "Circuit layout and car position" },
   { id: "session", title: "Session", description: "Current session information" },
-  { id: "brakes", title: "Brake temperatures", description: "Temperatures by corner" },
+  { id: "brakes", title: "Brake Info", description: "Brake telemetry by corner" },
   { id: "tyres", title: "Tyre condition", description: "Pressures and temperatures" },
   { id: "fuel", title: "Fuel", description: "Remaining fuel and estimated range" },
   { id: "warnings", title: "Penalties & warnings", description: "Lap validity and race penalties" },
