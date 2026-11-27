@@ -87,14 +87,14 @@ class TileOverlayWindow(QMainWindow):
             Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
         )
-        self.close_button.setFixedSize(30, 30)
+        self.close_button.setFixedSize(24, 24)
         self.close_button.setStyleSheet(
-            "QToolButton { background-color: #ff3655; color: #ffffff; "
-            "border: 2px solid #ffffff; border-radius: 15px; "
-            "font-size: 23px; font-weight: 900; padding: 0px; margin: 0px; }"
-            "QToolButton:hover { background-color: #d91436; "
-            "border-color: #ffe36e; color: #ffffff; }"
-            "QToolButton:pressed { background-color: #a90e29; }"
+            "QToolButton { background-color: rgba(18, 24, 34, 218); color: #e8edf5; "
+            "border: 1px solid rgba(205, 216, 232, 105); border-radius: 7px; "
+            "font-size: 18px; font-weight: 500; padding: 0px; margin: 0px; }"
+            "QToolButton:hover { background-color: #d94b5b; color: #ffffff; "
+            "border-color: #f08b96; }"
+            "QToolButton:pressed { background-color: #ad3544; }"
         )
         self.close_button.clicked.connect(self.close)
         self.setMinimumSize(220, 130)
