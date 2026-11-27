@@ -13,7 +13,7 @@ class FakeSDK:
             "LapDistPct": 0.42, "LapCurrentLapTime": 81.234,
             "LapLastLapTime": 80.5, "LapBestLapTime": 79.75,
             "LapDeltaToBestLap": 1.2, "SessionTimeRemain": 900.0,
-            "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full"},
+            "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full", "TrackRelativeHumidity": 0.99},
             "DriverInfo": {"DriverCarFuelMaxLtr": 40.0, "Drivers": [{"CarIdx": 0, "CarScreenName": "Formula Vee"}]},
             "SessionInfo": {"Sessions": [{"SessionType": "Race"}]},
             "SplitTimeInfo": {"Sectors": [
@@ -83,6 +83,8 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(graphics["track_wetness"], 5)
         self.assertEqual(graphics["skies"], 2)
         self.assertEqual(graphics["precipitation_pct"], 25.0)
+        physics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(physics["relative_humidity_pct"], 99.0)
         self.assertAlmostEqual(graphics["wind_speed"], 7.2)
         self.assertEqual(graphics["rain_10min"], None)
         self.assertEqual(graphics["rain_30min"], None)
