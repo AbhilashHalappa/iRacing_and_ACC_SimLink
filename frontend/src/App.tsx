@@ -687,6 +687,7 @@ function App() {
   const patchGlow=(patch:Partial<GlowConfig>)=>setGlow(prev=>{const next={...prev,...patch};try{window.localStorage.setItem("acc-glow-settings",JSON.stringify(next));}catch{}return next;});
   const setBand=(key:"tyre"|"brake"|"damage",index:number,value:number)=>setGlow(prev=>{const next={...prev,[key]:prev[key].map((v,i)=>i===index?value:v)} as GlowConfig;try{window.localStorage.setItem("acc-glow-settings",JSON.stringify(next));}catch{}return next;});
   useEffect(()=>{
+    if(overlayTile)return;
     let active=true;
     const syncOverlaySelection=()=>{
       if(overlayWriteInFlight.current)return;
