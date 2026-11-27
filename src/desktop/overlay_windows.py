@@ -114,12 +114,12 @@ class TileOverlayWindow(QMainWindow):
         url = QUrl(bridge_url)
         url.setQuery("overlay=" + tile_id)
         self._view.loadFinished.connect(self._on_load_finished)
-        logger.info("Overlay %s: loading %s", tile_id, url.toString())
+        logger.warning("Overlay %s: loading %s", tile_id, url.toString())
         self._view.load(url)
 
     def _on_load_finished(self, ok: bool) -> None:
         if ok:
-            logger.info("Overlay %s: web page loaded", self.tile_id)
+            logger.warning("Overlay %s: web page loaded", self.tile_id)
         else:
             logger.error(
                 "Overlay %s: web page load failed (URL: %s)",
@@ -249,14 +249,14 @@ class OverlayWindowManager(QObject):
 
     def apply(self, tile_ids: list[str]) -> None:
         clean = list(dict.fromkeys(tile for tile in tile_ids if tile in SUPPORTED_TILES))
-        logger.info("Applying overlay selection: %s", clean)
+        logger.warning("Applying overlay selection: %s", clean)
         for tile_id in list(self.windows):
             if tile_id not in clean:
                 window = self.windows.pop(tile_id)
                 try:
                     window.close()
                     window.deleteLater()
-                    logger.info("Overlay %s: closed", tile_id)
+                    logger.warning("Overlay %s: closed", tile_id)
                 except Exception:
                     logger.exception("Overlay %s: failed while closing", tile_id)
         for tile_id in clean:
@@ -268,12 +268,12 @@ class OverlayWindowManager(QObject):
                         tile_id, self.profile, self.bridge_url, self.settings, None
                     )
                     self.windows[tile_id] = window
-                    logger.info("Overlay %s: window constructed", tile_id)
+                    logger.warning("Overlay %s: window constructed", tile_id)
                 else:
                     window = self.windows[tile_id]
                 window.show()
                 window.raise_()
-                logger.info(
+                logger.warning(
                     "Overlay %s: show requested; visible=%s geometry=%s",
                     tile_id,
                     window.isVisible(),
@@ -298,12 +298,12 @@ class OverlayWindowManager(QObject):
                         logger.exception("Overlay %s: cleanup after failure failed", tile_id)
         self.enabled_tiles = [tile for tile in clean if tile in self.windows]
         self.settings.setValue("enabled_tiles", self.enabled_tiles)
-        logger.info("Overlay selection applied; active windows: %s", self.enabled_tiles)
+        logger.warning("Overlay selection applied; active windows: %s", self.enabled_tiles)
 
     @staticmethod
     def _verify_visible(tile_id: str, window: TileOverlayWindow) -> None:
         try:
-            logger.info(
+            logger.warning(
                 "Overlay %s: post-event-loop visibility=%s minimized=%s geometry=%s",
                 tile_id,
                 window.isVisible(),
