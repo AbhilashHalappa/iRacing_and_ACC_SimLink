@@ -357,7 +357,7 @@ class IRacingTelemetryReader:
             elif lap > self._fuel_lap_anchor[0]:
                 used = self._fuel_lap_anchor[1] - fuel
                 if used > 0:
-                    self._fuel_per_lap = used if self._fuel_per_lap is None else (self._fuel_per_lap * 0.65 + used * 0.35)
+                    self._fuel_per_lap = used if self._fuel_per_lap is None else (self._fuel_per_lap + used) / 2.0
                 self._fuel_lap_anchor = (lap, fuel)
             elif lap < self._fuel_lap_anchor[0]:
                 self._fuel_lap_anchor = (lap, fuel)
