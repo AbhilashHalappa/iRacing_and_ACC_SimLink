@@ -24,7 +24,7 @@ class FakeSDK:
             ]},
             "PlayerCarIdx": 0, "Throttle": 0.8, "Brake": 0.1, "Clutch": 0.0,
             "SteeringWheelAngle": 0.15, "AirTemp": 21.0, "TrackTempCrew": 28.0,
-            "WindVel": 2.0, "WindDir": 1.0, "OnPitRoad": False,
+            "WindVel": 2.0, "WindDir": 1.0, "TrackWetness": 5, "Precipitation": 0.25, "Skies": 2, "OnPitRoad": False,
             "PlayerCarPosition": 7, "PlayerCarClassPosition": 2, "PlayerCarClass": 1,
             "CarIdxPosition": [7, 6, 8], "CarIdxF2Time": [13.0, 12.0, 14.0],
             "IsOnTrack": True, "IsInGarage": False, "IsReplayPlaying": False,
@@ -76,6 +76,25 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
+
+    def test_maps_native_iracing_weather_fields_and_units(self):
+        sdk = FakeSDK()
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["track_wetness"], 5)
+        self.assertEqual(graphics["skies"], 2)
+        self.assertEqual(graphics["precipitation_pct"], 25.0)
+        self.assertAlmostEqual(graphics["wind_speed"], 7.2)
+        self.assertEqual(graphics["rain_10min"], None)
+        self.assertEqual(graphics["rain_30min"], None)
+
+    def test_missing_iracing_weather_fields_remain_unavailable(self):
+        sdk = FakeSDK()
+        for variable in ("TrackWetness", "Precipitation", "Skies"):
+            sdk.values.pop(variable, None)
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertIsNone(graphics["track_wetness"])
+        self.assertIsNone(graphics["precipitation_pct"])
+        self.assertIsNone(graphics["skies"])
 
     def test_fuel_per_lap_uses_running_pairwise_average(self):
         sdk = FakeSDK()
