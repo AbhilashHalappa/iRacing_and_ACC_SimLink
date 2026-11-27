@@ -31,6 +31,8 @@ class FakeSDK:
             "SessionFlags": 8, "PlayerCarMyIncidentCount": 2,
             "LFcoldPressure": 200.0, "LFpressure": 163.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
             "PitSvFuel": 15.0, "PitSvLFP": 200.0, "PitSvRFP": 201.0, "PitSvLRP": 202.0, "PitSvRRP": 203.0,
+            "EngineWarnings": 5, "PitRepairLeft": 125.0, "PitOptRepairLeft": 45.0,
+            "PlayerCarTowTime": 0.0, "FastRepairAvailable": 1, "FastRepairUsed": 0,
             "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
             "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
@@ -121,6 +123,31 @@ class IRacingReaderTests(unittest.TestCase):
         graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
         self.assertIsNone(graphics["gap_ahead_ms"])
         self.assertIsNone(graphics["gap_behind_ms"])
+
+    def test_maps_only_supported_iracing_damage_and_repair_telemetry(self):
+        sdk = FakeSDK()
+        physics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(physics["engine_warning_flags"], 5)
+        self.assertEqual(physics["mandatory_repair_left_s"], 125.0)
+        self.assertEqual(physics["optional_repair_left_s"], 45.0)
+        self.assertEqual(physics["tow_time_left_s"], 0.0)
+        self.assertEqual(physics["fast_repairs_available"], 1)
+        self.assertEqual(physics["fast_repairs_used"], 0)
+        self.assertIsNone(physics["car_damage"])
+        self.assertIsNone(physics["wheels"]["FL"]["suspension_damage"])
+
+    def test_missing_iracing_damage_fields_remain_unavailable(self):
+        sdk = FakeSDK()
+        for variable in ("EngineWarnings", "PitRepairLeft", "PitOptRepairLeft",
+                         "PlayerCarTowTime", "FastRepairAvailable", "FastRepairUsed"):
+            sdk.values.pop(variable, None)
+        physics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]
+        self.assertIsNone(physics["engine_warning_flags"])
+        self.assertIsNone(physics["mandatory_repair_left_s"])
+        self.assertIsNone(physics["optional_repair_left_s"])
+        self.assertIsNone(physics["tow_time_left_s"])
+        self.assertIsNone(physics["fast_repairs_available"])
+        self.assertIsNone(physics["fast_repairs_used"])
 
     def test_maps_native_iracing_weather_fields_and_units(self):
         sdk = FakeSDK()
