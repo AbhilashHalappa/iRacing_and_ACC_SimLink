@@ -348,36 +348,56 @@ class IRacingTelemetryReader:
         position = _integer(_read(sdk, "PlayerCarPosition"))
         class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
         class_id = _integer(_read(sdk, "PlayerCarClass"))
-        # CarIdxEstTime estimates each car's time to reach the player's
-        # current track location. Unlike CarIdxF2Time (time behind the leader),
-        # this is the appropriate reference for Relative-style local gaps.
-        # Keep the Relative display convention: car ahead is positive; car
-        # behind is negative. CarIdxPosition identifies each side of the player.
+        # CarIdxPosition is classification order and can remain unchanged
+        # until a car crosses the timing line. Use live lap progress to decide
+        # which cars are physically ahead/behind during an overtake, then use
+        # CarIdxEstTime for the time difference at the player's track location.
         car_positions = _read(sdk, "CarIdxPosition", [])
+        car_laps = _read(sdk, "CarIdxLap", [])
+        car_lap_dist = _read(sdk, "CarIdxLapDistPct", [])
         car_est_times = _read(sdk, "CarIdxEstTime", [])
         gap_ahead_ms = gap_behind_ms = None
-        if str(session_type or "").strip().lower() == "race" and player_idx is not None and isinstance(car_positions, (list, tuple)) and isinstance(car_est_times, (list, tuple)):
-            if player_idx < len(car_positions) and player_idx < len(car_est_times):
-                player_position = _integer(car_positions[player_idx])
-                player_est_time = _number(car_est_times[player_idx])
-                if player_position is not None and player_position > 0 and player_est_time is not None:
-                    ahead_gaps = []
-                    behind_gaps = []
-                    for idx, other_position_raw in enumerate(car_positions):
-                        other_position = _integer(other_position_raw)
-                        other_est_time = _number(car_est_times[idx]) if idx < len(car_est_times) else None
-                        if other_position is None or other_position <= 0 or other_est_time is None or idx == player_idx:
-                            continue
-                        if other_position < player_position:
-                            ahead_gaps.append(other_est_time - player_est_time)
-                        elif other_position > player_position:
-                            behind_gaps.append(player_est_time - other_est_time)
-                    if ahead_gaps:
-                        gap_ahead_ms = round(min(ahead_gaps, key=abs) * 1000)
-                    elif player_position == 1:
+        if (
+            str(session_type or "").strip().lower() == "race"
+            and player_idx is not None
+            and isinstance(car_laps, (list, tuple))
+            and isinstance(car_lap_dist, (list, tuple))
+            and isinstance(car_est_times, (list, tuple))
+            and player_idx < len(car_laps)
+            and player_idx < len(car_lap_dist)
+            and player_idx < len(car_est_times)
+        ):
+            player_lap = _integer(car_laps[player_idx])
+            player_pct = _number(car_lap_dist[player_idx])
+            player_est_time = _number(car_est_times[player_idx])
+            if player_lap is not None and player_pct is not None and player_est_time is not None:
+                player_progress = player_lap + player_pct
+                ahead_gaps = []
+                behind_gaps = []
+                for idx in range(min(len(car_laps), len(car_lap_dist), len(car_est_times))):
+                    if idx == player_idx:
+                        continue
+                    other_lap = _integer(car_laps[idx])
+                    other_pct = _number(car_lap_dist[idx])
+                    other_est_time = _number(car_est_times[idx])
+                    if other_lap is None or other_pct is None or other_est_time is None:
+                        continue
+                    # Ignore cars with no valid live lap-progress sample.
+                    progress_delta = (other_lap + other_pct) - player_progress
+                    if progress_delta > 0:
+                        ahead_gaps.append((progress_delta, other_est_time - player_est_time))
+                    elif progress_delta < 0:
+                        behind_gaps.append((-progress_delta, player_est_time - other_est_time))
+                if ahead_gaps:
+                    gap_ahead_ms = round(min(ahead_gaps, key=lambda item: item[0])[1] * 1000)
+                elif isinstance(car_positions, (list, tuple)) and player_idx < len(car_positions):
+                    # Retain the known leader-zero convention only when the
+                    # live progress array confirms no car is physically ahead.
+                    player_position = _integer(car_positions[player_idx])
+                    if player_position == 1:
                         gap_ahead_ms = 0
-                    if behind_gaps:
-                        gap_behind_ms = round(min(behind_gaps, key=abs) * 1000)
+                if behind_gaps:
+                    gap_behind_ms = -abs(round(min(behind_gaps, key=lambda item: item[0])[1] * 1000))
         completed = lap if lap is not None else 0
 
         fuel_session_key = (track, configuration, session_num)
