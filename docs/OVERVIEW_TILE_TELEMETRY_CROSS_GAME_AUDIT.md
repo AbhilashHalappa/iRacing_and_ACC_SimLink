@@ -195,12 +195,14 @@ The tables below describe the current source-code mapping. “ACC source” refe
 |---|---|---|---|
 | Road/track temperature | Physics `road_temp_c` | Physics road temperature | `TrackTempCrew`, °C |
 | Air temperature | Physics `air_temp_c` | Physics air temperature | `AirTemp`, °C |
-| Track grip | Graphics `track_grip_status` | ACC grip enum; source mapping documented, unknown values remain neutral | No direct equivalent; null |
-| Rain now / forecast | Graphics `rain_intensity`, `rain_10min`, `rain_30min` | ACC Graphics values; enum semantics must follow ACC mapping | Not mapped; `TrackWetness` is not rain intensity or a forecast |
+| Track grip | Graphics `track_grip_status` | ACC grip enum; source mapping documented, unknown values remain neutral | No equivalent; show separate Track Wetness instead |
+| Track wetness | Graphics `track_wetness` | Keep ACC grip semantics; do not relabel grip as wetness | `TrackWetness` enum: Unknown, Dry, Mostly dry, Very lightly wet, Lightly wet, Moderately wet, Very wet, Extremely wet |
+| Current sky / precipitation | Graphics `skies`, `precipitation_pct` | ACC rain intensity remains unchanged | `Skies` enum and `Precipitation`; precipitation normalized to percent |
+| Rain forecast +10/+30 | Graphics `rain_10min`, `rain_30min` | ACC Graphics forecast values | Not exposed as live forecast channels; remain unavailable |
 | Wind speed | Graphics `wind_speed`, displayed km/h | UI labels km/h; source unit requires preserving the established ACC mapping | `WindVel` m/s converted to km/h |
 | Wind direction | Graphics `wind_direction`, rad→compass | ACC source semantics need to follow ACC decoder evidence | `WindDir`, radians |
 
-**Status:** Partial for iRacing. Track/air temperature and wind are mapped; ACC-style grip and rain forecast are unavailable. Do not substitute wetness for rain intensity.
+**Status:** iRacing displays native track wetness, sky condition, current precipitation, track/air temperature and wind. It does not expose ACC-style grip or +10/+30 live rain forecasts. ACC display and mappings remain unchanged.
 
 ### 5.9 Track Map
 
