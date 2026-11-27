@@ -298,7 +298,12 @@ class IRacingTelemetryReader:
         fuel_pct = _number(_read(sdk, "FuelLevelPct"))
         air_density = _number(_read(sdk, "AirDensity"))
         air_pressure = _number(_read(sdk, "AirPressure"))
-        humidity = _number(_read(sdk, "RelativeHumidity"))
+        # The session YAML's WeekendInfo.TrackRelativeHumidity is the weather
+        # value used for the session/black-box display. Prefer it over the
+        # live RelativeHumidity channel, which may report a different value.
+        humidity = _number(_nested(session_info, "TrackRelativeHumidity"))
+        if humidity is None:
+            humidity = _number(_read(sdk, "RelativeHumidity"))
         track_wetness = _number(_read(sdk, "TrackWetness"))
         precipitation = _number(_read(sdk, "Precipitation"))
         precipitation_pct = precipitation * 100.0 if precipitation is not None and 0.0 <= precipitation <= 1.0 else precipitation
