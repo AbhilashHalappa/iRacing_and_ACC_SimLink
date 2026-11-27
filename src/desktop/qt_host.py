@@ -6,7 +6,7 @@ from dataclasses import asdict
 import json
 import time
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QTimer, QUrl, Signal
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -18,6 +18,8 @@ from .stream_health import build_stream_freshness
 
 
 class ACCDesktopWindow(QMainWindow):
+    overlays_requested = Signal(list)
+
     def __init__(self, *, app: QApplication, static_root: Path | None = None) -> None:
         super().__init__()
         self._app = app
@@ -70,6 +72,17 @@ class ACCDesktopWindow(QMainWindow):
             self._runtime.supervisor.stop(timeout=5.0)
             raise
         self._view.load(QUrl(self._bridge_url))
+
+        from .overlay_windows import OverlayWindowManager
+        self._overlay_manager = OverlayWindowManager(
+            profile=self._web_profile,
+            bridge_url=self._bridge_url,
+            parent=self,
+        )
+        self._bridge.set_overlay_ids(self._overlay_manager.enabled_tiles)
+        self._bridge.set_overlay_handler(self.overlays_requested.emit)
+        self.overlays_requested.connect(self._overlay_manager.apply)
+        self._overlay_manager.apply(self._overlay_manager.enabled_tiles)
 
         self._publish_timer = QTimer(self)
         self._publish_timer.setInterval(50)
@@ -190,6 +203,7 @@ class ACCDesktopWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self._publish_timer.stop()
+        self._overlay_manager.close_all()
         self._bridge.stop()
         alive = self._runtime.supervisor.stop(timeout=5.0)
         self._decoded_broker.close()

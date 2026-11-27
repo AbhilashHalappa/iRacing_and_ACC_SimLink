@@ -28,6 +28,8 @@ class TelemetryBridge:
         self._snapshot: dict = {"connected": False, "physics": None, "acquisition": {}}
         self._revision = 0
         self._game_switch_handler: Callable[[str], None] | None = None
+        self._overlay_handler: Callable[[list], None] | None = None
+        self._overlay_ids: list[str] = []
         bridge = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -47,23 +49,38 @@ class TelemetryBridge:
 
             def do_POST(self) -> None:
                 path = urlparse(self.path).path
-                if path != "/api/game":
+                if path not in ("/api/game", "/api/overlays"):
                     self._json({"error": "not found"}, 404)
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
-                    if length < 1 or length > 256:
+                    if length < 1 or length > 4096:
                         raise ValueError("invalid request size")
                     payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                    game = payload.get("game") if isinstance(payload, dict) else None
-                    if game not in ("acc", "iracing"):
-                        raise ValueError("game must be 'acc' or 'iracing'")
-                    handler = bridge._game_switch_handler
-                    if handler is None:
-                        self._json({"error": "game switching is unavailable"}, 503)
-                        return
-                    handler(game)
-                    self._json({"accepted": True, "game": game}, 202)
+                    if path == "/api/game":
+                        game = payload.get("game") if isinstance(payload, dict) else None
+                        if game not in ("acc", "iracing"):
+                            raise ValueError("game must be 'acc' or 'iracing'")
+                        handler = bridge._game_switch_handler
+                        if handler is None:
+                            self._json({"error": "game switching is unavailable"}, 503)
+                            return
+                        handler(game)
+                        self._json({"accepted": True, "game": game}, 202)
+                    else:
+                        tiles = payload.get("tiles") if isinstance(payload, dict) else None
+                        allowed = {"driver_trace", "speed", "gear", "rpm", "pedals", "laps", "lap_history", "weather", "map", "session", "brakes", "tyres", "fuel", "warnings", "hardware", "delta", "sectors", "position", "electronics", "pit_stint", "damage", "pressure_targets", "race_control", "car_status"}
+                        if not isinstance(tiles, list) or len(tiles) > len(allowed) or any(not isinstance(tile, str) or tile not in allowed for tile in tiles):
+                            raise ValueError("tiles must be a list of supported tile IDs")
+                        clean_tiles = list(dict.fromkeys(tiles))
+                        handler = bridge._overlay_handler
+                        if handler is None:
+                            self._json({"error": "overlay windows are unavailable"}, 503)
+                            return
+                        with bridge._condition:
+                            bridge._overlay_ids = clean_tiles
+                        handler(clean_tiles)
+                        self._json({"accepted": True, "tiles": clean_tiles}, 202)
                 except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                     self._json({"error": str(exc)}, 400)
 
@@ -75,6 +92,11 @@ class TelemetryBridge:
                         revision = bridge._revision
                     snapshot["revision"] = revision
                     self._json(snapshot)
+                    return
+                if path == "/api/overlays":
+                    with bridge._condition:
+                        tiles = list(bridge._overlay_ids)
+                    self._json({"tiles": tiles})
                     return
                 if path == "/events":
                     self.send_response(200)
@@ -145,6 +167,13 @@ class TelemetryBridge:
 
     def set_game_switch_handler(self, handler: Callable[[str], None]) -> None:
         self._game_switch_handler = handler
+
+    def set_overlay_handler(self, handler: Callable[[list], None]) -> None:
+        self._overlay_handler = handler
+
+    def set_overlay_ids(self, tile_ids: list[str]) -> None:
+        with self._condition:
+            self._overlay_ids = list(tile_ids)
 
     def publish(self, snapshot: dict) -> None:
         # Snapshot is already detached from the acquisition ring and consumer.

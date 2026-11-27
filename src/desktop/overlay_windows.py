@@ -1,0 +1,107 @@
+"""Independent, transparent always-on-top windows for Overview tiles."""
+from __future__ import annotations
+
+from PySide6.QtCore import QSettings, Qt, QUrl
+from PySide6.QtGui import QColor
+from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QMainWindow
+
+
+SUPPORTED_TILES = {
+    "driver_trace", "speed", "gear", "rpm", "pedals", "laps", "lap_history",
+    "weather", "map", "session", "brakes", "tyres", "fuel", "warnings",
+    "hardware", "delta", "sectors", "position", "electronics", "pit_stint",
+    "damage", "pressure_targets", "race_control", "car_status",
+}
+TILE_TITLES = {
+    "driver_trace": "Driver inputs", "speed": "Speed", "gear": "Gear",
+    "rpm": "Engine RPM", "pedals": "Driver inputs", "laps": "Lap times",
+    "lap_history": "Lap time history", "weather": "Track weather",
+    "map": "Track map", "session": "Session", "brakes": "Brake Info",
+    "tyres": "Tyre condition", "fuel": "Fuel", "warnings": "Penalties & warnings",
+    "hardware": "Hardware connections", "delta": "Delta to best lap",
+    "sectors": "Sector performance", "position": "Race position & gaps",
+    "electronics": "Car electronics", "pit_stint": "Pit stop & stint",
+    "damage": "Vehicle damage", "pressure_targets": "Tyre pressure targets",
+    "race_control": "Race control", "car_status": "Car lights & status",
+}
+
+
+class TileOverlayWindow(QMainWindow):
+    def __init__(self, tile_id: str, profile, bridge_url: str, settings: QSettings, parent=None):
+        super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
+        self.tile_id = tile_id
+        self._settings = settings
+        self.setWindowTitle("SimLink · " + TILE_TITLES.get(tile_id, tile_id))
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setStyleSheet("QMainWindow { background: transparent; }")
+        self._view = QWebEngineView(self)
+        self._view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._view.setStyleSheet("background: transparent;")
+        self._page = QWebEnginePage(profile, self._view)
+        self._page.setBackgroundColor(QColor(0, 0, 0, 0))
+        self._view.setPage(self._page)
+        self.setCentralWidget(self._view)
+        self.setMinimumSize(320, 170)
+        saved = settings.value(f"geometry/{tile_id}")
+        if saved and self.restoreGeometry(saved):
+            pass
+        else:
+            size = (680, 360) if tile_id in ("driver_trace", "lap_history", "hardware", "pressure_targets", "map") else (380, 260)
+            self.resize(*size)
+            self.move(120 + (len(tile_id) * 13) % 260, 100 + (len(tile_id) * 17) % 180)
+        url = QUrl(bridge_url)
+        url.setQuery("overlay=" + tile_id)
+        self._view.load(url)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self._save_geometry()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._save_geometry()
+
+    def _save_geometry(self):
+        if self.isVisible():
+            self._settings.setValue(f"geometry/{self.tile_id}", self.saveGeometry())
+
+
+class OverlayWindowManager:
+    def __init__(self, *, profile, bridge_url: str, parent=None):
+        self.profile = profile
+        self.bridge_url = bridge_url
+        self.parent = parent
+        self.settings = QSettings("SimLink", "SimLink Overlays")
+        self.windows: dict[str, TileOverlayWindow] = {}
+        self.enabled_tiles = [
+            tile for tile in self.settings.value("enabled_tiles", [], type=list)
+            if tile in SUPPORTED_TILES
+        ]
+
+    def apply(self, tile_ids: list[str]) -> None:
+        clean = list(dict.fromkeys(tile for tile in tile_ids if tile in SUPPORTED_TILES))
+        for tile_id in list(self.windows):
+            if tile_id not in clean:
+                window = self.windows.pop(tile_id)
+                window.close()
+                window.deleteLater()
+        for tile_id in clean:
+            if tile_id not in self.windows:
+                window = TileOverlayWindow(
+                    tile_id, self.profile, self.bridge_url, self.settings, self.parent
+                )
+                self.windows[tile_id] = window
+                window.show()
+            else:
+                self.windows[tile_id].show()
+                self.windows[tile_id].raise_()
+        self.enabled_tiles = clean
+        self.settings.setValue("enabled_tiles", clean)
+
+    def close_all(self) -> None:
+        for window in self.windows.values():
+            window.close()
+            window.deleteLater()
+        self.windows.clear()

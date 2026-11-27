@@ -609,3 +609,23 @@ button { cursor: pointer; }
 /* Keep all iRacing electronics in one equal-width, two-column grid. */
 .electronics-iracing-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px 0}
 .electronics-iracing-grid>.balanced-field:last-child:nth-child(odd){grid-column:auto;text-align:left}
+
+/* Individual in-game overlays reuse the exact Overview tile component and skin. */
+html:has(.overlay-shell), body:has(.overlay-shell), #root:has(.overlay-shell) { background:transparent !important; }
+.overlay-shell { min-height:100vh; width:100%; padding:0; overflow:hidden; background:transparent !important; }
+.overlay-dashboard-tile { display:flex; flex-direction:column; width:100%; height:100vh; min-height:0; overflow:hidden; border-radius:12px; background:var(--surface); }
+.overlay-dashboard-tile>.tile-body { flex:1 1 auto; min-height:0; overflow:auto; }
+.overlays-page .overlay-help-panel { display:flex; flex-direction:column; gap:6px; margin:0 0 16px; padding:14px 16px; border:1px solid var(--outline); border-radius:12px; background:var(--surface); }
+.overlays-page .overlay-help-panel strong { color:var(--on-surface); font-size:16px; }
+.overlays-page .overlay-help-panel span { color:var(--muted); font-size:14px; line-height:1.5; }
+.overlay-tile-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.overlay-tile-option { display:flex; align-items:center; gap:12px; min-width:0; padding:13px 14px; border:1px solid var(--outline); border-radius:10px; background:var(--surface); cursor:pointer; }
+.overlay-tile-option input { width:17px; height:17px; accent-color:var(--primary); flex:none; }
+.overlay-tile-option-copy { display:flex; flex:1 1 auto; flex-direction:column; gap:4px; min-width:0; }
+.overlay-tile-option-copy strong { color:var(--on-surface); font-size:15px; }
+.overlay-tile-option-copy small { color:var(--muted); font-size:12px; line-height:1.4; }
+.overlay-state { flex:none; color:var(--muted); font-size:10px; font-weight:800; letter-spacing:.08em; }
+.overlay-state.is-enabled { color:var(--success); }
+.overlay-tile-option.is-unavailable { opacity:.48; cursor:not-allowed; }
+.overlay-feedback { margin:14px 0 0; color:var(--primary); font-size:14px; font-weight:650; }
+@media(max-width:850px) { .overlay-tile-list { grid-template-columns:1fr; } }
