@@ -441,6 +441,11 @@ class IRacingTelemetryReader:
             if pit_service_flags is not None else None
         )
         mfd_tyre_compound = _integer(_read(sdk, "PitSvTireCompound"))
+        # PitSvFlags mirrors the selected service checkboxes in the iRacing MFD.
+        # Keep each request separate so fuel fill is not confused with tyre changes.
+        mfd_fuel_fill = bool(pit_service_flags & 0x0010) if pit_service_flags is not None else None
+        mfd_windshield_tearoff = bool(pit_service_flags & 0x0020) if pit_service_flags is not None else None
+        mfd_fast_repair = bool(pit_service_flags & 0x0040) if pit_service_flags is not None else None
         position = _integer(_read(sdk, "PlayerCarPosition"))
         class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
         class_id = _integer(_read(sdk, "PlayerCarClass"))
@@ -637,6 +642,9 @@ class IRacingTelemetryReader:
             "mfd_fuel_to_add_unit": "L",  # iRacing PitSvFuel is reported in litres for this MFD field.
             "mfd_tyre_change": mfd_tyre_change,
             "mfd_tyre_compound": mfd_tyre_compound,
+            "mfd_fuel_fill": mfd_fuel_fill,
+            "mfd_windshield_tearoff": mfd_windshield_tearoff,
+            "mfd_fast_repair": mfd_fast_repair,
             "mfd_tyre_pressures": [
                 (_number(_read(sdk, "PitSvLFP")) * 0.1450377377) if _number(_read(sdk, "PitSvLFP")) is not None else None,
                 (_number(_read(sdk, "PitSvRFP")) * 0.1450377377) if _number(_read(sdk, "PitSvRFP")) is not None else None,
