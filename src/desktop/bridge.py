@@ -29,6 +29,7 @@ class TelemetryBridge:
         self._revision = 0
         self._game_switch_handler: Callable[[str], None] | None = None
         self._overlay_handler: Callable[[list], None] | None = None
+        self._theme_handler: Callable[[str], None] | None = None
         self._overlay_ids: list[str] = []
         bridge = self
 
@@ -49,7 +50,7 @@ class TelemetryBridge:
 
             def do_POST(self) -> None:
                 path = urlparse(self.path).path
-                if path not in ("/api/game", "/api/overlays"):
+                if path not in ("/api/game", "/api/overlays", "/api/theme"):
                     self._json({"error": "not found"}, 404)
                     return
                 try:
@@ -57,7 +58,17 @@ class TelemetryBridge:
                     if length < 1 or length > 4096:
                         raise ValueError("invalid request size")
                     payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                    if path == "/api/game":
+                    if path == "/api/theme":
+                        theme = payload.get("theme") if isinstance(payload, dict) else None
+                        if theme not in ("dark", "light"):
+                            raise ValueError("theme must be 'dark' or 'light'")
+                        handler = bridge._theme_handler
+                        if handler is None:
+                            self._json({"error": "overlay theme updates are unavailable"}, 503)
+                            return
+                        handler(theme)
+                        self._json({"accepted": True, "theme": theme}, 202)
+                    elif path == "/api/game":
                         game = payload.get("game") if isinstance(payload, dict) else None
                         if game not in ("acc", "iracing"):
                             raise ValueError("game must be 'acc' or 'iracing'")
@@ -185,6 +196,9 @@ class TelemetryBridge:
     def set_overlay_ids(self, tile_ids: list[str]) -> None:
         with self._condition:
             self._overlay_ids = list(tile_ids)
+
+    def set_theme_handler(self, handler: Callable[[str], None]) -> None:
+        self._theme_handler = handler
 
     def publish(self, snapshot: dict) -> None:
         # Snapshot is already detached from the acquisition ring and consumer.
