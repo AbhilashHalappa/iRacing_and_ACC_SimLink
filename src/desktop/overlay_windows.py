@@ -79,13 +79,18 @@ class TileOverlayWindow(QMainWindow):
         self.close_button = QToolButton(self)
         self.close_button.setText("×")
         self.close_button.setToolTip("Close this overlay")
+        self.close_button.setAccessibleName("Close overlay")
         self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.close_button.setFixedSize(28, 28)
+        self.close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.close_button.setAutoRaise(False)
+        self.close_button.setFixedSize(30, 30)
         self.close_button.setStyleSheet(
-            "QToolButton { background: rgba(18, 22, 30, 220); color: white; "
-            "border: 1px solid rgba(255,255,255,90); border-radius: 14px; "
-            "font-size: 20px; font-weight: 600; }"
-            "QToolButton:hover { background: #d94350; border-color: #ff7882; }"
+            "QToolButton { background-color: #ff3655; color: #ffffff; "
+            "border: 2px solid #ffffff; border-radius: 15px; "
+            "font-size: 23px; font-weight: 900; padding: 0px; margin: 0px; }"
+            "QToolButton:hover { background-color: #d91436; "
+            "border-color: #ffe36e; color: #ffffff; }"
+            "QToolButton:pressed { background-color: #a90e29; }"
         )
         self.close_button.clicked.connect(self.close)
         self.close_button.raise_()
@@ -147,6 +152,11 @@ class TileOverlayWindow(QMainWindow):
         self.close_button.move(self.width() - self.close_button.width() - 7, 7)
         self.close_button.raise_()
         self._save_geometry()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.close_button.move(self.width() - self.close_button.width() - 7, 7)
+        self.close_button.raise_()
 
     def _save_geometry(self):
         if self.isVisible():
