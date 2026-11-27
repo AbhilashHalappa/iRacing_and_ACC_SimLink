@@ -483,7 +483,16 @@ class IRacingTelemetryReader:
             "abs_active": abs_active, "engine_running": engine_running,
             "pit_limiter_on": pit_limiter, "ignition_on": None, "starter_engine_on": None,
             "is_ai_controlled": None, "engine_warnings": engine_warnings,
-            "car_damage": None, "wheels": wheel_data,
+            "car_damage": None,
+            # iRacing exposes repair/tow state and an engine-warning bitfield,
+            # but no live body-panel or per-corner suspension damage values.
+            "engine_warning_flags": engine_warnings,
+            "mandatory_repair_left_s": _number(_read(sdk, "PitRepairLeft")),
+            "optional_repair_left_s": _number(_read(sdk, "PitOptRepairLeft")),
+            "tow_time_left_s": _number(_read(sdk, "PlayerCarTowTime")),
+            "fast_repairs_available": _integer(_read(sdk, "FastRepairAvailable")),
+            "fast_repairs_used": _integer(_read(sdk, "FastRepairUsed")),
+            "wheels": wheel_data,
         }
         # iRacing SessionFlags is a bitfield. Convert only known flags to the
         # Overview's display booleans; never pass the raw bitmask as an ACC enum.
