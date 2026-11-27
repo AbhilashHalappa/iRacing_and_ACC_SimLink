@@ -373,6 +373,10 @@ class IRacingTelemetryReader:
                             behind_gaps.append(other_gap - player_gap)
                     if ahead_gaps:
                         gap_ahead_ms = round(min(ahead_gaps, key=abs) * 1000)
+                    elif player_position == 1:
+                        # The leader's gap to the leader is zero; keep the
+                        # tile numeric rather than presenting a missing value.
+                        gap_ahead_ms = round(player_gap * 1000)
                     if behind_gaps:
                         gap_behind_ms = round(min(behind_gaps, key=abs) * 1000)
         completed = lap if lap is not None else 0
