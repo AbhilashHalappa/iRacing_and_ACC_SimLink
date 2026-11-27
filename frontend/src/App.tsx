@@ -688,15 +688,18 @@ function App() {
     setOverlayIds(supported);
     setOverlaySaving(true);
     setOverlayMessage("");
+    const controller=new AbortController();
+    const timeout=window.setTimeout(()=>controller.abort(),5000);
     try{
-      const response=await fetch("/api/overlays",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tiles:supported})});
-      const result=await response.json();
+      const response=await fetch("/api/overlays",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tiles:supported}),signal:controller.signal});
+      const result=await response.json().catch(()=>null);
       if(!response.ok)throw new Error(result?.error||"Could not update overlays");
       setOverlayMessage(enabled?"Overlay enabled.":"Overlay disabled.");
     }catch(error){
       setOverlayIds(previous);
-      setOverlayMessage(error instanceof Error?error.message:"Overlay update failed.");
+      setOverlayMessage(error instanceof Error&&error.name==="AbortError"?"Overlay update timed out. Please try again.":error instanceof Error?error.message:"Overlay update failed.");
     }finally{
+      window.clearTimeout(timeout);
       setOverlaySaving(false);
     }
   };
