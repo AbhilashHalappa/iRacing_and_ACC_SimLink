@@ -933,16 +933,17 @@ body:has(.overlay-shell),
 }
 .overlay-dashboard-tile .history-head,
 .overlay-dashboard-tile .history-row {
-  width: 100%;
-  min-width: 0;
+  /* Keep the table readable at narrow overlay sizes; the parent scrolls. */
+  width: max-content;
+  min-width: 640px;
   grid-template-columns:
-    minmax(38px, .65fr)
-    minmax(54px, 1fr)
-    minmax(48px, .85fr)
-    repeat(var(--history-sector-count, 3), minmax(32px, .7fr));
-  gap: clamp(2px, .8cqw, 7px);
-  padding: clamp(4px, 1cqw, 8px) 2px;
-  font-size: clamp(7px, 2.1cqw, 11px);
+    minmax(76px, .9fr)
+    minmax(82px, 1fr)
+    minmax(76px, .9fr)
+    repeat(var(--history-sector-count, 3), minmax(76px, .9fr));
+  gap: clamp(4px, .8cqw, 7px);
+  padding: clamp(6px, 1cqw, 8px) 4px;
+  font-size: clamp(9px, 2.1cqw, 11px);
 }
 .overlay-dashboard-tile .history-head > *,
 .overlay-dashboard-tile .history-row > * {
