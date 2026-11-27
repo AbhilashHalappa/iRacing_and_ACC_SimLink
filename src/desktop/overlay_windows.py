@@ -1,4 +1,4 @@
-"""Independent, transparent always-on-top windows for Overview tiles."""
+"""Independent, transparent, frameless always-on-top windows for Overview tiles."""
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, Qt, QUrl
@@ -29,11 +29,18 @@ TILE_TITLES = {
 
 
 class TileOverlayWindow(QMainWindow):
+    """Frameless tile window; hold Alt and drag to move or resize it."""
+
     def __init__(self, tile_id: str, profile, bridge_url: str, settings: QSettings, parent=None):
-        super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
+        super().__init__(
+            parent,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint,
+        )
         self.tile_id = tile_id
         self._settings = settings
-        self.setWindowTitle("SimLink · " + TILE_TITLES.get(tile_id, tile_id))
+        self._gesture = None
+        self._gesture_global = None
+        self._gesture_geometry = None
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setStyleSheet("QMainWindow { background: transparent; }")
         self._view = QWebEngineView(self)
@@ -54,6 +61,47 @@ class TileOverlayWindow(QMainWindow):
         url = QUrl(bridge_url)
         url.setQuery("overlay=" + tile_id)
         self._view.load(url)
+
+    def mousePressEvent(self, event):
+        # Alt+left-drag moves; Alt+right-drag resizes. Normal clicks remain
+        # available to the tile's own controls and charts.
+        if event.modifiers() & Qt.KeyboardModifier.AltModifier:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._gesture = "move"
+            elif event.button() == Qt.MouseButton.RightButton:
+                self._gesture = "resize"
+            else:
+                self._gesture = None
+            if self._gesture:
+                self._gesture_global = event.globalPosition().toPoint()
+                self._gesture_geometry = self.geometry()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._gesture and self._gesture_global is not None and self._gesture_geometry is not None:
+            delta = event.globalPosition().toPoint() - self._gesture_global
+            if self._gesture == "move":
+                self.move(self._gesture_geometry.topLeft() + delta)
+            else:
+                self.resize(
+                    max(self.minimumWidth(), self._gesture_geometry.width() + delta.x()),
+                    max(self.minimumHeight(), self._gesture_geometry.height() + delta.y()),
+                )
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._gesture:
+            self._gesture = None
+            self._gesture_global = None
+            self._gesture_geometry = None
+            self._save_geometry()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def moveEvent(self, event):
         super().moveEvent(event)
