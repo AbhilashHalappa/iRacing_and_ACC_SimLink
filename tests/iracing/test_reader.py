@@ -66,6 +66,7 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
         self.assertEqual(snapshot["static_metadata"]["data"]["max_fuel"], 40.0)
         self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
+        self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_kpa"], 200.0)
         self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_wear_pct"], 75.0)
         self.assertEqual(snapshot["physics"]["data"]["oil_temp_c"], 100.0)
         self.assertEqual(snapshot["graphics"]["data"]["gap_ahead_ms"], 1000)
