@@ -32,6 +32,7 @@ The frontend uses the SDK description as the label. Boolean values render ON/OFF
 - If a header entry has no readable scalar live value, omit it rather than inventing zero.
 - Unknown future `dc*` fields are discovered automatically when their SDK description matches the in-car setting rule.
 - No per-car cache or hard-coded car allowlist is used.
+- When the player's `CarPath` changes, the reader invalidates pyirsdk's cached variable-header collections before discovering the new car's controls. This is necessary because pyirsdk lazily caches its parsed headers.
 
 ## Published in-car adjustment catalogue
 
