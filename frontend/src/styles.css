@@ -604,3 +604,8 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .race-engineer-grid .fuel-status-field { transition: none; }
 }
+
+
+/* Keep all iRacing electronics in one equal-width, two-column grid. */
+.electronics-iracing-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px 0}
+.electronics-iracing-grid>.balanced-field:last-child:nth-child(odd){grid-column:auto;text-align:left}
