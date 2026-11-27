@@ -389,7 +389,7 @@ class IRacingTelemetryReader:
                     elif progress_delta < 0:
                         behind_gaps.append((-progress_delta, player_est_time - other_est_time))
                 if ahead_gaps:
-                    gap_ahead_ms = round(min(ahead_gaps, key=lambda item: item[0])[1] * 1000)
+                    gap_ahead_ms = abs(round(min(ahead_gaps, key=lambda item: item[0])[1] * 1000))
                 elif isinstance(car_positions, (list, tuple)) and player_idx < len(car_positions):
                     # Retain the known leader-zero convention only when the
                     # live progress array confirms no car is physically ahead.
