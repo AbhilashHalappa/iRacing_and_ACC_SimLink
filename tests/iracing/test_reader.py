@@ -76,6 +76,14 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
+    def test_normalizes_fractional_iracing_tyre_wear_to_percent(self):
+        sdk = FakeSDK()
+        for variable in ("LFwearL", "LFwearM", "LFwearR"):
+            sdk.values[variable] = 1.0
+
+        wheels = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]["wheels"]
+        self.assertEqual(wheels["FL"]["tyre_wear_pct"], 100.0)
+
     def test_practice_session_without_time_limit_does_not_publish_stale_countdown(self):
         sdk = FakeSDK()
         sdk.values["SessionInfo"] = {"Sessions": [{"SessionType": "Practice"}]}
