@@ -348,35 +348,34 @@ class IRacingTelemetryReader:
         position = _integer(_read(sdk, "PlayerCarPosition"))
         class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
         class_id = _integer(_read(sdk, "PlayerCarClass"))
-        # CarIdxF2Time is each car's time behind the race leader (seconds).
-        # Differences between cars give the interval; CarIdxPosition identifies
-        # which side of the player each car occupies. Position 0 is unclassified
-        # / inactive and must not be treated as a real race position.
+        # CarIdxEstTime estimates each car's time to reach the player's
+        # current track location. Unlike CarIdxF2Time (time behind the leader),
+        # this is the appropriate reference for Relative-style local gaps.
+        # Keep the Relative display convention: car ahead is positive; car
+        # behind is negative. CarIdxPosition identifies each side of the player.
         car_positions = _read(sdk, "CarIdxPosition", [])
-        car_f2_times = _read(sdk, "CarIdxF2Time", [])
+        car_est_times = _read(sdk, "CarIdxEstTime", [])
         gap_ahead_ms = gap_behind_ms = None
-        if str(session_type or "").strip().lower() == "race" and player_idx is not None and isinstance(car_positions, (list, tuple)) and isinstance(car_f2_times, (list, tuple)):
-            if player_idx < len(car_positions) and player_idx < len(car_f2_times):
+        if str(session_type or "").strip().lower() == "race" and player_idx is not None and isinstance(car_positions, (list, tuple)) and isinstance(car_est_times, (list, tuple)):
+            if player_idx < len(car_positions) and player_idx < len(car_est_times):
                 player_position = _integer(car_positions[player_idx])
-                player_gap = _number(car_f2_times[player_idx])
-                if player_position is not None and player_position > 0 and player_gap is not None:
+                player_est_time = _number(car_est_times[player_idx])
+                if player_position is not None and player_position > 0 and player_est_time is not None:
                     ahead_gaps = []
                     behind_gaps = []
                     for idx, other_position_raw in enumerate(car_positions):
                         other_position = _integer(other_position_raw)
-                        other_gap = _number(car_f2_times[idx]) if idx < len(car_f2_times) else None
-                        if other_position is None or other_position <= 0 or other_gap is None or idx == player_idx:
+                        other_est_time = _number(car_est_times[idx]) if idx < len(car_est_times) else None
+                        if other_position is None or other_position <= 0 or other_est_time is None or idx == player_idx:
                             continue
                         if other_position < player_position:
-                            ahead_gaps.append(player_gap - other_gap)
+                            ahead_gaps.append(other_est_time - player_est_time)
                         elif other_position > player_position:
-                            behind_gaps.append(other_gap - player_gap)
+                            behind_gaps.append(player_est_time - other_est_time)
                     if ahead_gaps:
                         gap_ahead_ms = round(min(ahead_gaps, key=abs) * 1000)
                     elif player_position == 1:
-                        # The leader's gap to the leader is zero; keep the
-                        # tile numeric rather than presenting a missing value.
-                        gap_ahead_ms = round(player_gap * 1000)
+                        gap_ahead_ms = 0
                     if behind_gaps:
                         gap_behind_ms = round(min(behind_gaps, key=abs) * 1000)
         completed = lap if lap is not None else 0
