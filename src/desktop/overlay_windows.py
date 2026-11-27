@@ -1,7 +1,7 @@
 """Independent, transparent, frameless always-on-top windows for Overview tiles."""
 from __future__ import annotations
 
-from PySide6.QtCore import QSettings, Qt, QUrl
+from PySide6.QtCore import QObject, QSettings, Qt, QUrl
 from PySide6.QtGui import QColor
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -138,8 +138,9 @@ class TileOverlayWindow(QMainWindow):
             self._settings.setValue(f"geometry/{self.tile_id}", self.saveGeometry())
 
 
-class OverlayWindowManager:
+class OverlayWindowManager(QObject):
     def __init__(self, *, profile, bridge_url: str, parent=None):
+        super().__init__(parent)
         self.profile = profile
         self.bridge_url = bridge_url
         self.parent = parent
