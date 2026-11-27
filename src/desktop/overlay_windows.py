@@ -83,6 +83,10 @@ class TileOverlayWindow(QMainWindow):
         self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.close_button.setAutoRaise(False)
+        self.close_button.setWindowFlags(
+            Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
         self.close_button.setFixedSize(30, 30)
         self.close_button.setStyleSheet(
             "QToolButton { background-color: #ff3655; color: #ffffff; "
@@ -93,7 +97,6 @@ class TileOverlayWindow(QMainWindow):
             "QToolButton:pressed { background-color: #a90e29; }"
         )
         self.close_button.clicked.connect(self.close)
-        self.close_button.raise_()
         self.setMinimumSize(220, 130)
         saved = settings.value(f"geometry/{tile_id}")
         if saved and self.restoreGeometry(saved):
@@ -143,20 +146,36 @@ class TileOverlayWindow(QMainWindow):
         self._save_geometry()
         return True
 
+    def _position_close_button(self):
+        if not self.isVisible():
+            return
+        top_right = self.mapToGlobal(
+            self.rect().topRight()
+        )
+        self.close_button.move(
+            top_right.x() - self.close_button.width() - 7,
+            top_right.y() + 7,
+        )
+        self.close_button.show()
+        self.close_button.raise_()
+
     def moveEvent(self, event):
         super().moveEvent(event)
+        self._position_close_button()
         self._save_geometry()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.close_button.move(self.width() - self.close_button.width() - 7, 7)
-        self.close_button.raise_()
+        self._position_close_button()
         self._save_geometry()
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.close_button.move(self.width() - self.close_button.width() - 7, 7)
-        self.close_button.raise_()
+        self._position_close_button()
+
+    def closeEvent(self, event):
+        self.close_button.hide()
+        super().closeEvent(event)
 
     def _save_geometry(self):
         if self.isVisible():
