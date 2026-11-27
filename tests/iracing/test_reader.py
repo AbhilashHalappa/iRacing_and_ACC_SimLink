@@ -99,6 +99,31 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
+    def test_iracing_flag_state_preserves_black_flag_identity_and_colour(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+
+        cases = (
+            (0x00010000, "Black Flag", "black"),
+            (0x00020000, "Disqualified", "black"),
+            (0x00000008, "Yellow Flag", "yellow"),
+            (0x00000020, "Blue Flag", "blue"),
+            (0x00000004, "Green Flag", "green"),
+            (0x00000001, "Chequered Flag", "checkered"),
+            (0, "No Flag", "unknown"),
+        )
+        for flags, expected_name, expected_colour in cases:
+            sdk.values["SessionFlags"] = flags
+            graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+            self.assertEqual(graphics["iracing_flag_name"], expected_name)
+            self.assertEqual(graphics["iracing_flag_color"], expected_colour)
+
+        # An individual black flag remains visible alongside a global green flag.
+        sdk.values["SessionFlags"] = 0x00010000 | 0x00000004
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["iracing_flag_name"], "Black Flag")
+        self.assertTrue(graphics["global_green"])
+
     def test_race_control_preserves_missing_session_flags_and_maps_track_surface(self):
         sdk = FakeSDK()
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
