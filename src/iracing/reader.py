@@ -80,6 +80,28 @@ def _nested(mapping: Any, *keys: str) -> Any:
     return value
 
 
+def _variable_unit(sdk: Any, name: str) -> str | None:
+    """Return a supported unit from the active iRacing telemetry schema."""
+    try:
+        headers = getattr(sdk, "_var_headers", None)
+        if callable(headers):
+            headers = headers()
+        if not isinstance(headers, (list, tuple)):
+            return None
+        header = next((item for item in headers if getattr(item, "name", None) == name), None)
+        raw_unit = getattr(header, "unit", None) if header is not None else None
+        if not isinstance(raw_unit, str):
+            return None
+        unit = raw_unit.strip().lower()
+        if unit in {"l", "liter", "liters", "litre", "litres"}:
+            return "L"
+        if unit == "kwh":
+            return "kWh"
+    except Exception:
+        return None
+    return None
+
+
 def _discover_damage_telemetry(sdk: Any) -> list[dict[str, Any]]:
     """Read damage-related variables from this session's live SDK schema."""
     try:
@@ -606,6 +628,7 @@ class IRacingTelemetryReader:
             "tyre_compound": _read(sdk, "PlayerTireCompound"),
             "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps, "used_fuel_l": used_fuel,
             "mfd_fuel_to_add": _number(_read(sdk, "PitSvFuel")),
+            "mfd_fuel_to_add_unit": _variable_unit(sdk, "PitSvFuel"),
             "mfd_tyre_pressures": [
                 (_number(_read(sdk, "PitSvLFP")) * 0.1450377377) if _number(_read(sdk, "PitSvLFP")) is not None else None,
                 (_number(_read(sdk, "PitSvRFP")) * 0.1450377377) if _number(_read(sdk, "PitSvRFP")) is not None else None,
