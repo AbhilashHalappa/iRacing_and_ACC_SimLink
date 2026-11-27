@@ -629,3 +629,37 @@ html:has(.overlay-shell), body:has(.overlay-shell), #root:has(.overlay-shell) { 
 .overlay-tile-option.is-unavailable { opacity:.48; cursor:not-allowed; }
 .overlay-feedback { margin:14px 0 0; color:var(--primary); font-size:14px; font-weight:650; }
 @media(max-width:850px) { .overlay-tile-list { grid-template-columns:1fr; } }
+
+
+/* Overlay contents scale with the actual window instead of forcing scrollbars. */
+.overlay-dashboard-tile {
+  --overlay-base-width: 380px;
+  --overlay-base-height: 260px;
+  --overlay-scale: min(1, calc(100vw / var(--overlay-base-width)), calc(100vh / var(--overlay-base-height)));
+  width: calc(100vw / var(--overlay-scale));
+  height: calc(100vh / var(--overlay-scale));
+  min-height: 0;
+  zoom: var(--overlay-scale);
+}
+.overlay-dashboard-tile[data-tile="driver_trace"],
+.overlay-dashboard-tile[data-tile="lap_history"],
+.overlay-dashboard-tile[data-tile="hardware"],
+.overlay-dashboard-tile[data-tile="pressure_targets"] {
+  --overlay-base-width: 680px;
+  --overlay-base-height: 360px;
+}
+.overlay-dashboard-tile > .tile-heading { padding-right: 48px; }
+.overlay-dashboard-tile > .tile-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden !important;
+}
+.overlay-shell,
+.overlay-shell .app-shell,
+.overlay-shell #root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
