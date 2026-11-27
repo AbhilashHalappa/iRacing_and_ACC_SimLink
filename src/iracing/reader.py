@@ -102,6 +102,23 @@ def _variable_unit(sdk: Any, name: str) -> str | None:
     return None
 
 
+def _refresh_sdk_var_headers_for_car(sdk: Any) -> None:
+    """Invalidate pyirsdk's cached header metadata after the player car changes."""
+    # pyirsdk lazily caches these private collections for the lifetime of its
+    # IRSDK instance. The shared-memory header itself is live, so clear the
+    # parsed caches when DriverInfo identifies a different player car.
+    for attribute in (
+        "_IRSDK__var_headers",
+        "_IRSDK__var_headers_dict",
+        "_IRSDK__var_headers_names",
+    ):
+        if hasattr(sdk, attribute):
+            try:
+                setattr(sdk, attribute, None)
+            except Exception:
+                pass
+
+
 def _discover_in_car_settings(sdk: Any) -> list[dict[str, Any]]:
     """Discover the active car's in-car controls from its live SDK variable headers.
 
@@ -272,6 +289,7 @@ class IRacingTelemetryReader:
         self._fuel_per_lap: float | None = None
         self._fuel_start_level: float | None = None
         self._fuel_session_key: tuple[Any, ...] | None = None
+        self._active_car_identity: str | None = None
         self._sector_session_key: tuple[Any, ...] | None = None
         self._sector_lap: int | None = None
         self._sector_index: int | None = None
@@ -440,13 +458,19 @@ class IRacingTelemetryReader:
         player_idx = _integer(_read(sdk, "PlayerCarIdx"))
         drivers = _nested(driver_info, "Drivers")
         car_model = None
+        car_path = None
         active_cars = 0
         if isinstance(drivers, list):
             active_cars = len([driver for driver in drivers if isinstance(driver, dict) and driver.get("CarIsPaceCar") not in (True, 1) and driver.get("IsSpectator") not in (True, 1)])
             for driver in drivers:
                 if isinstance(driver, dict) and _integer(driver.get("CarIdx")) == player_idx:
-                    car_model = driver.get("CarScreenName") or driver.get("CarScreenNameShort") or driver.get("CarPath")
+                    car_path = driver.get("CarPath")
+                    car_model = driver.get("CarScreenName") or driver.get("CarScreenNameShort") or car_path
                     break
+        car_identity = str(car_path or car_model) if (car_path or car_model) else None
+        if car_identity and car_identity != self._active_car_identity:
+            _refresh_sdk_var_headers_for_car(sdk)
+            self._active_car_identity = car_identity
         session_type = None
         sessions = _nested(session_data, "Sessions")
         if isinstance(sessions, list) and session_num is not None and 0 <= session_num < len(sessions):
