@@ -94,6 +94,7 @@ class SwitchableDesktopWindow(ACCDesktopWindow):
 
     def closeEvent(self, event):
         self._publish_timer.stop()
+        self._overlay_manager.close_all()
         self._bridge.stop()
         try:
             if self._active_game == "acc":
