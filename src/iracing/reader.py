@@ -435,6 +435,12 @@ class IRacingTelemetryReader:
         session_flags = _integer(_read(sdk, "SessionFlags")) or 0
         on_pit_road = bool(_read(sdk, "OnPitRoad", False))
         in_pit_stall = bool(_read(sdk, "PlayerCarInPitStall", False))
+        pit_service_flags = _integer(_read(sdk, "PitSvFlags"))
+        mfd_tyre_change = (
+            bool(pit_service_flags & 0x000F)
+            if pit_service_flags is not None else None
+        )
+        mfd_tyre_compound = _integer(_read(sdk, "PitSvTireCompound"))
         position = _integer(_read(sdk, "PlayerCarPosition"))
         class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
         class_id = _integer(_read(sdk, "PlayerCarClass"))
@@ -629,6 +635,8 @@ class IRacingTelemetryReader:
             "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps, "used_fuel_l": used_fuel,
             "mfd_fuel_to_add": _number(_read(sdk, "PitSvFuel")),
             "mfd_fuel_to_add_unit": _variable_unit(sdk, "PitSvFuel"),
+            "mfd_tyre_change": mfd_tyre_change,
+            "mfd_tyre_compound": mfd_tyre_compound,
             "mfd_tyre_pressures": [
                 (_number(_read(sdk, "PitSvLFP")) * 0.1450377377) if _number(_read(sdk, "PitSvLFP")) is not None else None,
                 (_number(_read(sdk, "PitSvRFP")) * 0.1450377377) if _number(_read(sdk, "PitSvRFP")) is not None else None,
