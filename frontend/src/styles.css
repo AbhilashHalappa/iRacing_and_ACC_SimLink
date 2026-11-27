@@ -878,3 +878,13 @@ body:has(.overlay-shell),
     gap: 3px;
   }
 }
+
+/* Override the legacy viewport minimum-height on standalone overlay pages. */
+html:has(.overlay-shell),
+body:has(.overlay-shell),
+#root:has(.overlay-shell),
+.overlay-shell,
+.overlay-shell > .overlay-dashboard-tile {
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
