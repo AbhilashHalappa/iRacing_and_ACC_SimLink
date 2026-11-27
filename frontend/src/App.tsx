@@ -393,19 +393,34 @@ function TileContentBody({ id, glow, telemetry, targetPressures, trace, mapTrack
     case "damage": {
       if(telemetry?.game==="iracing") {
         const warningFlags=typeof data?.engine_warning_flags==="number"&&Number.isFinite(data.engine_warning_flags)?Math.trunc(data.engine_warning_flags):null;
-        const warningHex=warningFlags===null?"—":`0x${warningFlags.toString(16).toUpperCase().padStart(4,"0")}`;
+        const warningText=Array.isArray(data?.engine_warning_text)?data.engine_warning_text.join(" · "):warningFlags===0?"NONE REPORTED":warningFlags===null?"—":"Unmapped warning flags";
+        const damageFields=Array.isArray(data?.damage_telemetry)?data.damage_telemetry:[];
+        const damageValue=(field:any)=>{
+          const value=field?.value;
+          const formatted=Array.isArray(value)?value.map((item:any)=>typeof item==="number"?String(Number(item.toFixed(3))):item===true?"YES":item===false?"NO":String(item)).join(", "):typeof value==="number"?String(Number(value.toFixed(3))):value===true?"YES":value===false?"NO":String(value??"—");
+          return field?.unit?formatted+" "+field.unit:formatted;
+        };
         const repairTime=(value:unknown)=>typeof value==="number"&&Number.isFinite(value)&&value>0?`${Math.floor(value/60)}m ${Math.floor(value%60)}s`:value===0?"NONE": "—";
         const towTime=(value:unknown)=>typeof value==="number"&&Number.isFinite(value)&&value>0?`${Math.floor(value/60)}m ${Math.floor(value%60)}s`:value===0?"NOT TOWING":"—";
         return <div className="damage-layout">
           <div className="damage-summary balanced-grid">
-            <div className="balanced-field"><span>ENGINE WARNING FLAGS</span><b>{warningFlags===null?"—":warningFlags===0?"NONE REPORTED":warningHex}</b></div>
-            <div className="balanced-field"><span>MANDATORY REPAIR LEFT</span><b>{repairTime(data?.mandatory_repair_left_s)}</b></div>
-            <div className="balanced-field"><span>OPTIONAL REPAIR LEFT</span><b>{repairTime(data?.optional_repair_left_s)}</b></div>
-            <div className="balanced-field"><span>TOW STATUS</span><b>{towTime(data?.tow_time_left_s)}</b></div>
-            <div className="balanced-field"><span>FAST REPAIRS AVAILABLE</span><b>{display(data?.fast_repairs_available,0)}</b></div>
-            <div className="balanced-field"><span>FAST REPAIRS USED</span><b>{display(data?.fast_repairs_used,0)}</b></div>
+            <div className="balanced-field"><span>ENGINE WARNINGS</span><b>{warningText}</b></div>
           </div>
-          <small className="glance-footnote">iRacing reports engine-warning flags and pit repair/tow status, but does not expose live body-panel or per-wheel suspension damage values through these telemetry channels. Warning flags are shown as a raw bitfield, not interpreted as damage locations.</small>
+          <section className="damage-corner-group">
+            <h4>LIVE DAMAGE DATA · CURRENT CAR</h4>
+            {damageFields.length>0?<div className="damage-summary balanced-grid">{damageFields.map((field:any)=><div className="balanced-field" key={field.name}><span>{field.description||field.name}</span><b>{damageValue(field)}</b></div>)}</div>:<small className="glance-footnote">No damage-related live telemetry variables are exposed by the iRacing SDK for this car/session.</small>}
+          </section>
+          <section className="damage-corner-group">
+            <h4>PIT REPAIR & TOW STATUS</h4>
+            <div className="damage-summary balanced-grid">
+              <div className="balanced-field"><span>MANDATORY REPAIR LEFT</span><b>{repairTime(data?.mandatory_repair_left_s)}</b></div>
+              <div className="balanced-field"><span>OPTIONAL REPAIR LEFT</span><b>{repairTime(data?.optional_repair_left_s)}</b></div>
+              <div className="balanced-field"><span>TOW STATUS</span><b>{towTime(data?.tow_time_left_s)}</b></div>
+              <div className="balanced-field"><span>FAST REPAIRS AVAILABLE</span><b>{display(data?.fast_repairs_available,0)}</b></div>
+              <div className="balanced-field"><span>FAST REPAIRS USED</span><b>{display(data?.fast_repairs_used,0)}</b></div>
+            </div>
+          </section>
+          <small className="glance-footnote">Damage rows are discovered from the live iRacing telemetry variable metadata for the current car. Only values actually exposed by the game are shown; the list can change with the car/session.</small>
         </div>;
       }
       const carDamageLabels=["FRONT","REAR","LEFT","RIGHT","CENTRE"]; return <div className="damage-layout"><div className="damage-summary balanced-grid">{carDamageLabels.map((label,index)=><div className="balanced-field" key={label}><span>CAR DAMAGE · {label}</span><b>{display(data?.car_damage?.[index],2)}</b></div>)}</div><section className="damage-corner-group"><h4>SUSPENSION DAMAGE · LIVE DATA</h4><div className="corner-grid glance-corners glow-corners damage-glows" style={{"--glow-intensity":glow.intensity/100} as React.CSSProperties}>{corners.map(c=>{const v=wheels[c]?.suspension_damage;const pct=typeof v==="number"?Math.max(0,Math.min(100,v*100)):null;return <div key={c} className={pct===null?"":`damage-${pct<glow.damage[0]?0:pct<glow.damage[1]?1:pct<glow.damage[2]?2:3}`}><span>{c}</span><b>{display(pct,1,"%")}</b><small>SUSPENSION · LIVE DATA</small></div>})}</div></section></div>;
