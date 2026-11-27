@@ -304,6 +304,10 @@ class IRacingTelemetryReader:
         humidity = _number(_nested(session_info, "TrackRelativeHumidity"))
         if humidity is None:
             humidity = _number(_read(sdk, "RelativeHumidity"))
+        # iRacing reports relative humidity as a 0.0-1.0 fraction.
+        # The Overview contract and UI display humidity in percent.
+        if humidity is not None and 0.0 <= humidity <= 1.0:
+            humidity *= 100.0
         track_wetness = _number(_read(sdk, "TrackWetness"))
         precipitation = _number(_read(sdk, "Precipitation"))
         precipitation_pct = precipitation * 100.0 if precipitation is not None and 0.0 <= precipitation <= 1.0 else precipitation
