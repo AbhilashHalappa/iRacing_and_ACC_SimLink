@@ -83,6 +83,9 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["gap_ahead_ms"], 7200)
         self.assertEqual(snapshot["graphics"]["data"]["gap_behind_ms"], -2600)
         self.assertEqual(snapshot["graphics"]["data"]["flag"], 2)
+        self.assertTrue(snapshot["graphics"]["data"]["global_yellow"])
+        self.assertIsNone(snapshot["graphics"]["data"]["global_yellow_1"])
+        self.assertEqual(snapshot["graphics"]["data"]["track_status"], "Pit stall")
         self.assertEqual(snapshot["graphics"]["data"]["incident_count"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add_unit"], "L")
@@ -95,6 +98,24 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertFalse(snapshot["graphics"]["data"]["is_in_pit_lane"])
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
+
+    def test_race_control_preserves_missing_session_flags_and_maps_track_surface(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+        sdk.values["SessionFlags"] = None
+        sdk.values["PlayerTrackSurface"] = 3
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertIsNone(graphics["flag"])
+        self.assertIsNone(graphics["global_yellow"])
+        self.assertIsNone(graphics["global_green"])
+        self.assertEqual(graphics["track_status"], "On track")
+
+        sdk.values["SessionFlags"] = 0
+        sdk.values["PlayerTrackSurface"] = 0
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["flag"], 0)
+        self.assertFalse(graphics["global_yellow"])
+        self.assertEqual(graphics["track_status"], "Off track")
 
     def test_mfd_tyre_change_uses_any_of_four_pit_service_flags(self):
         sdk = FakeSDK()
