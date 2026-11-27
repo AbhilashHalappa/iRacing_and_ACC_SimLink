@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import traceback
 
-from PySide6.QtCore import QObject, QSettings, Qt, QUrl, QTimer
+from PySide6.QtCore import QObject, QSettings, Qt, QUrl, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -63,7 +63,9 @@ class _OverlayWebView(QWebEngineView):
 class TileOverlayWindow(QMainWindow):
     """Frameless tile window; hold Alt and drag to move or resize it."""
 
-    def __init__(self, tile_id: str, profile, bridge_url: str, settings: QSettings, parent=None):
+    close_requested = Signal(str)
+
+    def __init__(self, tile_id: str, profile, bridge_url: str, settings: QSettings, parent=None, theme: str = "dark"):
         super().__init__(
             parent,
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint,
@@ -94,15 +96,8 @@ class TileOverlayWindow(QMainWindow):
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.close_button.setFixedSize(24, 24)
-        self.close_button.setStyleSheet(
-            "QToolButton { background-color: rgba(18, 24, 34, 218); color: #e8edf5; "
-            "border: 1px solid rgba(205, 216, 232, 105); border-radius: 7px; "
-            "font-size: 18px; font-weight: 500; padding: 0px; margin: 0px; }"
-            "QToolButton:hover { background-color: #d94b5b; color: #ffffff; "
-            "border-color: #f08b96; }"
-            "QToolButton:pressed { background-color: #ad3544; }"
-        )
-        self.close_button.clicked.connect(self.close)
+        self.set_theme(theme)
+        self.close_button.clicked.connect(lambda: self.close_requested.emit(self.tile_id))
         self.setMinimumSize(220, 130)
         saved = settings.value(f"geometry/{tile_id}")
         if saved and self.restoreGeometry(saved):
@@ -116,6 +111,29 @@ class TileOverlayWindow(QMainWindow):
         self._view.loadFinished.connect(self._on_load_finished)
         logger.warning("Overlay %s: loading %s", tile_id, url.toString())
         self._view.load(url)
+
+    def set_theme(self, theme: str) -> None:
+        """Apply the dashboard theme to this native overlay close control."""
+        theme = "light" if theme == "light" else "dark"
+        if theme == "light":
+            style = (
+                "QToolButton { background-color: rgba(248, 250, 252, 238); color: #182230; "
+                "border: 1px solid rgba(70, 84, 102, 110); border-radius: 7px; "
+                "font-size: 18px; font-weight: 600; padding: 0px; margin: 0px; }"
+                "QToolButton:hover { background-color: #d94b5b; color: #ffffff; "
+                "border-color: #f08b96; }"
+                "QToolButton:pressed { background-color: #ad3544; }"
+            )
+        else:
+            style = (
+                "QToolButton { background-color: rgba(18, 24, 34, 218); color: #e8edf5; "
+                "border: 1px solid rgba(205, 216, 232, 105); border-radius: 7px; "
+                "font-size: 18px; font-weight: 500; padding: 0px; margin: 0px; }"
+                "QToolButton:hover { background-color: #d94b5b; color: #ffffff; "
+                "border-color: #f08b96; }"
+                "QToolButton:pressed { background-color: #ad3544; }"
+            )
+        self.close_button.setStyleSheet(style)
 
     def _on_load_finished(self, ok: bool) -> None:
         if ok:
@@ -201,11 +219,13 @@ class TileOverlayWindow(QMainWindow):
 
 
 class OverlayWindowManager(QObject):
-    def __init__(self, *, profile, bridge_url: str, parent=None):
+    def __init__(self, *, profile, bridge_url: str, parent=None, on_selection_changed=None):
         super().__init__(parent)
         self.profile = profile
         self.bridge_url = bridge_url
         self.parent = parent
+        self.on_selection_changed = on_selection_changed
+        self.theme = "dark"
         self.settings = QSettings("SimLink", "SimLink Overlays")
         self.windows: dict[str, TileOverlayWindow] = {}
         from PySide6.QtWidgets import QApplication
@@ -265,9 +285,11 @@ class OverlayWindowManager(QObject):
                     # Keep overlays as independent top-level windows. Parenting them
                     # to the main window makes Windows minimize them with their owner.
                     window = TileOverlayWindow(
-                        tile_id, self.profile, self.bridge_url, self.settings, None
+                        tile_id, self.profile, self.bridge_url, self.settings, None,
+                        theme=self.theme,
                     )
                     self.windows[tile_id] = window
+                    window.close_requested.connect(self.close_overlay)
                     logger.warning("Overlay %s: window constructed", tile_id)
                 else:
                     window = self.windows[tile_id]
@@ -299,6 +321,31 @@ class OverlayWindowManager(QObject):
         self.enabled_tiles = [tile for tile in clean if tile in self.windows]
         self.settings.setValue("enabled_tiles", self.enabled_tiles)
         logger.warning("Overlay selection applied; active windows: %s", self.enabled_tiles)
+
+    def close_overlay(self, tile_id: str) -> None:
+        """Handle a user's native X click and synchronize persisted selection."""
+        window = self.windows.pop(tile_id, None)
+        if window is None:
+            return
+        try:
+            window.close()
+            window.deleteLater()
+        except Exception:
+            logger.exception("Overlay %s: failed while closing from close button", tile_id)
+        self.enabled_tiles = [tile for tile in self.enabled_tiles if tile != tile_id]
+        self.settings.setValue("enabled_tiles", self.enabled_tiles)
+        if self.on_selection_changed is not None:
+            self.on_selection_changed(list(self.enabled_tiles))
+        logger.warning("Overlay %s: manually closed; active windows: %s", tile_id, self.enabled_tiles)
+
+    def set_theme(self, theme: str) -> None:
+        """Update all current windows and the theme used for subsequently opened ones."""
+        self.theme = "light" if theme == "light" else "dark"
+        for window in list(self.windows.values()):
+            try:
+                window.set_theme(self.theme)
+            except RuntimeError:
+                logger.exception("Could not apply %s theme to overlay %s", self.theme, window.tile_id)
 
     @staticmethod
     def _verify_visible(tile_id: str, window: TileOverlayWindow) -> None:
