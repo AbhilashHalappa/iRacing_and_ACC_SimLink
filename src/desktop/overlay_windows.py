@@ -1,11 +1,17 @@
 """Independent, transparent, frameless always-on-top windows for Overview tiles."""
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QSettings, Qt, QUrl
+import logging
+import traceback
+
+from PySide6.QtCore import QObject, QSettings, Qt, QUrl, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow, QToolButton
+
+
+logger = logging.getLogger(__name__)
 
 
 SUPPORTED_TILES = {
@@ -107,7 +113,19 @@ class TileOverlayWindow(QMainWindow):
             self.move(120 + (len(tile_id) * 13) % 260, 100 + (len(tile_id) * 17) % 180)
         url = QUrl(bridge_url)
         url.setQuery("overlay=" + tile_id)
+        self._view.loadFinished.connect(self._on_load_finished)
+        logger.info("Overlay %s: loading %s", tile_id, url.toString())
         self._view.load(url)
+
+    def _on_load_finished(self, ok: bool) -> None:
+        if ok:
+            logger.info("Overlay %s: web page loaded", self.tile_id)
+        else:
+            logger.error(
+                "Overlay %s: web page load failed (URL: %s)",
+                self.tile_id,
+                self._view.url().toString(),
+            )
 
     def _begin_gesture(self, event) -> bool:
         # Alt+left-drag moves; Alt+right-drag resizes. Normal clicks remain
@@ -231,25 +249,71 @@ class OverlayWindowManager(QObject):
 
     def apply(self, tile_ids: list[str]) -> None:
         clean = list(dict.fromkeys(tile for tile in tile_ids if tile in SUPPORTED_TILES))
+        logger.info("Applying overlay selection: %s", clean)
         for tile_id in list(self.windows):
             if tile_id not in clean:
                 window = self.windows.pop(tile_id)
-                window.close()
-                window.deleteLater()
+                try:
+                    window.close()
+                    window.deleteLater()
+                    logger.info("Overlay %s: closed", tile_id)
+                except Exception:
+                    logger.exception("Overlay %s: failed while closing", tile_id)
         for tile_id in clean:
-            if tile_id not in self.windows:
-                # Keep overlays as independent top-level windows. Parenting them
-                # to the main window makes Windows minimize them with their owner.
-                window = TileOverlayWindow(
-                    tile_id, self.profile, self.bridge_url, self.settings, None
-                )
-                self.windows[tile_id] = window
+            try:
+                if tile_id not in self.windows:
+                    # Keep overlays as independent top-level windows. Parenting them
+                    # to the main window makes Windows minimize them with their owner.
+                    window = TileOverlayWindow(
+                        tile_id, self.profile, self.bridge_url, self.settings, None
+                    )
+                    self.windows[tile_id] = window
+                    logger.info("Overlay %s: window constructed", tile_id)
+                else:
+                    window = self.windows[tile_id]
                 window.show()
-            else:
-                self.windows[tile_id].show()
-                self.windows[tile_id].raise_()
-        self.enabled_tiles = clean
-        self.settings.setValue("enabled_tiles", clean)
+                window.raise_()
+                logger.info(
+                    "Overlay %s: show requested; visible=%s geometry=%s",
+                    tile_id,
+                    window.isVisible(),
+                    window.geometry().getRect(),
+                )
+                QTimer.singleShot(
+                    0,
+                    lambda current_id=tile_id, current_window=window: self._verify_visible(current_id, current_window),
+                )
+            except Exception:
+                logger.error(
+                    "Overlay %s: creation/show failed\n%s",
+                    tile_id,
+                    traceback.format_exc(),
+                )
+                failed = self.windows.pop(tile_id, None)
+                if failed is not None:
+                    try:
+                        failed.close()
+                        failed.deleteLater()
+                    except Exception:
+                        logger.exception("Overlay %s: cleanup after failure failed", tile_id)
+        self.enabled_tiles = [tile for tile in clean if tile in self.windows]
+        self.settings.setValue("enabled_tiles", self.enabled_tiles)
+        logger.info("Overlay selection applied; active windows: %s", self.enabled_tiles)
+
+    @staticmethod
+    def _verify_visible(tile_id: str, window: TileOverlayWindow) -> None:
+        try:
+            logger.info(
+                "Overlay %s: post-event-loop visibility=%s minimized=%s geometry=%s",
+                tile_id,
+                window.isVisible(),
+                window.isMinimized(),
+                window.geometry().getRect(),
+            )
+            if not window.isVisible():
+                logger.error("Overlay %s: Qt did not make the window visible", tile_id)
+        except RuntimeError:
+            logger.exception("Overlay %s: window was destroyed before visibility check", tile_id)
 
     def close_all(self) -> None:
         if self._app is not None:
