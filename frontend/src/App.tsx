@@ -654,6 +654,11 @@ function App() {
   });
   useEffect(() => {
     try { window.localStorage.setItem("simlink-theme", theme); } catch {}
+    fetch("/api/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme }),
+    }).catch(() => {});
   }, [theme]);
   useEffect(() => {
     const syncTheme = (event: StorageEvent) => {
@@ -670,6 +675,7 @@ function App() {
   const [overlayMessage,setOverlayMessage]=useState("");
   const overlayIdsRef=useRef<TileId[]>([]);
   const overlayRequestQueue=useRef<Promise<void>>(Promise.resolve());
+  const overlayWriteInFlight=useRef(false);
   const [draft, setDraft] = useState<Tile[]>(initial);
   const [editing, setEditing] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -680,7 +686,23 @@ function App() {
   const setTargetPressure=(corner:keyof TargetPressureConfig,value:string)=>setTargetPressures(prev=>{const next={...prev,[corner]:value};try{window.localStorage.setItem("acc-target-pressures",JSON.stringify(next));}catch{}return next;});
   const patchGlow=(patch:Partial<GlowConfig>)=>setGlow(prev=>{const next={...prev,...patch};try{window.localStorage.setItem("acc-glow-settings",JSON.stringify(next));}catch{}return next;});
   const setBand=(key:"tyre"|"brake"|"damage",index:number,value:number)=>setGlow(prev=>{const next={...prev,[key]:prev[key].map((v,i)=>i===index?value:v)} as GlowConfig;try{window.localStorage.setItem("acc-glow-settings",JSON.stringify(next));}catch{}return next;});
-  useEffect(()=>{fetch("/api/overlays").then(response=>response.ok?response.json():null).then(data=>{if(Array.isArray(data?.tiles)){const restored=data.tiles.filter((id:string)=>definitions.some(item=>item.id===id)) as TileId[];overlayIdsRef.current=restored;setOverlayIds(restored);}}).catch(()=>{});},[]);
+  useEffect(()=>{
+    let active=true;
+    const syncOverlaySelection=()=>{
+      if(overlayWriteInFlight.current)return;
+      fetch("/api/overlays").then(response=>response.ok?response.json():null).then(data=>{
+        if(!active||!Array.isArray(data?.tiles))return;
+        const restored=data.tiles.filter((id:string)=>definitions.some(item=>item.id===id)) as TileId[];
+        if(restored.length!==overlayIdsRef.current.length||restored.some((id,index)=>id!==overlayIdsRef.current[index])){
+          overlayIdsRef.current=restored;
+          setOverlayIds(restored);
+        }
+      }).catch(()=>{});
+    };
+    syncOverlaySelection();
+    const timer=window.setInterval(syncOverlaySelection,400);
+    return ()=>{active=false;window.clearInterval(timer);};
+  },[]);
   const toggleOverlay=(id:TileId,enabled:boolean)=>{
     const current=overlayIdsRef.current;
     const next=enabled?[...current.filter(value=>value!==id),id]:current.filter(value=>value!==id);
@@ -688,12 +710,15 @@ function App() {
     setOverlayIds(next);
     setOverlayMessage("");
     const apply=async()=>{
+      overlayWriteInFlight.current=true;
       try{
         const response=await fetch("/api/overlays",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tiles:next})});
         const result=await response.json();
         if(!response.ok)throw new Error(result?.error||"Could not update overlays");
       }catch(error){
         setOverlayMessage(error instanceof Error?error.message:"Overlay update failed.");
+      }finally{
+        overlayWriteInFlight.current=false;
       }
     };
     overlayRequestQueue.current=overlayRequestQueue.current.then(apply,apply);
