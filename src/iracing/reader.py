@@ -102,6 +102,55 @@ def _variable_unit(sdk: Any, name: str) -> str | None:
     return None
 
 
+def _discover_in_car_settings(sdk: Any) -> list[dict[str, Any]]:
+    """Discover the active car's in-car controls from its live SDK variable headers.
+
+    The iRacing header is the authority for which controls this car exposes.
+    Do not maintain a car-name allowlist or infer controls from zero values.
+    """
+    try:
+        headers = getattr(sdk, "_var_headers", None)
+        if callable(headers):
+            headers = headers()
+        if not isinstance(headers, (list, tuple)):
+            return []
+    except Exception:
+        return []
+
+    settings: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for header in headers:
+        name = getattr(header, "name", None)
+        description = getattr(header, "desc", None) or ""
+        unit = getattr(header, "unit", None) or ""
+        if not isinstance(name, str) or not name.startswith("dc") or name in seen:
+            continue
+        description = str(description).strip()
+        # "dc" is the SDK driver-control namespace. Exclude momentary commands;
+        # retain adjustments and persistent on/off selections.
+        searchable = description.lower()
+        if not searchable.startswith("in car ") or "trigger" in searchable or "momentarily" in searchable:
+            continue
+        value = _read(sdk, name)
+        if isinstance(value, bool):
+            normalized: Any = value
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            normalized = _number(value)
+        else:
+            continue
+        if normalized is None:
+            continue
+        settings.append({
+            "name": name,
+            "description": description or name,
+            "unit": str(unit).strip(),
+            "value": normalized,
+            "value_type": "boolean" if isinstance(normalized, bool) else "number",
+        })
+        seen.add(name)
+    return settings
+
+
 def _discover_damage_telemetry(sdk: Any) -> list[dict[str, Any]]:
     """Read damage-related variables from this session's live SDK schema."""
     try:
@@ -616,6 +665,7 @@ class IRacingTelemetryReader:
             "engine_warning_flags": engine_warnings,
             "engine_warning_text": _engine_warning_text(engine_warnings),
             "damage_telemetry": _discover_damage_telemetry(sdk),
+            "in_car_settings": _discover_in_car_settings(sdk),
             "mandatory_repair_left_s": _number(_read(sdk, "PitRepairLeft")),
             "optional_repair_left_s": _number(_read(sdk, "PitOptRepairLeft")),
             "tow_time_left_s": _number(_read(sdk, "PlayerCarTowTime")),
