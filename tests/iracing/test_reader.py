@@ -29,7 +29,7 @@ class FakeSDK:
             "CarIdxPosition": [7, 6, 8], "CarIdxF2Time": [13.0, 12.0, 14.0],
             "IsOnTrack": True, "IsInGarage": False, "IsReplayPlaying": False,
             "SessionFlags": 8, "PlayerCarMyIncidentCount": 2,
-            "LFcoldPressure": 200.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
+            "LFcoldPressure": 200.0, "LFpressure": 163.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
             "PitSvFuel": 15.0, "PitSvLFP": 200.0, "PitSvRFP": 201.0, "PitSvLRP": 202.0, "PitSvRRP": 203.0,
             "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
             "LFtempCL": 70.0, "LFtempCM": 75.0,
@@ -65,8 +65,8 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["vehicle"]["track"], "Okayama")
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
         self.assertEqual(snapshot["static_metadata"]["data"]["max_fuel"], 40.0)
-        self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
-        self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_kpa"], 200.0)
+        self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 23.634, places=3)
+        self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_kpa"], 163.0)
         self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_wear_pct"], 75.0)
         self.assertEqual(snapshot["physics"]["data"]["oil_temp_c"], 100.0)
         self.assertEqual(snapshot["graphics"]["data"]["gap_ahead_ms"], 1000)
@@ -189,7 +189,8 @@ class IRacingReaderTests(unittest.TestCase):
         snapshot = reader._build_snapshot(sdk)
         physics = snapshot["physics"]["data"]
         graphics = snapshot["graphics"]["data"]
-        self.assertAlmostEqual(physics["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
+        self.assertIsNone(physics["wheels"]["FL"]["tyre_pressure_psi"])
+        self.assertIsNone(physics["wheels"]["FL"]["tyre_pressure_kpa"])
         self.assertIsNone(physics["wheels"]["FL"]["brake_temp_c"])
         self.assertIsNone(graphics["is_valid_lap"])
         self.assertIsNone(graphics["player_world_position"])
