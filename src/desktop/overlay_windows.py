@@ -5,7 +5,7 @@ from PySide6.QtCore import QObject, QSettings, Qt, QUrl
 from PySide6.QtGui import QColor
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QToolButton
 
 
 SUPPORTED_TILES = {
@@ -76,7 +76,20 @@ class TileOverlayWindow(QMainWindow):
         self._page.setBackgroundColor(QColor(0, 0, 0, 0))
         self._view.setPage(self._page)
         self.setCentralWidget(self._view)
-        self.setMinimumSize(320, 170)
+        self.close_button = QToolButton(self)
+        self.close_button.setText("×")
+        self.close_button.setToolTip("Close this overlay")
+        self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_button.setFixedSize(28, 28)
+        self.close_button.setStyleSheet(
+            "QToolButton { background: rgba(18, 22, 30, 220); color: white; "
+            "border: 1px solid rgba(255,255,255,90); border-radius: 14px; "
+            "font-size: 20px; font-weight: 600; }"
+            "QToolButton:hover { background: #d94350; border-color: #ff7882; }"
+        )
+        self.close_button.clicked.connect(self.close)
+        self.close_button.raise_()
+        self.setMinimumSize(220, 130)
         saved = settings.value(f"geometry/{tile_id}")
         if saved and self.restoreGeometry(saved):
             pass
@@ -131,6 +144,8 @@ class TileOverlayWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.close_button.move(self.width() - self.close_button.width() - 7, 7)
+        self.close_button.raise_()
         self._save_geometry()
 
     def _save_geometry(self):
