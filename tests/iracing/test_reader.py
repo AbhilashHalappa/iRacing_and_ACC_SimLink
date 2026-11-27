@@ -77,6 +77,28 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
+    def test_fuel_per_lap_uses_running_pairwise_average(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+
+        # Establish the starting fuel/lap anchor without publishing an estimate.
+        reader._build_snapshot(sdk)
+        self.assertIsNone(reader._fuel_per_lap)
+
+        # First completed lap consumed 4.0 L.
+        sdk.values["LapCompleted"] = 5
+        sdk.values["FuelLevel"] = 38.5
+        first = reader._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(first["fuel_per_lap_l"], 4.0)
+        self.assertAlmostEqual(first["fuel_estimated_laps"], 38.5 / 4.0)
+
+        # Next lap consumed 5.0 L: average previous 4.0 and latest 5.0.
+        sdk.values["LapCompleted"] = 6
+        sdk.values["FuelLevel"] = 33.5
+        second = reader._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(second["fuel_per_lap_l"], 4.5)
+        self.assertAlmostEqual(second["fuel_estimated_laps"], 33.5 / 4.5)
+
     def test_normalizes_fractional_iracing_tyre_wear_to_percent(self):
         sdk = FakeSDK()
         for variable in ("LFwearL", "LFwearM", "LFwearR"):
