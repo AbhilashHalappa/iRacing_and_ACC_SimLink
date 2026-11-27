@@ -152,7 +152,18 @@ class TelemetryBridge:
                 self.wfile.write(body)
 
         self._closed = False
-        self._server = ThreadingHTTPServer((host, port), Handler)
+        class BridgeHTTPServer(ThreadingHTTPServer):
+            def handle_error(self, request, client_address):
+                # A browser/WebEngine request can be cancelled while the local
+                # server is writing its response. These disconnects are normal
+                # during navigation and shutdown, not application failures.
+                import sys
+                error = sys.exc_info()[1]
+                if isinstance(error, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+                    return
+                super().handle_error(request, client_address)
+
+        self._server = BridgeHTTPServer((host, port), Handler)
         self._server.daemon_threads = True
         self._thread = threading.Thread(target=self._server.serve_forever, name="ACC-Local-Bridge", daemon=True)
 
