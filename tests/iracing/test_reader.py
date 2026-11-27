@@ -77,6 +77,24 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
 
+    def test_race_gaps_ignore_inactive_car_positions(self):
+        sdk = FakeSDK()
+        sdk.values["CarIdxPosition"] = [7, 6, 8, 0]
+        sdk.values["CarIdxF2Time"] = [13.0, 12.0, 14.0, 0.0]
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["gap_ahead_ms"], 1000)
+        self.assertEqual(graphics["gap_behind_ms"], 1000)
+
+    def test_race_gaps_remain_unavailable_without_player_race_position(self):
+        sdk = FakeSDK()
+        sdk.values["CarIdxPosition"] = [0, 6, 8]
+        sdk.values["CarIdxF2Time"] = [13.0, 12.0, 14.0]
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertIsNone(graphics["gap_ahead_ms"])
+        self.assertIsNone(graphics["gap_behind_ms"])
+
     def test_maps_native_iracing_weather_fields_and_units(self):
         sdk = FakeSDK()
         graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
