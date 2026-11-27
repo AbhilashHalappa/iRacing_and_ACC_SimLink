@@ -348,8 +348,10 @@ class IRacingTelemetryReader:
         position = _integer(_read(sdk, "PlayerCarPosition"))
         class_position = _integer(_read(sdk, "PlayerCarClassPosition"))
         class_id = _integer(_read(sdk, "PlayerCarClass"))
-        # CarIdxF2Time is the time to the car ahead/behind in the F2 relative
-        # display. Pair it with CarIdxPosition so gaps are assigned by race order.
+        # CarIdxF2Time is each car's time behind the race leader (seconds).
+        # Differences between cars give the interval; CarIdxPosition identifies
+        # which side of the player each car occupies. Position 0 is unclassified
+        # / inactive and must not be treated as a real race position.
         car_positions = _read(sdk, "CarIdxPosition", [])
         car_f2_times = _read(sdk, "CarIdxF2Time", [])
         gap_ahead_ms = gap_behind_ms = None
@@ -357,13 +359,13 @@ class IRacingTelemetryReader:
             if player_idx < len(car_positions) and player_idx < len(car_f2_times):
                 player_position = _integer(car_positions[player_idx])
                 player_gap = _number(car_f2_times[player_idx])
-                if player_position is not None and player_gap is not None:
+                if player_position is not None and player_position > 0 and player_gap is not None:
                     ahead_gaps = []
                     behind_gaps = []
                     for idx, other_position_raw in enumerate(car_positions):
                         other_position = _integer(other_position_raw)
                         other_gap = _number(car_f2_times[idx]) if idx < len(car_f2_times) else None
-                        if other_position is None or other_gap is None or idx == player_idx:
+                        if other_position is None or other_position <= 0 or other_gap is None or idx == player_idx:
                             continue
                         if other_position < player_position:
                             ahead_gaps.append(player_gap - other_gap)
