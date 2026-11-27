@@ -65,8 +65,8 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["vehicle"]["track"], "Okayama")
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
         self.assertEqual(snapshot["static_metadata"]["data"]["max_fuel"], 40.0)
-        self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 23.634, places=3)
-        self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_kpa"], 163.0)
+        self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
+        self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_kpa"], 200.0)
         self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_wear_pct"], 75.0)
         self.assertEqual(snapshot["physics"]["data"]["oil_temp_c"], 100.0)
         self.assertEqual(snapshot["graphics"]["data"]["gap_ahead_ms"], 1000)
@@ -189,8 +189,8 @@ class IRacingReaderTests(unittest.TestCase):
         snapshot = reader._build_snapshot(sdk)
         physics = snapshot["physics"]["data"]
         graphics = snapshot["graphics"]["data"]
-        self.assertIsNone(physics["wheels"]["FL"]["tyre_pressure_psi"])
-        self.assertIsNone(physics["wheels"]["FL"]["tyre_pressure_kpa"])
+        self.assertAlmostEqual(physics["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
+        self.assertEqual(physics["wheels"]["FL"]["tyre_pressure_kpa"], 200.0)
         self.assertIsNone(physics["wheels"]["FL"]["brake_temp_c"])
         self.assertIsNone(graphics["is_valid_lap"])
         self.assertIsNone(graphics["player_world_position"])
