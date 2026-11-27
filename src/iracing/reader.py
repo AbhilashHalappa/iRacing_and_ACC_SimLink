@@ -80,6 +80,74 @@ def _nested(mapping: Any, *keys: str) -> Any:
     return value
 
 
+def _discover_damage_telemetry(sdk: Any) -> list[dict[str, Any]]:
+    """Read damage-related variables from this session's live SDK schema."""
+    try:
+        headers = getattr(sdk, "_var_headers", None)
+        if callable(headers):
+            headers = headers()
+        if not isinstance(headers, (list, tuple)):
+            return []
+    except Exception:
+        return []
+
+    matches: list[dict[str, Any]] = []
+    terms = ("damage", "deform", "bent", "broken", "puncture", "punctured", "detached", "cracked")
+    for header in headers:
+        name = getattr(header, "name", None)
+        description = getattr(header, "desc", None) or ""
+        unit = getattr(header, "unit", None) or ""
+        if not isinstance(name, str) or not name:
+            continue
+        searchable = f"{name} {description}".lower()
+        if not any(term in searchable for term in terms):
+            continue
+        value = _read(sdk, name)
+        if isinstance(value, bool):
+            normalized: Any = value
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            normalized = _number(value)
+        elif isinstance(value, (list, tuple)):
+            normalized = [
+                (bool(item) if isinstance(item, bool) else _number(item))
+                for item in value
+            ]
+        else:
+            continue
+        if normalized is None or (isinstance(normalized, list) and not any(v is not None for v in normalized)):
+            continue
+        matches.append({
+            "name": name,
+            "description": str(description).strip() or name,
+            "unit": str(unit).strip(),
+            "value": normalized,
+        })
+    return matches
+
+
+def _engine_warning_text(flags: int | None) -> list[str]:
+    """Decode documented iRacing EngineWarnings bits; retain unknown bits."""
+    if flags is None:
+        return []
+    known = (
+        (0x0001, "Water temperature warning"),
+        (0x0002, "Fuel pressure warning"),
+        (0x0004, "Oil pressure warning"),
+        (0x0008, "Engine stalled"),
+        (0x0010, "Pit speed limiter active"),
+        (0x0020, "Rev limiter active"),
+        (0x0040, "Oil temperature warning"),
+        (0x0080, "Mandatory repair required"),
+        (0x0100, "Optional repair required"),
+    )
+    active = [label for bit, label in known if flags & bit]
+    known_mask = sum(bit for bit, _ in known)
+    unknown = flags & ~known_mask
+    if unknown:
+        active.append(f"Unmapped warning flags (0x{unknown:04X})")
+    return active
+
+
 class IRacingTelemetryReader:
     """Reconnectable pyirsdk reader exposing the Overview bridge payload."""
 
@@ -487,6 +555,8 @@ class IRacingTelemetryReader:
             # iRacing exposes repair/tow state and an engine-warning bitfield,
             # but no live body-panel or per-corner suspension damage values.
             "engine_warning_flags": engine_warnings,
+            "engine_warning_text": _engine_warning_text(engine_warnings),
+            "damage_telemetry": _discover_damage_telemetry(sdk),
             "mandatory_repair_left_s": _number(_read(sdk, "PitRepairLeft")),
             "optional_repair_left_s": _number(_read(sdk, "PitOptRepairLeft")),
             "tow_time_left_s": _number(_read(sdk, "PlayerCarTowTime")),
