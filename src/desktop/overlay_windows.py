@@ -145,10 +145,44 @@ class OverlayWindowManager:
         self.parent = parent
         self.settings = QSettings("SimLink", "SimLink Overlays")
         self.windows: dict[str, TileOverlayWindow] = {}
+        from PySide6.QtWidgets import QApplication
+        self._app = QApplication.instance()
+        if self._app is not None:
+            self._app.installEventFilter(self)
+
         self.enabled_tiles = [
             tile for tile in self.settings.value("enabled_tiles", [], type=list)
             if tile in SUPPORTED_TILES
         ]
+
+    def eventFilter(self, watched, event):
+        # QWebEngine routes pointer events through internal render widgets, so
+        # overriding QWebEngineView mouse handlers alone is not reliable.
+        # Filter events at the application level and handle only events whose
+        # top-level window is one of our tile overlays.
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QWidget
+
+        if not isinstance(watched, QWidget):
+            return False
+        window = watched.window()
+        if not isinstance(window, TileOverlayWindow):
+            return False
+
+        event_type = event.type()
+        if event_type == QEvent.Type.MouseButtonPress:
+            if window._begin_gesture(event):
+                event.accept()
+                return True
+        elif event_type == QEvent.Type.MouseMove:
+            if window._move_gesture(event):
+                event.accept()
+                return True
+        elif event_type == QEvent.Type.MouseButtonRelease:
+            if window._end_gesture(event):
+                event.accept()
+                return True
+        return False
 
     def apply(self, tile_ids: list[str]) -> None:
         clean = list(dict.fromkeys(tile for tile in tile_ids if tile in SUPPORTED_TILES))
@@ -159,8 +193,10 @@ class OverlayWindowManager:
                 window.deleteLater()
         for tile_id in clean:
             if tile_id not in self.windows:
+                # Keep overlays as independent top-level windows. Parenting them
+                # to the main window makes Windows minimize them with their owner.
                 window = TileOverlayWindow(
-                    tile_id, self.profile, self.bridge_url, self.settings, self.parent
+                    tile_id, self.profile, self.bridge_url, self.settings, None
                 )
                 self.windows[tile_id] = window
                 window.show()
@@ -171,6 +207,8 @@ class OverlayWindowManager:
         self.settings.setValue("enabled_tiles", clean)
 
     def close_all(self) -> None:
+        if self._app is not None:
+            self._app.removeEventFilter(self)
         for window in self.windows.values():
             window.close()
             window.deleteLater()
