@@ -147,6 +147,29 @@ def _discover_damage_telemetry(sdk: Any) -> list[dict[str, Any]]:
     return matches
 
 
+def _iracing_flag_state(flags: int | None) -> tuple[str | None, str | None]:
+    """Return the active player flag and its display colour from SessionFlags."""
+    if flags is None:
+        return None, None
+    # Individual black/disqualification flags take precedence over session-wide flags.
+    states = (
+        (0x00020000, "Disqualified", "black"),
+        (0x00010000, "Black Flag", "black"),
+        (0x00000001, "Chequered Flag", "checkered"),
+        (0x00000010, "Red Flag", "red"),
+        (0x00000008 | 0x00000100 | 0x00004000 | 0x00008000, "Yellow Flag", "yellow"),
+        (0x00000020, "Blue Flag", "blue"),
+        (0x00000002, "White Flag", "white"),
+        (0x00000004, "Green Flag", "green"),
+        (0x00000040, "Debris Flag", "orange"),
+        (0x00000080, "Crossed Flag", "white"),
+    )
+    for bit, name, colour in states:
+        if flags & bit:
+            return name, colour
+    return "No Flag", "unknown"
+
+
 def _engine_warning_text(flags: int | None) -> list[str]:
     """Decode documented iRacing EngineWarnings bits; retain unknown bits."""
     if flags is None:
@@ -609,6 +632,7 @@ class IRacingTelemetryReader:
             next((value for bit, value in flag_map if session_flags & bit), 0)
             if session_flags is not None else None
         )
+        iracing_flag_name, iracing_flag_color = _iracing_flag_state(session_flags)
         # Overview status is not the iRacing SessionState enum. Track surface
         # values: -1 not in world, 0 off track, 1 pit stall/pit road, 2 approaching
         # pits, 3 on track. OnPitRoad remains the authoritative pit-lane signal.
@@ -686,11 +710,12 @@ class IRacingTelemetryReader:
             "track_grip_status": None, "track_wetness": track_wetness, "precipitation_pct": precipitation_pct, "skies": skies,
             "rain_intensity": None, "rain_10min": None, "rain_30min": None,
             "wind_speed": wind_mps * 3.6 if wind_mps is not None else None, "wind_direction": wind_direction,
-            "flag": mapped_flag, "track_status": track_status, "session_flags": session_flags,
+            "flag": mapped_flag, "iracing_flag_name": iracing_flag_name, "iracing_flag_color": iracing_flag_color, "track_status": track_status, "session_flags": session_flags,
             # SessionFlags does not identify individual sector yellows.
             "global_yellow_1": None, "global_yellow_2": None, "global_yellow_3": None,
             "global_yellow": bool(session_flags & (0x00000008 | 0x00000100 | 0x00004000 | 0x00008000)) if session_flags is not None else None,
             "global_green": bool(session_flags & 0x00000004) if session_flags is not None else None,
+            "global_blue": bool(session_flags & 0x00000020) if session_flags is not None else None,
             "global_chequered": bool(session_flags & 0x00000001) if session_flags is not None else None,
             "global_red": bool(session_flags & 0x00000010) if session_flags is not None else None,
             "penalty": None, "penalty_time_s": None, "incident_count": incidents, "team_incident_count": team_incidents, "driver_incident_count": driver_incidents, "missing_mandatory_pits": None,
