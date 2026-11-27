@@ -25,6 +25,20 @@ def _integer(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _session_number(value: Any) -> float | None:
+    """Parse numeric YAML values that may include a trailing unit label."""
+    number = _number(value)
+    if number is not None:
+        return number
+    if isinstance(value, str):
+        try:
+            result = float(value.strip().split()[0])
+            return result if math.isfinite(result) else None
+        except (ValueError, IndexError):
+            return None
+    return None
+
+
 def _time_ms(value: Any) -> int | None:
     number = _number(value)
     if number is None or number <= 0:
@@ -294,7 +308,7 @@ class IRacingTelemetryReader:
         # Fall back to the session weather direction when the live channel
         # is unavailable. Keep this after initializing wind_direction.
         if wind_direction is None:
-            wind_direction = _number(_nested(session_info, "TrackWindDir"))
+            wind_direction = _session_number(_nested(session_info, "TrackWindDir"))
         oil_temp = _number(_read(sdk, "OilTemp"))
         oil_pressure = _number(_read(sdk, "OilPress"))
         fuel_pressure = _number(_read(sdk, "FuelPress"))
