@@ -371,6 +371,17 @@ class IRacingTelemetryReader:
             temps = [_number(_read(sdk, f"{prefix}temp{part}")) for part in ("CL", "CM", "CR")]
             valid_temps = [value for value in temps if value is not None]
             average_temp = sum(valid_temps) / len(valid_temps) if valid_temps else None
+            wear_values = [
+                _number(_read(sdk, f"{prefix}wear{side}"))
+                for side in ("L", "M", "R")
+            ]
+            valid_wear = [value for value in wear_values if value is not None]
+            average_wear = sum(valid_wear) / len(valid_wear) if valid_wear else None
+            # iRacing normally reports tread remaining as a 0.0–1.0
+            # fraction (1.0 = 100%). Some SDK/car combinations expose
+            # percentage-point values instead; preserve those as-is.
+            if average_wear is not None and 0.0 <= average_wear <= 1.0:
+                average_wear *= 100.0
             wheel_data[corner] = {
                 "tyre_core_temp_c": average_temp,
                 "tyre_temp_c": average_temp,
@@ -383,18 +394,7 @@ class IRacingTelemetryReader:
                 "slip_angle": None,
                 "brake_temp_c": None,
                 "brake_pressure": _number(_read(sdk, f"{prefix}brakeLinePress")),
-                "tyre_wear_pct": (
-                    sum(v for v in (
-                        _number(_read(sdk, f"{prefix}wearL")),
-                        _number(_read(sdk, f"{prefix}wearM")),
-                        _number(_read(sdk, f"{prefix}wearR")),
-                    ) if v is not None) / len([v for v in (
-                        _number(_read(sdk, f"{prefix}wearL")),
-                        _number(_read(sdk, f"{prefix}wearM")),
-                        _number(_read(sdk, f"{prefix}wearR")),
-                    ) if v is not None])
-                    if any(_number(_read(sdk, f"{prefix}wear{side}")) is not None for side in ("L", "M", "R")) else None
-                ),
+                "tyre_wear_pct": average_wear,
                 "suspension_damage": None,
                 "pad_life": None,
                 "disc_life": None,
