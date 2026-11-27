@@ -257,6 +257,11 @@ class IRacingTelemetryReader:
         )
         remain_s = None if unlimited_time_sentinel else remain_s_raw
         session_info = _read(sdk, "WeekendInfo", {})
+        # WindDir is the live start/finish-line direction. If iRacing does
+        # not publish it in a telemetry frame, fall back to the session
+        # weather value rather than leaving the Overview field blank.
+        if wind_direction is None:
+            wind_direction = _number(_nested(session_info, "TrackWindDir"))
         driver_info = _read(sdk, "DriverInfo", {})
         session_data = _read(sdk, "SessionInfo", {})
         track = _nested(session_info, "TrackName")
