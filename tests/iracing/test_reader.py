@@ -42,6 +42,9 @@ class FakeSDK:
             "EngineWarnings": 5, "PitRepairLeft": 125.0, "PitOptRepairLeft": 45.0,
             "PlayerCarTowTime": 0.0, "FastRepairAvailable": 1, "FastRepairUsed": 0,
             "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
+            "dcBrakeBias": 51.04, "dcBrakeBiasFine": 0.0, "dcThrottleShape": 3,
+            "dcDashPage": 2, "dcTractionControl": 7, "dcTractionControl2": 4,
+            "dcTractionControl3": 2, "dcABS": 8,
             "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
         }
@@ -75,6 +78,14 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertIsNone(snapshot["graphics"]["lap_status"])
         self.assertEqual(snapshot["vehicle"]["track"], "Okayama")
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
+        self.assertEqual(snapshot["physics"]["data"]["brake_bias"], 51.04)
+        self.assertEqual(snapshot["physics"]["data"]["brake_bias_fine"], 0.0)
+        self.assertEqual(snapshot["physics"]["data"]["throttle_shape"], 3)
+        self.assertEqual(snapshot["graphics"]["data"]["display_page"], 2)
+        self.assertEqual(snapshot["graphics"]["data"]["tc_level"], 7)
+        self.assertEqual(snapshot["graphics"]["data"]["tc_level_2"], 4)
+        self.assertEqual(snapshot["graphics"]["data"]["tc_level_3"], 2)
+        self.assertEqual(snapshot["graphics"]["data"]["abs_level"], 8)
         self.assertEqual(snapshot["static_metadata"]["data"]["max_fuel"], 40.0)
         self.assertAlmostEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_psi"], 29.0075, places=3)
         self.assertEqual(snapshot["physics"]["data"]["wheels"]["FL"]["tyre_pressure_kpa"], 200.0)
