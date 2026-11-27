@@ -44,6 +44,7 @@ class FakeSDK:
             "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
         }
+        self._var_headers = [FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "l")]
 
     def __getitem__(self, key):
         return self.values.get(key)
@@ -83,8 +84,27 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["flag"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["incident_count"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
+        self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add_unit"], "L")
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
+
+    def test_mfd_fuel_unit_comes_from_live_sdk_metadata(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+
+        sdk._var_headers = [FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "kWh")]
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["mfd_fuel_to_add"], 15.0)
+        self.assertEqual(graphics["mfd_fuel_to_add_unit"], "kWh")
+
+        sdk._var_headers = [FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "")]
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["mfd_fuel_to_add"], 15.0)
+        self.assertIsNone(graphics["mfd_fuel_to_add_unit"])
+
+        sdk._var_headers = []
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertIsNone(graphics["mfd_fuel_to_add_unit"])
 
     def test_race_gaps_ignore_inactive_car_positions(self):
         sdk = FakeSDK()
