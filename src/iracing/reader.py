@@ -634,7 +634,7 @@ class IRacingTelemetryReader:
             "tyre_compound": _read(sdk, "PlayerTireCompound"),
             "fuel_per_lap_l": self._fuel_per_lap, "fuel_estimated_laps": estimated_laps, "used_fuel_l": used_fuel,
             "mfd_fuel_to_add": _number(_read(sdk, "PitSvFuel")),
-            "mfd_fuel_to_add_unit": _variable_unit(sdk, "PitSvFuel"),
+            "mfd_fuel_to_add_unit": "L",  # iRacing PitSvFuel is reported in litres for this MFD field.
             "mfd_tyre_change": mfd_tyre_change,
             "mfd_tyre_compound": mfd_tyre_compound,
             "mfd_tyre_pressures": [
