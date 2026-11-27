@@ -821,3 +821,60 @@ body:has(.overlay-shell),
   .overlay-dashboard-tile .lap-metrics span,
   .overlay-dashboard-tile .lap-metrics small { font-size: 8px; }
 }
+
+/* Compact data cards must release their Overview minimum heights inside overlays. */
+.overlay-dashboard-tile .balanced-field,
+.overlay-dashboard-tile .electronics-primary-box,
+.overlay-dashboard-tile .lap-metrics > div,
+.overlay-dashboard-tile .corner-grid > div,
+.overlay-dashboard-tile .race-control-grid .message-field {
+  min-height: 0;
+}
+.overlay-dashboard-tile .tile-stale-banner {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+  padding: clamp(3px, 1cqw, 7px);
+  font-size: clamp(7px, 2cqw, 10px);
+}
+.overlay-dashboard-tile .tile-stale-banner span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container overlay-tile (max-width: 340px) {
+  .overlay-dashboard-tile .balanced-field,
+  .overlay-dashboard-tile .electronics-primary-box {
+    gap: 2px;
+    padding: 3px;
+    border-radius: 5px;
+  }
+  .overlay-dashboard-tile .balanced-field b,
+  .overlay-dashboard-tile .electronics-primary-box b {
+    font-size: clamp(9px, 3cqw, 13px);
+  }
+  .overlay-dashboard-tile .balanced-field span,
+  .overlay-dashboard-tile .electronics-primary-box span,
+  .overlay-dashboard-tile .damage-corner-group h4,
+  .overlay-dashboard-tile .pressure-target-layout > p {
+    font-size: clamp(7px, 2.2cqw, 9px);
+  }
+  .overlay-dashboard-tile .corner-grid > div,
+  .overlay-dashboard-tile .lap-metrics > div {
+    padding: 3px;
+  }
+}
+@container overlay-tile (max-height: 210px) {
+  .overlay-dashboard-tile .balanced-field,
+  .overlay-dashboard-tile .electronics-primary-box {
+    gap: 2px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .overlay-dashboard-tile .damage-corner-group {
+    padding-top: 2px;
+  }
+  .overlay-dashboard-tile .damage-layout {
+    gap: 3px;
+  }
+}
