@@ -19,6 +19,7 @@ from .stream_health import build_stream_freshness
 
 class ACCDesktopWindow(QMainWindow):
     overlays_requested = Signal(list)
+    overlay_theme_requested = Signal(str)
 
     def __init__(self, *, app: QApplication, static_root: Path | None = None) -> None:
         super().__init__()
@@ -78,11 +79,17 @@ class ACCDesktopWindow(QMainWindow):
             profile=self._web_profile,
             bridge_url=self._bridge_url,
             parent=self,
+            on_selection_changed=self._bridge.set_overlay_ids,
         )
         self._bridge.set_overlay_ids(self._overlay_manager.enabled_tiles)
         self._bridge.set_overlay_handler(self.overlays_requested.emit)
+        self._bridge.set_theme_handler(self.overlay_theme_requested.emit)
         self.overlays_requested.connect(
             self._overlay_manager.apply,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self.overlay_theme_requested.connect(
+            self._overlay_manager.set_theme,
             Qt.ConnectionType.QueuedConnection,
         )
         self._overlay_manager.apply(self._overlay_manager.enabled_tiles)
