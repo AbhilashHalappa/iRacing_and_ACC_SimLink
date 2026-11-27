@@ -107,14 +107,14 @@ class IRacingReaderTests(unittest.TestCase):
         # First completed lap consumed 4.0 L.
         sdk.values["LapCompleted"] = 5
         sdk.values["FuelLevel"] = 38.5
-        first = reader._build_snapshot(sdk)["physics"]["data"]
+        first = reader._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(first["fuel_per_lap_l"], 4.0)
         self.assertAlmostEqual(first["fuel_estimated_laps"], 38.5 / 4.0)
 
         # Next lap consumed 5.0 L: average previous 4.0 and latest 5.0.
         sdk.values["LapCompleted"] = 6
         sdk.values["FuelLevel"] = 33.5
-        second = reader._build_snapshot(sdk)["physics"]["data"]
+        second = reader._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(second["fuel_per_lap_l"], 4.5)
         self.assertAlmostEqual(second["fuel_estimated_laps"], 33.5 / 4.5)
 
