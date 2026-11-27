@@ -348,6 +348,7 @@ button { cursor: pointer; }
 .race-control-grid .flag-red{--flag-glow:#ed4545}
 .race-control-grid .flag-black{--flag-glow:#777b84}
 .race-control-grid .flag-black-orange{--flag-glow:#f28a32}
+.race-control-grid .flag-orange{--flag-glow:#f28a32}
 .race-control-grid .flag-checkered{--flag-glow:#f1f3f5}
 .race-control-grid .race-flag-field[class*="flag-"]:not(.flag-unknown){border-color:var(--flag-glow);box-shadow:0 0 12px color-mix(in srgb,var(--flag-glow) 62%,transparent)}
 .race-control-grid .flag-unknown{box-shadow:none}
