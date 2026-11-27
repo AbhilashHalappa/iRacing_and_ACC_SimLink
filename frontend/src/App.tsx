@@ -645,7 +645,25 @@ function App() {
     tracker.lastTimeMs=lastTimeMs;
   },[telemetry?.graphics?.data?.completed_laps,telemetry?.graphics?.data?.sector,telemetry?.graphics?.data?.split_time_str,telemetry?.graphics?.data?.last_time_ms,telemetry?.graphics?.data?.last_lap_sector_times_ms,telemetry?.graphics?.data?.last_sector_time_ms,telemetry?.graphics?.data?.sector_count,telemetry?.graphics?.data?.sector_boundaries_pct,telemetry?.graphics?.data?.is_valid_lap,telemetry?.vehicle?.track,telemetry?.vehicle?.track_configuration,telemetry?.vehicle?.car_model,telemetry?.graphics?.data?.session_index,telemetry?.graphics?.data?.session,telemetry?.graphics?.lap_status]);
 
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    try {
+      return window.localStorage.getItem("simlink-theme") === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("simlink-theme", theme); } catch {}
+  }, [theme]);
+  useEffect(() => {
+    const syncTheme = (event: StorageEvent) => {
+      if (event.key === "simlink-theme" && (event.newValue === "dark" || event.newValue === "light")) {
+        setTheme(event.newValue);
+      }
+    };
+    window.addEventListener("storage", syncTheme);
+    return () => window.removeEventListener("storage", syncTheme);
+  }, []);
   const [active, setActive] = useState("Overview");
   const [tiles, setTiles] = useState<Tile[]>(loadLayout);
   const [overlayIds,setOverlayIds]=useState<TileId[]>([]);
