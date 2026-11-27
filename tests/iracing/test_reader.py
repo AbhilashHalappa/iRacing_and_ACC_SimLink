@@ -48,7 +48,15 @@ class FakeSDK:
             "LFtempCL": 70.0, "LFtempCM": 75.0,
             "LFtempCR": 80.0, "WaterTemp": 90.0,
         }
-        self._var_headers = [FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "l")]
+        self._var_headers = [
+            FakeVarHeader("PitSvFuel", "Pit service fuel add amount", "l"),
+            FakeVarHeader("dcBrakeBias", "In car brake bias adjustment", ""),
+            FakeVarHeader("dcTractionControl", "In car traction control adjustment", ""),
+            FakeVarHeader("dcThrottleShape", "In car throttle shape adjustment", ""),
+            FakeVarHeader("dcDashPage", "In car dash display page adjustment", ""),
+            FakeVarHeader("dcToggleWindshieldWipers", "In car turn wipers on or off", ""),
+            FakeVarHeader("dcDRSToggle", "In car DRS toggle trigger", ""),
+        ]
 
     def __getitem__(self, key):
         return self.values.get(key)
@@ -78,6 +86,13 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertIsNone(snapshot["graphics"]["lap_status"])
         self.assertEqual(snapshot["vehicle"]["track"], "Okayama")
         self.assertEqual(snapshot["vehicle"]["car_model"], "Formula Vee")
+        settings = snapshot["physics"]["data"]["in_car_settings"]
+        self.assertEqual([item["name"] for item in settings], [
+            "dcBrakeBias", "dcTractionControl", "dcThrottleShape",
+            "dcDashPage", "dcToggleWindshieldWipers",
+        ])
+        self.assertEqual(settings[0]["value"], 51.04)
+        self.assertEqual(settings[-1]["value_type"], "boolean")
         self.assertEqual(snapshot["physics"]["data"]["brake_bias"], 51.04)
         self.assertEqual(snapshot["physics"]["data"]["brake_bias_fine"], 0.0)
         self.assertEqual(snapshot["physics"]["data"]["throttle_shape"], 3)
