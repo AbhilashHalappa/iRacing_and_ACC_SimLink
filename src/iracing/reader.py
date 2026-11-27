@@ -385,13 +385,12 @@ class IRacingTelemetryReader:
             wheel_data[corner] = {
                 "tyre_core_temp_c": average_temp,
                 "tyre_temp_c": average_temp,
-                # Try the live tyre-pressure channel. Some SDK versions or
-                # sessions may not expose it; preserve None rather than falling
-                # back to cold setup pressure and presenting that as live data.
-                "tyre_pressure_kpa": _number(_read(sdk, f"{prefix}pressure")),
+                # iRacing live SDK exposes the cold setup pressure channel.
+                # Keep it explicitly labelled as cold setup pressure in the Overview.
+                "tyre_pressure_kpa": _number(_read(sdk, f"{prefix}coldPressure")),
                 "tyre_pressure_psi": (
-                    _number(_read(sdk, f"{prefix}pressure")) * 0.1450377377
-                    if _number(_read(sdk, f"{prefix}pressure")) is not None else None
+                    _number(_read(sdk, f"{prefix}coldPressure")) * 0.1450377377
+                    if _number(_read(sdk, f"{prefix}coldPressure")) is not None else None
                 ),
                 "slip_ratio": None,
                 "slip_angle": None,
