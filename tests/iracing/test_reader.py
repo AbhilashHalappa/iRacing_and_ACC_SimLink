@@ -26,7 +26,7 @@ class FakeSDK:
             "SteeringWheelAngle": 0.15, "AirTemp": 21.0, "TrackTempCrew": 28.0,
             "WindVel": 2.0, "WindDir": 1.0, "TrackWetness": 5, "Precipitation": 0.25, "Skies": 2, "OnPitRoad": False,
             "PlayerCarPosition": 7, "PlayerCarClassPosition": 2, "PlayerCarClass": 1,
-            "CarIdxPosition": [7, 6, 8], "CarIdxEstTime": [100.0, 107.2, 102.6],
+            "CarIdxPosition": [7, 6, 8], "CarIdxLap": [10, 10, 10], "CarIdxLapDistPct": [0.42, 0.45, 0.40], "CarIdxEstTime": [100.0, 107.2, 102.6],
             "IsOnTrack": True, "IsInGarage": False, "IsReplayPlaying": False,
             "SessionFlags": 8, "PlayerCarMyIncidentCount": 2,
             "LFcoldPressure": 200.0, "LFpressure": 163.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
@@ -80,6 +80,8 @@ class IRacingReaderTests(unittest.TestCase):
     def test_race_gaps_ignore_inactive_car_positions(self):
         sdk = FakeSDK()
         sdk.values["CarIdxPosition"] = [7, 6, 8, 0]
+        sdk.values["CarIdxLap"] = [10, 10, 10, None]
+        sdk.values["CarIdxLapDistPct"] = [0.42, 0.45, 0.40, None]
         sdk.values["CarIdxEstTime"] = [100.0, 107.2, 102.6, 0.0]
 
         graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
@@ -89,16 +91,32 @@ class IRacingReaderTests(unittest.TestCase):
     def test_race_leader_has_zero_gap_ahead(self):
         sdk = FakeSDK()
         sdk.values["CarIdxPosition"] = [1, 2, 3]
+        sdk.values["CarIdxLap"] = [10, 10, 10]
+        sdk.values["CarIdxLapDistPct"] = [0.90, 0.80, 0.70]
         sdk.values["CarIdxEstTime"] = [100.0, 101.0, 105.0]
 
         graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
         self.assertEqual(graphics["gap_ahead_ms"], 0)
         self.assertEqual(graphics["gap_behind_ms"], -1000)
 
-    def test_race_gaps_remain_unavailable_without_player_race_position(self):
+    def test_race_gaps_follow_live_track_order_during_overtake_before_position_updates(self):
         sdk = FakeSDK()
-        sdk.values["CarIdxPosition"] = [0, 6, 8]
-        sdk.values["CarIdxEstTime"] = [100.0, 107.2, 102.6]
+        # Classification still says player P7 and opponent P6, but live track
+        # progress shows that opponent has fallen behind after an overtake.
+        sdk.values["PlayerCarPosition"] = 7
+        sdk.values["CarIdxPosition"] = [7, 6, 8]
+        sdk.values["CarIdxLap"] = [10, 10, 10]
+        sdk.values["CarIdxLapDistPct"] = [0.50, 0.49, 0.53]
+        sdk.values["CarIdxEstTime"] = [100.0, 102.6, 107.2]
+
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertEqual(graphics["gap_ahead_ms"], 7200)
+        self.assertEqual(graphics["gap_behind_ms"], -2600)
+
+    def test_race_gaps_unavailable_without_live_track_progress(self):
+        sdk = FakeSDK()
+        sdk.values["CarIdxLap"] = None
+        sdk.values["CarIdxLapDistPct"] = None
 
         graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
         self.assertIsNone(graphics["gap_ahead_ms"])
