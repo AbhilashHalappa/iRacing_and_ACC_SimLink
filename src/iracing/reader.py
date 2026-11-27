@@ -385,7 +385,8 @@ class IRacingTelemetryReader:
             wheel_data[corner] = {
                 "tyre_core_temp_c": average_temp,
                 "tyre_temp_c": average_temp,
-                # iRacing exposes cold setup pressure (kPa), not live hot pressure.
+                # iRacing exposes cold setup pressure in kPa, not live hot pressure.
+                "tyre_pressure_kpa": _number(_read(sdk, f"{prefix}coldPressure")),
                 "tyre_pressure_psi": (
                     _number(_read(sdk, f"{prefix}coldPressure")) * 0.1450377377
                     if _number(_read(sdk, f"{prefix}coldPressure")) is not None else None
