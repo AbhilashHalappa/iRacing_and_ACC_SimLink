@@ -124,6 +124,19 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(graphics["iracing_flag_name"], "Black Flag")
         self.assertTrue(graphics["global_green"])
 
+    def test_iRacing_penalty_fields_remain_unknown_when_sdk_does_not_expose_them(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+
+        # LapDeltaToBestLap_OK is a delta-validity indicator, not lap validity.
+        # Incident counts and repair timers are not sporting penalty fields.
+        self.assertIsNone(graphics["is_valid_lap"])
+        self.assertIsNone(graphics["penalty"])
+        self.assertIsNone(graphics["penalty_time_s"])
+        self.assertIsNone(graphics["missing_mandatory_pits"])
+        self.assertIsNone(graphics["mandatory_pit_done"])
+
     def test_race_control_preserves_missing_session_flags_and_maps_track_surface(self):
         sdk = FakeSDK()
         reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
