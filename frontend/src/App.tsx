@@ -581,10 +581,7 @@ function App() {
       const initialLapTime=telemetry?.game==="iracing"&&typeof graphics.last_time_ms==="number"&&graphics.last_time_ms>0?graphics.last_time_ms:null;
       const initialOutLap=["out","out_lap","out-lap"].includes(String(telemetry?.graphics?.lap_status??graphics.lap_status??"").toLowerCase());
       if(telemetry?.game==="iracing"&&initialLapTime!==null&&!initialOutLap){
-        // last_time_ms is the latest completed lap. On initial attach, iRacing
-        // may still report completed_laps as 0 or unavailable; recover it as
-        // Lap 1 rather than suppressing the initial history entry.
-        const initialLapNumber=Math.max(1,completed??1);
+        const initialLapNumber=Math.max(1,completed??1,sessionHistory.length?sessionHistory[sessionHistory.length-1].lap+1:1);
         if(!sessionHistory.some(entry=>entry.lap===initialLapNumber)){
           const nativeSectors=Array.isArray(graphics.last_lap_sector_times_ms)?graphics.last_lap_sector_times_ms:[];
           const sectorsMs:(number|null)[]=Array.from({length:Math.max(sectorCount,nativeSectors.length)},(_,index)=>typeof nativeSectors[index]==="number"&&Number.isInteger(nativeSectors[index])&&nativeSectors[index]>0?nativeSectors[index]:null);
