@@ -38,6 +38,7 @@ class FakeSDK:
             "SessionFlags": 8, "PlayerCarMyIncidentCount": 2,
             "LFcoldPressure": 200.0, "LFpressure": 163.0, "LFwearL": 80.0, "LFwearM": 75.0, "LFwearR": 70.0,
             "PitSvFuel": 15.0, "PitSvLFP": 200.0, "PitSvRFP": 201.0, "PitSvLRP": 202.0, "PitSvRRP": 203.0,
+            "PitSvFlags": 0x0005, "PitSvTireCompound": 2, "PlayerCarInPitStall": True,
             "EngineWarnings": 5, "PitRepairLeft": 125.0, "PitOptRepairLeft": 45.0,
             "PlayerCarTowTime": 0.0, "FastRepairAvailable": 1, "FastRepairUsed": 0,
             "TireSetsUsed": 1, "FuelLevelPct": 0.5, "OilTemp": 100.0, "OilPress": 4.0,
@@ -85,8 +86,29 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(snapshot["graphics"]["data"]["incident_count"], 2)
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add"], 15.0)
         self.assertEqual(snapshot["graphics"]["data"]["mfd_fuel_to_add_unit"], "L")
+        self.assertTrue(snapshot["graphics"]["data"]["mfd_tyre_change"])
+        self.assertEqual(snapshot["graphics"]["data"]["mfd_tyre_compound"], 2)
+        self.assertTrue(snapshot["graphics"]["data"]["is_in_pit"])
+        self.assertFalse(snapshot["graphics"]["data"]["is_in_pit_lane"])
         self.assertEqual(snapshot["graphics"]["data"]["tyre_sets_used"], 1)
         self.assertEqual(snapshot["graphics"]["data"]["status"], 2)
+
+    def test_mfd_tyre_change_uses_any_of_four_pit_service_flags(self):
+        sdk = FakeSDK()
+        reader = IRacingTelemetryReader(sdk_factory=FakeSDK)
+
+        for flags in (0x0001, 0x0002, 0x0004, 0x0008, 0x000F):
+            sdk.values["PitSvFlags"] = flags
+            graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+            self.assertTrue(graphics["mfd_tyre_change"])
+
+        sdk.values["PitSvFlags"] = 0x0010  # Fuel only; no tyre change requested.
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertFalse(graphics["mfd_tyre_change"])
+
+        sdk.values["PitSvFlags"] = None
+        graphics = reader._build_snapshot(sdk)["graphics"]["data"]
+        self.assertIsNone(graphics["mfd_tyre_change"])
 
     def test_mfd_fuel_unit_comes_from_live_sdk_metadata(self):
         sdk = FakeSDK()
