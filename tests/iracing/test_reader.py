@@ -5,6 +5,13 @@ import unittest
 from iracing.reader import IRacingTelemetryReader
 
 
+class FakeVarHeader:
+    def __init__(self, name, desc, unit=""):
+        self.name = name
+        self.desc = desc
+        self.unit = unit
+
+
 class FakeSDK:
     def __init__(self):
         self.values = {
@@ -135,6 +142,36 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertEqual(physics["fast_repairs_used"], 0)
         self.assertIsNone(physics["car_damage"])
         self.assertIsNone(physics["wheels"]["FL"]["suspension_damage"])
+
+    def test_discovers_damage_fields_from_current_sdk_variable_metadata(self):
+        sdk = FakeSDK()
+        sdk._var_headers = [
+            FakeVarHeader("FrontBodyDamage", "Front body damage", "%"),
+            FakeVarHeader("LFWheelDamage", "Left-front wheel damage", "level"),
+            FakeVarHeader("OilTemp", "Oil temperature", "C"),
+        ]
+        sdk.values["FrontBodyDamage"] = 25.0
+        sdk.values["LFWheelDamage"] = [0, 1, 2]
+        physics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(
+            physics["damage_telemetry"],
+            [
+                {"name": "FrontBodyDamage", "description": "Front body damage", "unit": "%", "value": 25.0},
+                {"name": "LFWheelDamage", "description": "Left-front wheel damage", "unit": "level", "value": [0.0, 1.0, 2.0]},
+            ],
+        )
+
+    def test_engine_warning_flags_are_decoded_to_text_and_unknown_bits_preserved(self):
+        sdk = FakeSDK()
+        sdk.values["EngineWarnings"] = 0x0180
+        physics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(
+            physics["engine_warning_text"],
+            ["Mandatory repair required", "Optional repair required"],
+        )
+        sdk.values["EngineWarnings"] = 0x8000
+        physics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["physics"]["data"]
+        self.assertEqual(physics["engine_warning_text"], ["Unmapped warning flags (0x8000)"])
 
     def test_missing_iracing_damage_fields_remain_unavailable(self):
         sdk = FakeSDK()
