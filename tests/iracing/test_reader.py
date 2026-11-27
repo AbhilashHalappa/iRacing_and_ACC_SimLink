@@ -13,7 +13,7 @@ class FakeSDK:
             "LapDistPct": 0.42, "LapCurrentLapTime": 81.234,
             "LapLastLapTime": 80.5, "LapBestLapTime": 79.75,
             "LapDeltaToBestLap": 1.2, "SessionTimeRemain": 900.0,
-            "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full", "TrackRelativeHumidity": 0.99},
+            "WeekendInfo": {"TrackName": "Okayama", "TrackConfigName": "Full", "TrackRelativeHumidity": 0.99, "TrackWindDir": 0.240855},
             "DriverInfo": {"DriverCarFuelMaxLtr": 40.0, "Drivers": [{"CarIdx": 0, "CarScreenName": "Formula Vee"}]},
             "SessionInfo": {"Sessions": [{"SessionType": "Race"}]},
             "SplitTimeInfo": {"Sectors": [
@@ -88,6 +88,12 @@ class IRacingReaderTests(unittest.TestCase):
         self.assertAlmostEqual(graphics["wind_speed"], 7.2)
         self.assertEqual(graphics["rain_10min"], None)
         self.assertEqual(graphics["rain_30min"], None)
+
+    def test_wind_direction_falls_back_to_session_weather_when_live_value_missing(self):
+        sdk = FakeSDK()
+        sdk.values["WindDir"] = None
+        graphics = IRacingTelemetryReader(sdk_factory=FakeSDK)._build_snapshot(sdk)["graphics"]["data"]
+        self.assertAlmostEqual(graphics["wind_direction"], 0.240855)
 
     def test_missing_iracing_weather_fields_remain_unavailable(self):
         sdk = FakeSDK()
