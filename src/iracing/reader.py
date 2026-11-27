@@ -604,6 +604,9 @@ class IRacingTelemetryReader:
             "pitch_rad": _number(_read(sdk, "Pitch")), "roll_rad": _number(_read(sdk, "Roll")),
             "autoshifter_on": None, "turbo_boost": None, "manifold_pressure_bar": _number(_read(sdk, "ManifoldPress")),
             "brake_bias": _number(_read(sdk, "dcBrakeBias")),
+            "brake_bias_fine": _number(_read(sdk, "dcBrakeBiasFine")),
+            "throttle_shape": _number(_read(sdk, "dcThrottleShape")),
+            "display_page": _integer(_read(sdk, "dcDashPage")),
             "abs_active": abs_active, "engine_running": engine_running,
             "pit_limiter_on": pit_limiter, "ignition_on": None, "starter_engine_on": None,
             "is_ai_controlled": None, "engine_warnings": engine_warnings,
@@ -722,6 +725,8 @@ class IRacingTelemetryReader:
             "mandatory_pit_done": None, "mfd_tyre_set": None, "current_tyre_set": None, "strategy_tyre_set": None,
             "tyre_sets_used": _integer(_read(sdk, "TireSetsUsed")),
             "tc_level": _number(_read(sdk, "dcTractionControl")),
+            "tc_level_2": _number(_read(sdk, "dcTractionControl2")),
+            "tc_level_3": _number(_read(sdk, "dcTractionControl3")),
             "abs_level": _number(_read(sdk, "dcABS")), "tc_cut": None, "engine_map": None,
             "class_position": class_position,
         }
