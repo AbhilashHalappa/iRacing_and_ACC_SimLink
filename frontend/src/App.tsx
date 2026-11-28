@@ -560,6 +560,17 @@ function App() {
     const configuration=String(telemetry?.vehicle?.track_configuration??"");
     const sessionKey=[telemetry?.game??"acc",track,configuration,telemetry?.vehicle?.car_model??"unknown-car",graphics.session_index,graphics.session].join("|");
     const storageKey="acc-lap-history-v1:"+sessionKey;
+    // Overlay windows are read-only consumers of lap history. Only the main
+    // dashboard may capture completed laps and write the shared history key.
+    if(overlayTile){
+      const syncHistory=(event?:StorageEvent)=>{
+        if(event&&event.key!==storageKey&&event.key!==null)return;
+        setLapHistory(readLapHistory(storageKey));
+      };
+      syncHistory();
+      window.addEventListener("storage",syncHistory);
+      return ()=>window.removeEventListener("storage",syncHistory);
+    }
     const completed=typeof graphics.completed_laps==="number"?graphics.completed_laps:null;
     const sector=typeof graphics.sector==="number"&&Number.isInteger(graphics.sector)&&graphics.sector>=0?graphics.sector:null;
     const reportedCount=Number.isInteger(graphics.sector_count)&&graphics.sector_count>0?graphics.sector_count:null;
